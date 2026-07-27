@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+@import '@fontsource/vazirmatn/arabic-400.css';
+@import '@fontsource/vazirmatn/arabic-500.css';
+@import '@fontsource/vazirmatn/arabic-600.css';
+@import '@fontsource/vazirmatn/arabic-700.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -6,7 +10,7 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
@@ -19,7 +23,36 @@
 
 /** daisyUI */
 @plugin "daisyui" {
-    themes: light --default, dark --prefersdark;
+    themes: arshaman --default;
+}
+
+/**
+* رنگ‌های برند آرشامان — تنها نقطه تعریف رنگ در کل پروژه.
+* موقتی‌اند؛ وقتی برند نهایی رسید فقط همین بلوک عوض می‌شود.
+*/
+@plugin "daisyui/theme" {
+    name: 'arshaman';
+    default: true;
+    color-scheme: light;
+    --color-base-100: #FFFFFF;
+    --color-base-200: #F3F4F6;
+    --color-base-300: #E5E7EB;
+    --color-primary: #1976D2;
+    --color-primary-content: #FFFFFF;
+    --color-secondary: #455A64;
+    --color-secondary-content: #FFFFFF;
+    --color-accent: #FF6F00;
+    --color-accent-content: #FFFFFF;
+    --color-neutral: #2A2E37;
+    --color-neutral-content: #FFFFFF;
+    --color-info: #0288D1;
+    --color-info-content: #FFFFFF;
+    --color-success: #388E3C;
+    --color-success-content: #FFFFFF;
+    --color-warning: #F57C00;
+    --color-warning-content: #FFFFFF;
+    --color-error: #D32F2F;
+    --color-error-content: #FFFFFF;
 }
 
 /* maryUI */

@@ -18,13 +18,13 @@ new class extends Component {
     public function clear(): void
     {
         $this->reset();
-        $this->success('Filters cleared.', position: 'toast-bottom');
+        $this->success('فیلترها پاک شد.', position: 'toast-bottom');
     }
 
     // Delete action
     public function delete($id): void
     {
-        $this->warning("Will delete #$id", 'It is fake.', position: 'toast-bottom');
+        $this->warning("حذف می‌شود #$id", 'این فقط یک نمونه است.', position: 'toast-bottom');
     }
 
     // Table headers
@@ -32,9 +32,9 @@ new class extends Component {
     {
         return [
             ['key' => 'id', 'label' => '#', 'class' => 'w-1'],
-            ['key' => 'name', 'label' => 'Name', 'class' => 'w-64'],
-            ['key' => 'age', 'label' => 'Age', 'class' => 'w-20'],
-            ['key' => 'email', 'label' => 'E-mail', 'sortable' => false],
+            ['key' => 'name', 'label' => 'نام', 'class' => 'w-64'],
+            ['key' => 'age', 'label' => 'سن', 'class' => 'w-20'],
+            ['key' => 'email', 'label' => 'ایمیل', 'sortable' => false],
         ];
     }
 
@@ -68,12 +68,12 @@ new class extends Component {
 
 <div>
     <!-- HEADER -->
-    <x-header title="Hello" separator progress-indicator>
+    <x-header title="کاربران" separator progress-indicator>
         <x-slot:middle class="!justify-end">
-            <x-input placeholder="Search..." wire:model.live.debounce="search" clearable icon="o-magnifying-glass" />
+            <x-input placeholder="جستجو..." wire:model.live.debounce="search" clearable :icon="theme_icon('search')" />
         </x-slot:middle>
         <x-slot:actions>
-            <x-button label="Filters" @click="$wire.drawer = true" responsive icon="o-funnel" />
+            <x-button label="فیلترها" @click="$wire.drawer = true" responsive :icon="theme_icon('filter')" />
         </x-slot:actions>
     </x-header>
 
@@ -81,18 +81,18 @@ new class extends Component {
     <x-card shadow>
         <x-table :headers="$headers" :rows="$users" :sort-by="$sortBy">
             @scope('actions', $user)
-            <x-button icon="o-trash" wire:click="delete({{ $user['id'] }})" wire:confirm="Are you sure?" spinner class="btn-ghost btn-sm text-error" />
+            <x-button :icon="theme_icon('delete')" wire:click="delete({{ $user['id'] }})" wire:confirm="آیا مطمئن هستید؟" spinner class="btn-ghost btn-sm text-error" />
             @endscope
         </x-table>
     </x-card>
 
     <!-- FILTER DRAWER -->
-    <x-drawer wire:model="drawer" title="Filters" right separator with-close-button class="lg:w-1/3">
-        <x-input placeholder="Search..." wire:model.live.debounce="search" icon="o-magnifying-glass" @keydown.enter="$wire.drawer = false" />
+    <x-drawer wire:model="drawer" title="فیلترها" right separator with-close-button class="lg:w-1/3">
+        <x-input placeholder="جستجو..." wire:model.live.debounce="search" :icon="theme_icon('search')" @keydown.enter="$wire.drawer = false" />
 
         <x-slot:actions>
-            <x-button label="Reset" icon="o-x-mark" wire:click="clear" spinner />
-            <x-button label="Done" icon="o-check" class="btn-primary" @click="$wire.drawer = false" />
+            <x-button label="پاک‌سازی" :icon="theme_icon('clear')" wire:click="clear" spinner />
+            <x-button label="تأیید" :icon="theme_icon('save')" class="btn-primary" @click="$wire.drawer = false" />
         </x-slot:actions>
     </x-drawer>
 </div>
