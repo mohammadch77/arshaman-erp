@@ -282,7 +282,7 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 - [x] Session 0: راه‌اندازی تم (Mary UI + RTL + ساختار theme/)
 - [x] Session 1: شرکت + کاربر + صفحه ورود
 - [x] Session 2: نقش‌ها و دسترسی نقش×شرکت (migrations، CompanyContext، Gate، EnsureCompanyAccess middleware)
-- [ ] Session 3: سوییچر شرکت + پوسته پیشخوان
+- [x] Session 3: سوییچر شرکت + پوسته پیشخوان
 - [ ] Session 4: مدیریت کاربران
 - [ ] Session 5: دعوت‌نامه (اختیاری)
 
