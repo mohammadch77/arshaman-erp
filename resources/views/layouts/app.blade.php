@@ -1,3 +1,8 @@
+@php
+    $companyContext = app(\App\Modules\Core\Services\CompanyContext::class);
+    $activeCompany = auth()->check() ? $companyContext->activeCompany() : null;
+    $isAggregateView = auth()->check() && $companyContext->isAggregateView();
+@endphp
 <!DOCTYPE html>
 <html lang="fa" dir="rtl" data-theme="arshaman">
 <head>
@@ -11,13 +16,15 @@
 </head>
 <body class="min-h-screen font-sans antialiased bg-base-200">
 
-    {{-- NAVBAR mobile only --}}
-    <x-nav sticky class="lg:hidden">
+    {{-- NAVBAR (هدر سراسری، همه سایزها) --}}
+    <x-nav sticky>
         <x-slot:brand>
-            <x-app-brand />
+            <x-app-brand class="lg:hidden" />
         </x-slot:brand>
         <x-slot:actions>
-            <label for="main-drawer" class="lg:hidden me-3">
+            <livewire:core.company-switcher />
+
+            <label for="main-drawer" class="lg:hidden ms-3">
                 <x-icon :name="theme_icon('menu')" class="cursor-pointer" />
             </label>
         </x-slot:actions>
@@ -33,6 +40,16 @@
 
             {{-- MENU --}}
             <x-menu activate-by-route>
+
+                <x-menu-item title="پیشخوان" :icon="theme_icon('dashboard')" link="/" exact />
+
+                @if($activeCompany && in_array($activeCompany->business_type->value, ['physical_goods', 'hybrid']))
+                    <x-menu-item title="انبار" :icon="theme_icon('inventory')" link="#" no-wire-navigate />
+                @endif
+
+                @if($activeCompany && $activeCompany->business_type->value === 'project_services')
+                    <x-menu-item title="پروژه‌ها" :icon="theme_icon('project')" link="#" no-wire-navigate />
+                @endif
 
                 {{-- User --}}
                 @if($user = auth()->user())
