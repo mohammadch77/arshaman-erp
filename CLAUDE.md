@@ -280,7 +280,7 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 
 ## ۱۰. وضعیت فعلی پروژه
 
-**فاز جاری:** فاز ۱ — هسته، محصولات، سفارش‌ها، انبار پایه (پروژه کوچک جاری: احراز هویت، `docs/PROJECT_01_AUTH.md`)
+**فاز جاری:** فاز ۱ — هسته، محصولات، سفارش‌ها، انبار پایه. پروژه کوچک `docs/PROJECT_01_AUTH.md` (احراز هویت) با تکمیل Session 5 به پایان رسید؛ فاز ۱ اکنون آماده شروع محصولات/سفارش‌ها/انبار است.
 
 **تکمیل‌شده:**
 - [x] Session 0: راه‌اندازی تم (Mary UI + RTL + ساختار theme/)
@@ -288,6 +288,6 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 - [x] Session 2: نقش‌ها و دسترسی نقش×شرکت (migrations، CompanyContext، Gate، EnsureCompanyAccess middleware)
 - [x] Session 3: سوییچر شرکت + پوسته پیشخوان
 - [x] Session 4: مدیریت کاربران (Action ها، UserPolicy، UserIndex/UserCreate/AssignRole، activity_log)
-- [ ] Session 5: دعوت‌نامه (اختیاری)
+- [x] Session 5: دعوت‌نامه (اختیاری)
 
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.
