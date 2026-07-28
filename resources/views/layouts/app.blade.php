@@ -43,6 +43,10 @@
 
                 <x-menu-item title="پیشخوان" :icon="theme_icon('dashboard')" link="/" exact />
 
+                @if(auth()->check() && (auth()->user()->is_super_admin || auth()->user()->hasRole('holding_admin')))
+                    <x-menu-item title="مدیریت کاربران" :icon="theme_icon('users')" link="{{ route('users.index') }}" />
+                @endif
+
                 @if($activeCompany && in_array($activeCompany->business_type->value, ['physical_goods', 'hybrid']))
                     <x-menu-item title="انبار" :icon="theme_icon('inventory')" link="#" no-wire-navigate />
                 @endif

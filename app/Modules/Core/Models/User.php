@@ -9,11 +9,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasUuids, Notifiable, SoftDeletes;
+    use HasFactory, HasUuids, LogsActivity, Notifiable, SoftDeletes;
 
     protected $fillable = [
         'full_name',
@@ -58,5 +60,20 @@ class User extends Authenticatable
         }
 
         return $this->companyRoles()->where('owner_company_id', $companyId)->exists();
+    }
+
+    public function hasRole(string $roleName): bool
+    {
+        return $this->companyRoles()
+            ->whereHas('role', fn ($q) => $q->where('name', $roleName))
+            ->exists();
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['full_name', 'email', 'is_active', 'is_super_admin'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
     }
 }

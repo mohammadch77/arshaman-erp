@@ -45,6 +45,9 @@ return [
         'login' => 'o-arrow-left-end-on-rectangle',
         'email' => 'o-envelope',
         'password' => 'o-lock-closed',
+        'activate' => 'o-check-circle',
+        'deactivate' => 'o-no-symbol',
+        'assign-role' => 'o-identification',
     ],
 
 ];
