@@ -15,61 +15,76 @@ config/
 
 resources/
 ├── css/
-│   └── app.css                   ← وارد کردن Tailwind + تعریف فونت Vazirmatn
+│   └── app.css                   ← Tailwind v4 (CSS-first) + تم رنگی daisyUI + فونت Vazirmatn
 ├── views/
 │   └── components/
 │       └── app-logo.blade.php    ← تنها جایی که لوگو رندر می‌شود
-└── images/theme/
+└── images/theme/  (یا public/images/theme/)
     ├── logo.svg                  ← لوگوی اصلی (جایگزین‌شونده)
     ├── logo-small.svg
     └── favicon.svg
 
-tailwind.config.js                 ← تعریف تم رنگی daisyUI (رنگ‌های semantic)
+app/Support/helpers.php            ← تابع theme_icon()
 app/Support/Farsi.php              ← ارقام فارسی و قالب تومان (سمت سرور)
 ```
 
+> **نکته نسخه:** پروژه Tailwind v4 نصب دارد که پیکربندی‌اش CSS-first است — دیگر
+> فایل `tailwind.config.js` وجود ندارد و رنگ‌های تم داخل خودِ `resources/css/app.css`
+> با دایرکتیوهای `@theme` و `@plugin "daisyui/theme"` تعریف می‌شوند (بخش ۱ پایین).
+
 ---
 
-## ۱. تم رنگ (tailwind.config.js + daisyUI)
+## ۱. تم رنگ (resources/css/app.css + daisyUI — Tailwind v4 CSS-first)
 
 همه رنگ‌ها اینجا. کامپوننت‌ها فقط از کلاس‌های semantic استفاده می‌کنند (`btn-primary`, `text-primary`, `bg-base-100`)، نه کد رنگ مستقیم.
 
-```js
-// tailwind.config.js
-const daisyui = require('daisyui')
+> پروژه Tailwind v4 دارد؛ پیکربندی رنگ و تم دیگر در `tailwind.config.js` نیست، مستقیم در CSS با دایرکتیو `@plugin` تعریف می‌شود (بدون فایل جدا).
 
-module.exports = {
-  content: [
-    './resources/**/*.blade.php',
-    './resources/**/*.js',
-    './app/Livewire/**/*.php',
-  ],
-  theme: {
-    extend: {
-      fontFamily: {
-        sans: ['Vazirmatn', 'sans-serif'],
-      },
-    },
-  },
-  plugins: [daisyui],
-  daisyui: {
-    themes: [
-      {
-        arshaman: {
-          // این رنگ‌ها موقتی‌اند. وقتی برند آرشامان رسید، فقط همین‌جا عوض شود.
-          primary:   '#1976D2',
-          secondary: '#455A64',
-          accent:    '#FF6F00',
-          neutral:   '#2A2E37',
-          'base-100': '#FFFFFF',
-          info:      '#0288D1',
-          success:   '#388E3C',
-          warning:   '#F57C00',
-          error:     '#D32F2F',
-        },
-      },
-    ],
-  },
+```css
+/* resources/css/app.css */
+@import 'tailwindcss';
+@import '@fontsource/vazirmatn/arabic-400.css';
+@import '@fontsource/vazirmatn/arabic-500.css';
+@import '@fontsource/vazirmatn/arabic-600.css';
+@import '@fontsource/vazirmatn/arabic-700.css';
+
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+}
+
+/** daisyUI — تم پیش‌فرض پروژه */
+@plugin "daisyui" {
+    themes: arshaman --default;
+}
+
+/**
+ * رنگ‌های برند آرشامان — تنها نقطه تعریف رنگ در کل پروژه.
+ * موقتی‌اند؛ وقتی برند نهایی رسید فقط همین بلوک عوض می‌شود.
+ */
+@plugin "daisyui/theme" {
+    name: 'arshaman';
+    default: true;
+    color-scheme: light;
+    --color-base-100: #FFFFFF;
+    --color-primary: #1976D2;
+    --color-primary-content: #FFFFFF;
+    --color-secondary: #455A64;
+    --color-secondary-content: #FFFFFF;
+    --color-accent: #FF6F00;
+    --color-accent-content: #FFFFFF;
+    --color-neutral: #2A2E37;
+    --color-neutral-content: #FFFFFF;
+    --color-info: #0288D1;
+    --color-info-content: #FFFFFF;
+    --color-success: #388E3C;
+    --color-success-content: #FFFFFF;
+    --color-warning: #F57C00;
+    --color-warning-content: #FFFFFF;
+    --color-error: #D32F2F;
+    --color-error-content: #FFFFFF;
 }
 ```
 
@@ -185,7 +200,7 @@ function theme_icon(string $key): string
 
 - `dir="rtl"` روی تگ `html` در layout اصلی، کل کامپوننت‌های daisyUI/Tailwind به‌درستی راست‌چین می‌شوند (اکثر کلاس‌های Tailwind جهت‌آگاه نیستند، پس برای فاصله‌گذاری از کلاس‌های منطقی مثل `ms-*`/`me-*` به‌جای `ml-*`/`mr-*` استفاده کن).
 - `lang="fa"` روی همان تگ.
-- فونت Vazirmatn به‌عنوان فونت پایه در `tailwind.config.js` (بخش ۱ بالا).
+- فونت Vazirmatn به‌عنوان فونت پایه در `resources/css/app.css` (بخش ۱ بالا).
 - اعداد: نمایش با ارقام فارسی (نه در ورودی/ذخیره) — با یک هلپر مرکزی سمت سرور.
 
 ```php
