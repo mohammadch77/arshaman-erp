@@ -270,6 +270,7 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 5. **فاز بعد را زودتر شروع نکن.** اگر فیچری خارج از فاز جاری لازم شد، در `BACKLOG.md` بنویس.
 6. **مهاجرت‌ها را ویرایش نکن** بعد از اجرا — migration جدید بساز.
 7. اگر قاعده‌ای در این فایل مبهم بود، **بپرس، حدس نزن.**
+8. **هرگز `migrate:fresh` یا `migrate:refresh` را روی دیتابیس محیط توسعه اصلی (`arshaman_erp` در `.env`) اجرا نکن** مگر کاربر صریحاً همان لحظه درخواستش کند. برای تست صحت یک migration جدید، یا از `php artisan migrate` (بدون `fresh`، که فقط migration‌های جدید را اضافه می‌کند) استفاده کن، یا `php artisan migrate:fresh --env=testing` روی دیتابیس تستی جدا بزن.
 
 ---
 
@@ -279,8 +280,8 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 
 **تکمیل‌شده:**
 - [x] Session 0: راه‌اندازی تم (Mary UI + RTL + ساختار theme/)
-- [ ] Session 1: شرکت + کاربر + صفحه ورود
-- [ ] Session 2: نقش‌ها و دسترسی نقش×شرکت
+- [x] Session 1: شرکت + کاربر + صفحه ورود
+- [x] Session 2: نقش‌ها و دسترسی نقش×شرکت (migrations، CompanyContext، Gate، EnsureCompanyAccess middleware)
 - [ ] Session 3: سوییچر شرکت + پوسته پیشخوان
 - [ ] Session 4: مدیریت کاربران
 - [ ] Session 5: دعوت‌نامه (اختیاری)

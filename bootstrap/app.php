@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureCompanyAccess;
 use App\Modules\Core\Console\CreateAdminCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,7 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
         CreateAdminCommand::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'company.access' => EnsureCompanyAccess::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
