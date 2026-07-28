@@ -47,6 +47,10 @@
                     <x-menu-item title="مدیریت کاربران" :icon="theme_icon('users')" link="{{ route('users.index') }}" />
                 @endif
 
+                @if(auth()->check() && (auth()->user()->is_super_admin || auth()->user()->hasRole('holding_admin') || auth()->user()->hasRole('accountant')))
+                    <x-menu-item title="پرسنل" :icon="theme_icon('employee')" link="{{ route('employees.index') }}" />
+                @endif
+
                 @if($activeCompany && in_array($activeCompany->business_type->value, ['physical_goods', 'hybrid']))
                     <x-menu-item title="انبار" :icon="theme_icon('inventory')" link="#" no-wire-navigate />
                 @endif

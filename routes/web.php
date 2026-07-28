@@ -6,6 +6,8 @@ use App\Livewire\Core\Users\AssignRole;
 use App\Livewire\Core\Users\InviteUser;
 use App\Livewire\Core\Users\UserCreate;
 use App\Livewire\Core\Users\UserIndex;
+use App\Livewire\HR\EmployeeForm;
+use App\Livewire\HR\EmployeeIndex;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -28,5 +30,9 @@ Route::livewire('/users', UserIndex::class)->middleware('auth')->name('users.ind
 Route::livewire('/users/create', UserCreate::class)->middleware('auth')->name('users.create');
 Route::livewire('/users/roles', AssignRole::class)->middleware('auth')->name('users.assign-role');
 Route::livewire('/users/invite', InviteUser::class)->middleware('auth')->name('users.invite');
+
+Route::livewire('/employees', EmployeeIndex::class)->middleware('auth')->name('employees.index');
+Route::livewire('/employees/create', EmployeeForm::class)->middleware('auth')->name('employees.create');
+Route::livewire('/employees/{employee}/edit', EmployeeForm::class)->middleware('auth')->name('employees.edit');
 
 Route::livewire('/theme-showcase', 'pages::theme-showcase');

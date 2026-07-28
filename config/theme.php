@@ -49,6 +49,14 @@ return [
         'deactivate' => 'o-no-symbol',
         'assign-role' => 'o-identification',
         'invite' => 'o-paper-airplane',
+        'employee' => 'o-identification',
+        'phone' => 'o-phone',
+        'address' => 'o-map-pin',
+        'calendar' => 'o-calendar',
+        'contract' => 'o-document-text',
+        'warning' => 'o-exclamation-triangle',
+        'terminate' => 'o-x-circle',
+        'money' => 'o-banknotes',
     ],
 
 ];
