@@ -290,4 +290,17 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 - [x] Session 4: مدیریت کاربران (Action ها، UserPolicy، UserIndex/UserCreate/AssignRole، activity_log)
 - [x] Session 5: دعوت‌نامه (اختیاری)
 
+### ماژول HR (فاز ۲)
+
+طبق `docs/PROJECT_02_HR.md`:
+
+- [ ] Session 1: پرسنل (Employees)
+- [ ] Session 2: تقویم کاری و تعطیلات رسمی
+- [ ] Session 2.5: اتصال کارمند به کاربر سیستم
+- [ ] Session 3: حضور و غیاب (Attendance)
+- [ ] Session 4: مرخصی‌ها (Leave)
+- [ ] Session 5: جمع ماهانه کارکرد/غیبت
+- [ ] Session 6: حقوق و دستمزد
+- [ ] Session 7: گزارش پایه هزینه پرسنل
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

@@ -1,143 +1,243 @@
-# پروژه کوچک ۲: منابع انسانی (HR)
+# پروژه کوچک ۲: منابع انسانی (HR) — نسخه کامل مطابق سند طراحی
 ## پرسنل، حضور و غیاب، مرخصی، حقوق و دستمزد — فاز ۲
 
-> این ماژول طبق تصمیم صریح کارفرما (`DECISIONS.md`) بلافاصله بعد از هسته ساخته می‌شود،
-> نه در جایگاه اصلی‌اش (بعد از عملیات/مالی) در سند طراحی نسخه ۳.۰.
-> هر Session یک بخش، بعد تست و commit و clear — دقیقاً همان ریتم `PROJECT_01_AUTH.md`.
+> **نسخه بازبینی‌شده:** نسخه قبلی این سند چند بند از سند طراحی اصلی (بخش ۷) را ساده کرده یا از قلم انداخته بود
+> (اطلاعات قرارداد، پنل خودِ کارمند، کارکرد ماهانه/غیبت، بیمه/مالیات/مزایا، فیش قابل‌مشاهده، تسهیم حقوق).
+> این نسخه خط‌به‌خط با بخش ۷ سند طراحی (`۷.۱ پرسنل و حضور و غیاب`, `۷.۲ حقوق و دستمزد`) تطبیق داده شده.
+
+> این ماژول طبق تصمیم صریح کارفرما (`DECISIONS.md`) بلافاصله بعد از هسته ساخته می‌شود.
+> هر Session یک بخش، بعد تست و commit و clear.
 
 ---
 
-## تصمیم معماری مهم (قبل از شروع بخوان)
+## چرا این ماژول اصلاً وجود دارد (طبق سند طراحی)
 
-### ۱. اتصال حقوق↔هزینه به‌تعویق افتاده — این عمدی است، نه فراموشی
-طبق سند طراحی، محاسبه حقوق باید خودکار در ماژول هزینه‌ها ثبت شود. اما چون ماژول هزینه‌ها (فاز ۴ جدید) هنوز ساخته نشده، این اتصال **در این پروژه پیاده نمی‌شود**. به‌جایش:
-- هر فیش حقوقی یک ستون `expense_posting_status` دارد (`pending` | `posted`) که فعلاً همیشه `pending` می‌ماند.
-- یک متد صریح `PayrollRun::pendingExpensePosting()` + کامنت `// TODO: اتصال به Finance/Expenses — نگاه کن BACKLOG.md #1` در کد گذاشته می‌شود.
-- **هیچ جدول یا ماژول جعلی هزینه ساخته نمی‌شود.**
+> «سیستم حضور و غیاب زمان‌پرداز امکان اتصال برنامه‌نویسی ندارد و داده کارکرد پرسنل از آن قابل دریافت نیست.
+> بنابراین ثبت کارکرد و محاسبه حقوق باید در داخل سامانه انجام شود.»
 
-### ۲. اتصال به تایم‌شیت هم به‌تعویق افتاده — ولی این‌بار فایده جانبی دارد
-طبق سند اصلی، نرخ ساعتی تایم‌شیت باید از حقوق محاسبه شود، ولی تایم‌شیت هنوز ساخته نشده (فاز ۵). چون HR (این پروژه) **قبل از** تایم‌شیت ساخته می‌شود، وقتی به فاز ۵ رسیدیم، این اتصال از روز اول واقعی خواهد بود — نیازی به دوره میانی «نرخ دستی موقت» نیست. فعلاً کاری برای این اتصال در این پروژه لازم نیست.
+یعنی این ماژول باید **جایگزین کامل** یک سیستم حضور و غیاب واقعی باشد، نه یک نسخه ساده‌شده — چون هیچ سیستم دیگری این کار را نمی‌کند.
 
-### ۳. کارمند لزوماً کاربر سیستم نیست
-خیلی از کارمندان (مثلاً نیروی انبار یا تولید) هرگز وارد سامانه نمی‌شوند. پس:
-- جدول `employees` یک موجودیت **مستقل** است، نه زیرمجموعه `users`.
-- یک ستون `user_id` (nullable, FK به `users.id`) وجود دارد فقط برای کارمندانی که هم کاربر سیستم‌اند (مثلاً مدیر که هم کارمند است هم لاگین می‌کند).
+---
 
-### ۴. Snapshot در حقوق — همان اصل بخش ۵.۲ CLAUDE.md
-حقوق پایه هر کارمند ممکن است تغییر کند، ولی فیش‌های قبلی نباید تغییر کنند. پس هر فیش حقوقی، حقوق پایه لحظه محاسبه را **کپی** می‌کند، نه reference زنده به `employees.base_salary`.
+## تصمیم‌های معماری (قبل از شروع بخوان)
+
+### ۱. اتصال حقوق↔هزینه به‌تعویق افتاده — عمدی، مستند در `DECISIONS.md`/`BACKLOG.md`
+«ثبت خودکار هزینه حقوق در ماژول هزینه‌ها و دفتر کل» چون ماژول هزینه‌ها (فاز ۴) هنوز نیست، در این پروژه پیاده نمی‌شود. هر فیش حقوقی `expense_posting_status='pending'` می‌ماند + `// TODO: BACKLOG.md #1`.
+
+### ۲. تسهیم حقوق نیروهای مشترک بین شرکت‌ها — **این هم باید به‌تعویق بیفتد، ولی این‌بار باید صریح مستند شود** (در نسخه قبلی این سند، این بند اصلاً ذکر نشده بود — اشتباه بود)
+طبق سند طراحی، حقوق نیروی مشترک (کسی که برای چند شرکت کار می‌کند) باید بین شرکت‌ها تقسیم شود. طبق `IMPLEMENTATION_PLAYBOOK.md` بخش ۵، این تسهیم بر پایه **ساعت واقعی کار در تایم‌شیت** انجام می‌شود — و تایم‌شیت هنوز ساخته نشده (فاز ۵). پس:
+- در این پروژه، `payslips` یک ستون `owner_company_id` تکی دارد (فیش حقوقی برای یک شرکت مشخص) و **هیچ منطق تسهیم پیاده نمی‌شود.**
+- برای کارمندی که واقعاً بین چند شرکت مشترک است، فعلاً باید دستی مشخص شود این ماه حقوقش را کدام شرکت پرداخت می‌کند (یک انتخاب ساده، نه تسهیم خودکار).
+- این محدودیت را **همین الان** در `BACKLOG.md` ثبت می‌کنیم (بخش پایانی همین سند، آیتم جدید).
+
+### ۳. پنل خودِ کارمند — یک تصمیم معماری جدید که باید اضافه شود
+سند صریح می‌گوید ثبت ورود/خروج «دستی **یا از طریق پنل کاربری پرسنل**» است. یعنی دو مسیر ورودی داریم:
+- **پنل ادمین/حسابدار:** ثبت دستی برای هر کارمندی (چیزی که در نسخه قبلی این سند بود).
+- **پنل خودِ کارمند (جدید):** کارمندی که `user_id` دارد (طبق تصمیم ۳ نسخه قبلی — نه همه کارمندان کاربر سیستم‌اند)، وارد سیستم می‌شود و **فقط برای خودش** ثبت ورود/خروج می‌کند، درخواست مرخصی می‌دهد، و فیش حقوقی خودش را می‌بیند.
+- **Policy این پنل با پنل ادمین فرق دارد:** کارمند فقط باید به رکوردهای خودش دسترسی داشته باشد، نه بقیه.
+
+### ۴. کارمند لزوماً کاربر سیستم نیست (از نسخه قبلی، بدون تغییر)
+ستون `user_id` (nullable, FK به `users.id`) — فقط کارمندانی که هم پنل خودشان را دارند این را پر می‌کنند.
+
+### ۵. Snapshot در حقوق (از نسخه قبلی، بدون تغییر)
+حقوق پایه هر فیش، لحظه محاسبه کپی می‌شود، نه reference زنده.
 
 ---
 
 ## این پروژه چطور «قابل توسعه» می‌ماند
-
-- **منطق در Action ها**، نه در کامپوننت Livewire — همان الگوی ماژول Auth.
-- **Authorization داخل خود Action** (نه فقط UI) — طبق قانون جدیدی که در Session 4 ماژول Auth کشف و در `CLAUDE.md` بخش ۹ ثبت شد. این‌جا خصوصاً برای محاسبه/نهایی‌کردن حقوق حیاتی است.
-- **ماژول جدا:** مدل/Action/Policy در `app/Modules/HR`؛ کامپوننت‌های Livewire در `app/Livewire/HR`.
+منطق در Action ها، authorization داخل خود Action (طبق قانون کشف‌شده در Session 4 ماژول Auth)، ماژول جدا (`app/Modules/HR`, `app/Livewire/HR`).
 
 ---
 
-## مدل داده (۶ جدول)
+## مدل داده (۸ جدول — دو جدول جدید نسبت به نسخه قبلی)
 
-| جدول | نقش |
-|---|---|
-| `employees` | پرونده پرسنلی (مستقل از `users`) |
-| `holidays` | تعطیلات رسمی + تقویم کاری |
-| `attendances` | ورود/خروج روزانه، تأخیر، اضافه‌کاری |
-| `leaves` | درخواست مرخصی + گردش تأیید |
-| `payroll_runs` | یک دوره محاسبه حقوق (مثلاً یک ماه، یک شرکت) |
-| `payslips` | فیش حقوقی هر کارمند در یک `payroll_run` |
+| جدول | نقش | تغییر نسبت به نسخه قبلی |
+|---|---|---|
+| `employees` | پرونده پرسنلی + **اطلاعات قرارداد و تماس** | فیلدهای جدید اضافه شد |
+| `holidays` | تعطیلات رسمی + تقویم کاری | بدون تغییر |
+| `attendances` | ورود/خروج، تأخیر، اضافه‌کاری، **منبع ثبت (خود کارمند/ادمین)** | ستون جدید |
+| `monthly_attendance_summaries` | **جدید** — جمع ماهانه کارکرد، غیبت، تأخیر، اضافه‌کاری هر کارمند | جدید |
+| `leaves` | درخواست مرخصی + گردش تأیید | بدون تغییر |
+| `payroll_runs` | یک دوره محاسبه حقوق | بدون تغییر |
+| `payslips` | فیش حقوقی + **بیمه، مالیات، مزایا** | فیلدهای جدید |
+| — | ~~تسهیم بین شرکت‌ها~~ | **حذف شد از این ماژول، به BACKLOG منتقل شد** |
 
-نام‌گذاری ستون‌ها طبق `docs/DATABASE_CONVENTIONS.md`: `owner_company_id`، `created_by_user_id`/`updated_by_user_id`، و در `leaves` چون هم درخواست‌دهنده هم تأییدکننده هر دو کاربرند: `approved_by_user_id` (نه `user_id` خام).
+نام‌گذاری طبق `docs/DATABASE_CONVENTIONS.md`.
 
 ---
 
 # تکه‌بندی به Session ها
 
-## Session 1 — پرسنل (Employees)
+## Session 1 — پرسنل (Employees) — نسخه کامل با قرارداد
 
 **پرامپت آماده:**
 ```
-CLAUDE.md را بخوان. سپس برای این بخش اول نقشه بده، هنوز کد نزن:
+CLAUDE.md را بخوان. نقشه بده، بعد پیاده کن:
 
 ماژول HR را شروع کن با:
 1. Migration و model برای employees:
-   id (UUID)، owner_company_id (FK companies، BelongsToCompany)،
-   user_id (nullable FK به users — فقط اگر کارمند هم کاربر سیستم است)،
-   full_name، national_id (unique)، position، hire_date،
-   termination_date (nullable)، employment_status (VARCHAR enum PHP:
-   active, on_leave, terminated)، base_salary (decimal)، currency_id
-   (FK به currencies — اگر Session 4 ماژول Core ساخته شده؛ وگرنه فعلاً
-   nullable و بدون FK تا آن ماژول ساخته شود)، created_by_user_id/
-   updated_by_user_id، soft delete.
-2. Policy: فقط holding_admin و accountant به این بخش دسترسی دارند
-   (طبق نقش‌های seed‌شده در ماژول Core).
-3. Action ها: CreateEmployee, UpdateEmployee, TerminateEmployee
-   (منطق در Action، authorization داخل خود Action طبق قانون بخش ۹
-   CLAUDE.md).
-4. کامپوننت‌های Livewire: فهرست پرسنل (جدول Mary UI، فیلتر بر اساس
-   وضعیت استخدام)، فرم ساخت/ویرایش.
-5. تست: کاربر بدون نقش مجاز نتواند به فهرست پرسنل دسترسی داشته باشد (403)؛
-   ساخت کارمند با موفقیت.
+   id (UUID)، owner_company_id (BelongsToCompany)، user_id (nullable FK
+   users — برای پنل خودِ کارمند؛ در این Session فقط ستون ساخته می‌شود و
+   خالی می‌ماند، پرشدنش کار Session 2.5 است، نه این Session)، full_name، national_id (unique در
+   سطح owner_company_id + national_id، هم constraint دیتابیس هم
+   Rule::unique دستی محدود به شرکت — طبق الگوی تأییدشده در بررسی قبلی)،
+   phone (nullable)، address (nullable, text)، position، hire_date،
+   termination_date (nullable)،
+   employment_status (VARCHAR enum PHP: active, on_leave, terminated)،
+   contract_type (VARCHAR enum PHP: permanent, temporary, project_based)،
+   contract_start_date، contract_end_date (nullable — قراردادهای دائم
+   خالی می‌ماند)، base_salary (decimal)، currency_id (nullable، بدون FK
+   چون ماژول Currency هنوز نیست)، created_by_user_id/updated_by_user_id،
+   soft delete.
+2. Policy EmployeePolicy: فقط holding_admin و accountant (پنل ادمین).
+3. Actions: CreateEmployee, UpdateEmployee, TerminateEmployee —
+   authorization داخل خود Action.
+4. کامپوننت‌های Livewire (پنل ادمین): فهرست پرسنل با فیلتر وضعیت
+   استخدام و نوع قرارداد، فرم ساخت/ویرایش با هشدار وقتی contract_end_date
+   نزدیک است (کمتر از ۳۰ روز).
+5. تست: 403 برای کاربر بدون نقش؛ ساخت موفق؛ یکتایی national_id در دو
+   لایه (دیتابیس + validation محدود به شرکت)؛ هشدار نزدیک‌شدن پایان
+   قرارداد نمایش داده شود.
 
-نساز: حضور و غیاب، مرخصی، حقوق — Session های بعدی.
-تمام وقتی: بتوانم کارمند بسازم، ویرایش کنم، و فهرستش را ببینم.
+نساز: پنل خودِ کارمند (Session جدا)، حضور و غیاب، مرخصی، حقوق.
+تمام وقتی: بتوانم کارمند با اطلاعات کامل قرارداد بسازم، ویرایش کنم، فهرستش را ببینم.
 ```
 
 ---
 
 ## Session 2 — تقویم کاری و تعطیلات رسمی
+(بدون تغییر نسبت به نسخه قبلی)
 
 **پرامپت آماده:**
 ```
 CLAUDE.md را بخوان. نقشه بده، بعد پیاده کن:
 
 1. Migration و model برای holidays: id، title، holiday_date،
-   owner_company_id (nullable — اگر خالی یعنی تعطیلی سراسری برای همه
-   شرکت‌ها، مثل تعطیلات رسمی کشور)، is_recurring_yearly (boolean،
-   برای مناسبت‌هایی که هرسال تکرار می‌شوند مثل نوروز)، created_by_user_id.
-2. Seeder: چند تعطیلی رسمی نمونه ایران (نوروز، ...).
-3. سرویس WorkCalendar در app/Modules/HR/Services: متد
-   isWorkday(Carbon $date, ?string $companyId): bool که جمعه‌ها و
-   تعطیلات (سراسری + مخصوص شرکت) را در نظر بگیرد.
-4. تست: تاریخ جمعه و تاریخ تعطیل رسمی هر دو isWorkday=false برگردانند؛
-   یک روز عادی true برگرداند.
+   owner_company_id (nullable — خالی یعنی سراسری)، is_recurring_yearly،
+   created_by_user_id.
+2. Seeder: چند تعطیلی رسمی نمونه ایران.
+3. سرویس WorkCalendar (app/Modules/HR/Services): isWorkday(Carbon $date,
+   ?string $companyId): bool — جمعه و تعطیلات را در نظر بگیرد.
+4. تست: جمعه و تعطیل رسمی → false؛ روز عادی → true.
 
-نساز: UI مدیریت تعطیلات (فعلاً فقط seeder کافی است) — اگر لازم شد بعداً
-   اضافه می‌کنیم.
-تمام وقتی: WorkCalendar::isWorkday() درست کار کند، چون حضور و غیاب و
-   محاسبه حقوق در Session های بعدی به آن وابسته‌اند.
+نساز: UI مدیریت تعطیلات.
+تمام وقتی: WorkCalendar::isWorkday() درست کار کند.
 ```
 
 ---
 
-## Session 3 — حضور و غیاب (Attendance)
+## Session 2.5 — اتصال کارمند به کاربر سیستم
+
+> پیش‌نیاز Session 3 است: پنل خودِ کارمند به `employees.user_id` پر‌شده نیاز دارد تا بداند
+> کاربر لاگین‌شده متعلق به کدام پرونده پرسنلی است. اتصال کاربر خودِ سیستم دعوت (ماژول Auth، از
+> قبل موجود) انجام می‌شود — اینجا فقط لینک‌کردن دو رکورد موجود (User و Employee) پیاده می‌شود،
+> نه یک مسیر دعوت جدا.
 
 **پرامپت آماده:**
 ```
 CLAUDE.md را بخوان. نقشه بده، بعد پیاده کن:
 
-1. Migration و model برای attendances: id، employee_id، owner_company_id،
-   attendance_date، check_in_at (nullable، timestamp)، check_out_at
-   (nullable)، late_minutes (محاسبه‌شده)، overtime_minutes (محاسبه‌شده)،
-   source (VARCHAR enum: manual, device — فعلاً فقط manual پیاده می‌شود)،
-   created_by_user_id.
-2. Action RecordAttendance: ثبت ورود/خروج، محاسبه تأخیر (بر اساس ساعت
-   کاری استاندارد شرکت — فعلاً یک مقدار ثابت پیش‌فرض ۸ صبح در نظر بگیر،
-   قابل تنظیم در فاز بعد)، محاسبه اضافه‌کاری. authorization داخل Action.
-3. کامپوننت Livewire: فهرست حضور و غیاب یک کارمند (یا کل شرکت برای
-   accountant)، فرم ثبت دستی ورود/خروج.
-4. تست: ثبت ورود دیرتر از ۸ صبح، late_minutes درست محاسبه شود؛ ثبت خروج
-   بعد از ساعت کاری استاندارد، overtime_minutes درست محاسبه شود؛ کاربر
-   بدون نقش مجاز نتواند برای کارمند دیگری حضور ثبت کند.
+1. Action LinkEmployeeToUser (app/Modules/HR/Actions): بعد از این‌که یک
+   کاربر دعوت‌نامه (سیستم موجود ماژول Auth) را قبول کرد، ادمین از فهرست
+   پرسنل، یک دکمه «اتصال به حساب کاربری» می‌زند، کاربر مورد نظر را از
+   فهرست کاربران بدون کارمند مرتبط انتخاب می‌کند، employees.user_id پر
+   می‌شود. authorization داخل خود Action (فقط holding_admin/accountant).
+2. قانون: هر User فقط می‌تواند به یک Employee وصل شود — یکتایی
+   employees.user_id در سطح دیتابیس (UNIQUE index، نه فقط validation).
+3. کامپوننت Livewire: دکمه/مودال کوچک در EmployeeIndex برای این اتصال؛
+   لیست کاربران انتخاب‌شونده = کاربرانی که در هیچ رکورد employees دیگری
+   به‌عنوان user_id ثبت نشده‌اند.
+4. تست: کاربری که از قبل به یک کارمند دیگر وصل است، نتواند دوباره وصل
+   شود (چه از مسیر Action چه با insert مستقیم دور زدن validation)؛
+   کاربر بدون نقش مجاز نتواند این اتصال را انجام دهد.
 
-نساز: مرخصی، حقوق — Session های بعدی.
-تمام وقتی: بتوانم ورود/خروج یک کارمند را دستی ثبت کنم و تأخیر/اضافه‌کاری
-   درست محاسبه شود.
+نساز: خودِ پنل کارمند (Session 3 و بعد از آن) — این Session فقط اتصال
+   User↔Employee را می‌سازد، نه صفحات مصرف‌کننده‌اش.
+تمام وقتی: ادمین بتواند یک کاربر دعوت‌شده را به پرونده کارمندی موجودش
+   وصل کند، و این اتصال یکتا و امن باشد.
 ```
 
 ---
 
-## Session 4 — مرخصی‌ها (Leave)
+## Session 3 — حضور و غیاب (دو پنل: ادمین + خودِ کارمند) — کامل‌شده
+
+**پرامپت آماده:**
+```
+CLAUDE.md را بخوان. نقشه بده، بعد پیاده کن:
+
+بخش ۱: مدل و منطق مشترک
+1. Migration و model برای attendances: id، employee_id، owner_company_id،
+   attendance_date، check_in_at، check_out_at (هر دو nullable)،
+   late_minutes، overtime_minutes (محاسبه‌شده)، recorded_by (VARCHAR
+   enum: self, admin — یعنی خودِ کارمند ثبت کرد یا ادمین)،
+   created_by_user_id.
+2. Action RecordAttendance: منطق مشترک ثبت + محاسبه late/overtime
+   (ساعت کاری استاندارد فعلاً ثابت ۸ صبح تا ۴ بعدازظهر، بعداً قابل‌تنظیم)،
+   پارامتر $recordedBy برای تشخیص self/admin، authorize متفاوت بر اساس
+   آن (ادمین: هر کارمندی؛ کارمند: فقط رکورد خودش، یعنی
+   employee.user_id === $actor->id).
+
+بخش ۲: پنل ادمین (موجود از قبل طبق ساختار Core)
+3. کامپوننت Livewire AttendanceIndex (app/Livewire/HR): فهرست حضور کل
+   شرکت یا یک کارمند، فرم ثبت دستی برای هرکسی (فقط holding_admin/accountant).
+
+بخش ۳: پنل خودِ کارمند (جدید — نیازمند Policy جدا)
+4. Policy EmployeeSelfServicePolicy (یا متد جدا در EmployeePolicy):
+   فقط کاربری که employee.user_id === خودش است، به رکوردهای خودش
+   دسترسی دارد.
+5. کامپوننت Livewire MyAttendance (app/Livewire/HR/SelfService): دکمه
+   «ثبت ورود»/«ثبت خروج» برای کارمند لاگین‌شده، فقط برای امروز، فقط
+   برای خودش (employee_id از employees.user_id=Auth::id() پیدا شود).
+   مسیر: /my/attendance (زیر middleware auth، بدون نیاز به نقش خاص —
+   هر کاربری که پرونده کارمندی مرتبط دارد).
+6. اگر کاربری هیچ پرونده employee مرتبط نداشت (مثلاً ادمین کل بدون
+   پرونده پرسنلی)، پیام «شما پرونده پرسنلی ندارید» نشان داده شود، نه خطا.
+
+تست:
+- ادمین بتواند برای هر کارمندی دستی ثبت کند.
+- کارمند فقط بتواند برای خودش ثبت کند، تلاش برای ثبت روی کارمند دیگر رد شود.
+- تأخیر/اضافه‌کاری درست محاسبه شود.
+- کاربر بدون پرونده کارمندی، پیام مناسب ببیند نه خطای سرور.
+
+نساز: جمع ماهانه (Session بعد)، مرخصی، حقوق.
+تمام وقتی: هم ادمین هم خودِ کارمند بتوانند حضور ثبت کنند، هرکدام با محدوده دسترسی درست.
+```
+
+---
+
+## Session 4 — جمع ماهانه کارکرد و غیبت (جدید — این کاملاً از قلم افتاده بود)
+
+**پرامپت آماده:**
+```
+CLAUDE.md را بخوان. نقشه بده، بعد پیاده کن:
+
+1. Migration و model برای monthly_attendance_summaries: id، employee_id،
+   owner_company_id، period_month (VARCHAR شمسی مثل "1405-04")،
+   total_worked_days، total_absent_days، total_late_minutes،
+   total_overtime_minutes، total_leave_days (مرخصی‌های approved آن ماه)،
+   calculated_at.
+2. Action CalculateMonthlyAttendance: برای یک کارمند و یک ماه:
+   - از WorkCalendar (Session 2) روزهای کاری آن ماه را بگیر.
+   - برای هر روز کاری: اگر attendance ثبت نشده و مرخصی approved هم
+     نبود → غیبت (total_absent_days++).
+   - مجموع late_minutes/overtime_minutes از attendances آن ماه.
+   - مجموع days_count مرخصی‌های approved آن ماه.
+   - قابل اجرای دوباره (idempotent — رکورد قبلی همان ماه/کارمند را
+     جایگزین می‌کند، طبق همان الگوی CalculatePayroll در Session بعد).
+3. کامپوننت Livewire: گزارش کارکرد ماهانه یک کارمند یا کل شرکت
+   (جدول Mary UI).
+4. تست: غیبت درست تشخیص داده شود (روز کاری بدون حضور و بدون مرخصی
+   تأییدشده)؛ روز مرخصی approved جزو غیبت حساب نشود؛ اجرای دوباره محاسبه
+   رکورد تکراری نسازد.
+
+نساز: حقوق (Session بعد، که از این خروجی استفاده می‌کند).
+تمام وقتی: بتوانم برای یک کارمند/ماه، کارکرد کامل (کارکرد، غیبت، تأخیر،
+   اضافه‌کاری، مرخصی) را یک‌جا ببینم — این ورودی مستقیم محاسبه حقوق است.
+```
+
+---
+
+## Session 5 — مرخصی‌ها (Leave) — با پنل خودِ کارمند
 
 **پرامپت آماده:**
 ```
@@ -145,96 +245,109 @@ CLAUDE.md را بخوان. نقشه بده، بعد پیاده کن:
 
 1. Migration و model برای leaves: id، employee_id، owner_company_id،
    leave_type (VARCHAR enum: annual, sick, unpaid)، start_date، end_date،
-   days_count (محاسبه‌شده بر اساس WorkCalendar::isWorkday — روزهای
-   تعطیل/جمعه جزو مرخصی حساب نشوند)، leave_status (VARCHAR enum:
-   pending, approved, rejected)، reason (nullable)، approved_by_user_id
-   (nullable تا زمان تأیید)، created_by_user_id.
-2. Action ها: RequestLeave (ثبت درخواست با leave_status=pending)،
-   ApproveLeave و RejectLeave (فقط holding_admin یا accountant،
-   authorization داخل Action).
-3. کامپوننت‌های Livewire: فرم درخواست مرخصی، فهرست درخواست‌های در انتظار
-   تأیید (برای مدیر)، دکمه تأیید/رد.
-4. تست: کاربر عادی نتواند مرخصی خودش را تأیید کند؛ days_count روزهای
-   جمعه/تعطیل را حساب نکند؛ فقط نقش مجاز بتواند تأیید/رد کند.
+   days_count (از WorkCalendar، جمعه/تعطیل حساب نشود)، leave_status
+   (VARCHAR enum: pending, approved, rejected)، reason (nullable)،
+   approved_by_user_id (nullable)، created_by_user_id.
+2. Actions: RequestLeave (هم از پنل ادمین هم پنل خودِ کارمند قابل صدا
+   زدن — پارامتر $requestedBy مشخص می‌کند چه کسی درخواست داد)،
+   ApproveLeave/RejectLeave (فقط holding_admin/accountant، authorize
+   داخل Action).
+3. پنل ادمین: فهرست درخواست‌های در انتظار + دکمه تأیید/رد.
+4. پنل خودِ کارمند (/my/leaves): فرم درخواست مرخصی برای خودش + فهرست
+   وضعیت درخواست‌های قبلی خودش (فقط مشاهده، نه تأیید).
+5. تست: کارمند نتواند مرخصی خودش را تأیید کند؛ کارمند نتواند برای
+   کارمند دیگر درخواست ثبت کند؛ days_count تعطیلات را حساب نکند.
 
-نساز: حقوق — Session بعد (که به مرخصی بدون‌حقوق برای کسر از حقوق نیاز دارد).
-تمام وقتی: بتوانم درخواست مرخصی ثبت کنم و مدیر تأیید/رد کند.
+نساز: حقوق.
+تمام وقتی: هم ادمین هم کارمند بتوانند مرخصی مدیریت کنند، هرکدام با
+   محدوده دسترسی درست؛ جمع ماهانه (Session 4) این مرخصی‌های approved را ببیند.
 ```
 
 ---
 
-## Session 5 — حقوق و دستمزد (حساس‌ترین بخش این ماژول)
+## Session 6 — حقوق و دستمزد — کامل با بیمه/مالیات/مزایا/فیش قابل‌مشاهده
 
-> **توجه ویژه:** طبق بخش ۷ `SESSION_GUIDE.md`، این منطق مالی است — مدل قوی (Opus) و تست قبل از پیاده‌سازی الزامی است. کد این Session را خودت خط‌به‌خط بخوان، نه فقط گزارش نهایی را بپذیری.
+> **توجه ویژه:** منطق مالی — طبق `SESSION_GUIDE.md` بخش ۷، مدل قوی (Opus) و TDD الزامی است.
 
 **پرامپت آماده:**
 ```
-CLAUDE.md را بخوان. برای این بخش نقشه بده و صریح بگو کدام تکه منطق مالی
-است (طبق بخش ۷ SESSION_GUIDE.md، آن تکه‌ها را با مدل Opus و تست قبل از
-پیاده‌سازی بساز)، سپس پیاده کن:
+CLAUDE.md را بخوان. نقشه بده، صریح بگو کدام بخش منطق مالی است (تست قبل
+از پیاده‌سازی)، بعد پیاده کن:
 
 1. Migration و model برای payroll_runs: id، owner_company_id،
-   period_month (VARCHAR، فرمت شمسی مثل "1405-04")، payroll_status
-   (VARCHAR enum: draft, calculated, finalized)، calculated_at،
-   calculated_by_user_id، finalized_at، finalized_by_user_id.
+   period_month، payroll_status (VARCHAR enum: draft, calculated,
+   finalized)، calculated_at/by، finalized_at/by.
 2. Migration و model برای payslips: id، payroll_run_id، employee_id،
-   gross_salary_amount (snapshot از employees.base_salary لحظه محاسبه
-   — طبق بخش ۵.۲ CLAUDE.md، snapshot نه reference)، overtime_amount
-   (محاسبه‌شده از مجموع attendances.overtime_minutes آن دوره)،
-   deduction_amount (فعلاً صفر یا دستی — بیمه/مالیات واقعی فاز بعد)،
-   net_amount (gross + overtime - deduction)، currency_id،
-   expense_posting_status (VARCHAR enum: pending, posted — همیشه
-   pending می‌ماند در این Session، طبق تصمیم BACKLOG.md #1).
-3. Action CalculatePayroll: برای یک شرکت و یک ماه، برای هر کارمند فعال
-   یک payslip می‌سازد (gross از snapshot حقوق پایه + جمع اضافه‌کاری آن
-   ماه از attendances). قابل اجرا فقط یک‌بار در حالت draft؛ اگر دوباره
-   صدا زده شد، رکوردهای قبلی را جایگزین می‌کند نه تکرار. authorization
-   داخل Action (فقط holding_admin یا accountant).
-4. Action FinalizePayrollRun: payroll_status را به finalized تغییر
-   می‌دهد؛ بعد از finalize، هیچ payslip آن run نباید قابل ویرایش باشد
-   (قفل مالی، مشابه قانون "بعد از delivered فیلدهای مالی قفل‌اند" در
-   بخش ۶ CLAUDE.md).
-5. کامپوننت Livewire: صفحه اجرای محاسبه حقوق ماهانه + فهرست فیش‌های
-   یک payroll_run + دکمه نهایی‌کردن.
-6. متد PendingExpensePosting در PayrollRun model: کوئری همه payslip
-   های expense_posting_status=pending را برمی‌گرداند — با کامنت صریح
-   // TODO: اتصال به Finance/Expenses — نگاه کن BACKLOG.md #1
-   هیچ چیز دیگری با این متد انجام نمی‌شود در این Session.
+   gross_salary_amount (snapshot از employees.base_salary)،
+   overtime_amount (از monthly_attendance_summaries.total_overtime_minutes
+   ضربدر نرخ ساعتی ساده = base_salary/۱۷۶ ساعت استاندارد ماهانه)،
+   absence_deduction_amount (کسر بابت total_absent_days، به نسبت روز)،
+   unpaid_leave_deduction_amount (کسر بابت مرخصی بدون‌حقوق آن ماه)،
+   insurance_amount (درصد ثابت قابل‌تنظیم، فعلاً یک مقدار پیش‌فرض ساده
+   مثل ۷٪ سهم کارمند — دقیق‌سازی واقعی طبق قانون کار در فاز بعد)،
+   tax_amount (فعلاً یک فرمول ساده پلکانی یا صفر با یادداشت TODO دقیق‌سازی
+   بعدی — این را صریح در کد و در خروجی مشخص کن که فرمول موقت است)،
+   benefits_amount (مزایا/حق‌مسکن/حق‌اولاد — فعلاً یک مبلغ ثابت قابل‌تنظیم
+   در تنظیمات شرکت یا صفر)، net_amount = gross + overtime + benefits -
+   absence_deduction - unpaid_leave_deduction - insurance - tax،
+   currency_id، expense_posting_status (pending/posted — همیشه pending
+   طبق BACKLOG #1).
+3. Action CalculatePayroll: برای یک شرکت/ماه، برای هر کارمند فعال با
+   monthly_attendance_summary محاسبه‌شده آن ماه (اگر خلاصه ماهانه محاسبه
+   نشده بود، خطای واضح بده که اول Session 4 را برای آن ماه اجرا کنید)،
+   یک payslip می‌سازد. Idempotent در حالت draft. authorize داخل Action.
+4. Action FinalizePayrollRun: قفل می‌کند، بعد از finalize هیچ payslip
+   قابل ویرایش نیست.
+5. کامپوننت Livewire (پنل ادمین): اجرای محاسبه ماهانه + فهرست فیش‌ها +
+   دکمه نهایی‌کردن.
+6. کامپوننت Livewire (پنل خودِ کارمند، /my/payslips): فقط مشاهده فیش‌های
+   خودش (finalized)، با جزئیات کامل (ناخالص، اضافه‌کاری، کسورات، خالص)
+   — قابل چاپ (یک Blade view ساده مناسب چاپ، نه لزوماً PDF در این Session).
+7. متد PendingExpensePosting در PayrollRun — طبق BACKLOG #1، بدون اتصال واقعی.
 
-تست (قبل از پیاده‌سازی منطق محاسبه بنویس، طبق قانون TDD این بخش):
-- محاسبه حقوق با snapshot درست کار کند؛ تغییر بعدی base_salary کارمند،
-  فیش‌های قبلی را عوض نکند.
-- بعد از finalize، تلاش برای ویرایش payslip رد شود.
-- اضافه‌کاری از attendances درست جمع و به مبلغ تبدیل شود.
-- کاربر بدون نقش مجاز نتواند محاسبه حقوق را اجرا یا نهایی کند.
+تست (قبل از پیاده‌سازی منطق محاسبه):
+- محاسبه با snapshot درست کار کند؛ تغییر بعدی base_salary فیش‌های قبلی
+  را عوض نکند.
+- غیبت و مرخصی بدون‌حقوق درست کسر شود.
+- بعد از finalize، ویرایش رد شود.
+- کارمند فقط فیش خودش را ببیند، نه فیش دیگران.
+- کاربر بدون نقش مجاز نتواند محاسبه/نهایی‌سازی را اجرا کند.
 
-تمام وقتی: بتوانم برای یک شرکت و یک ماه حقوق محاسبه کنم، فیش‌ها را ببینم،
-   نهایی کنم، و بعد از نهایی‌شدن دیگر قابل ویرایش نباشند.
+تمام وقتی: بتوانم حقوق ماهانه محاسبه کنم (با کسر غیبت/مرخصی، بیمه، مالیات
+   ساده، مزایا)، نهایی کنم، و کارمند فیش خودش را ببیند.
 ```
 
 ---
 
-## Session 6 (پایانی) — گزارش پایه هزینه پرسنل
+## Session 7 (پایانی) — گزارش پایه هزینه پرسنل
+(بدون تغییر نسبت به نسخه قبلی)
 
-**پرامپت آماده:**
 ```
-CLAUDE.md را بخوان. نقشه بده، بعد پیاده کن:
+یک کامپوننت Livewire گزارش: مجموع net_amount فیش‌های finalized یک ماه،
+به تفکیک شرکت. موقتی — تا فاز مالی که واقعاً به Expenses وصل شود.
 
-یک کامپوننت Livewire گزارش ساده: مجموع net_amount همه payslip های
-finalized یک ماه، به تفکیک شرکت. این گزارش موقتی است — وقتی فاز مالی
-(Finance/Expenses) ساخته شد، این عدد باید با PostPayrollToExpenses
-(طبق BACKLOG.md #1) واقعاً به‌عنوان expense ثبت شود؛ فعلاً فقط نمایش
-است، نوشتن در جدول دیگری نیست.
-
-تست: عدد گزارش با جمع دستی payslip های همان ماه/شرکت برابر باشد.
-
-تمام وقتی: مدیر بتواند ببیند این ماه چقدر هزینه حقوق داشته‌ایم، به
-تفکیک شرکت.
+تست: عدد گزارش با جمع دستی برابر باشد.
 ```
 
 ---
 
-# ساختار نهایی ماژول (بعد از همه Session ها)
+# آیتم جدید برای BACKLOG.md (همین الان ثبت کن)
+
+```
+### تسهیم حقوق نیروهای مشترک بین شرکت‌ها
+- از کجا آمد: بخش ۷.۲ سند طراحی («تسهیم حقوق نیروهای مشترک بین شرکت‌ها»)
+- چه چیزی به‌تعویق افتاد: تسهیم خودکار حقوق یک کارمند مشترک بین چند
+  شرکت، بر پایه ساعت واقعی کار در تایم‌شیت
+- چرا الان نه: تایم‌شیت (فاز ۵) هنوز ساخته نشده؛ بدون داده واقعی ساعت
+  کار، تسهیم فقط یک فرمول حدسی می‌شود
+- راه‌حل موقت فعلی: هر فیش حقوقی برای یک شرکت مشخص صادر می‌شود؛
+  برای کارمند مشترک، دستی تعیین می‌شود این ماه کدام شرکت پرداخت می‌کند
+- وضعیت: باز — وقتی تایم‌شیت (فاز ۵) ساخته شد، این تسهیم واقعی پیاده می‌شود
+```
+
+---
+
+# ساختار نهایی ماژول (به‌روزشده)
 
 ```
 app/Modules/HR/
@@ -242,70 +355,46 @@ app/Modules/HR/
 │   ├── Employee.php
 │   ├── Holiday.php
 │   ├── Attendance.php
+│   ├── MonthlyAttendanceSummary.php   ← جدید
 │   ├── Leave.php
 │   ├── PayrollRun.php
 │   └── Payslip.php
 ├── Actions/
-│   ├── CreateEmployee.php
-│   ├── UpdateEmployee.php
-│   ├── TerminateEmployee.php
+│   ├── CreateEmployee.php / UpdateEmployee.php / TerminateEmployee.php
+│   ├── LinkEmployeeToUser.php   ← جدید (Session 2.5)
 │   ├── RecordAttendance.php
-│   ├── RequestLeave.php
-│   ├── ApproveLeave.php
-│   ├── RejectLeave.php
-│   ├── CalculatePayroll.php
-│   └── FinalizePayrollRun.php
-├── Services/
-│   └── WorkCalendar.php
-├── Policies/
-│   └── EmployeePolicy.php
-├── Database/
-│   ├── Migrations/
-│   └── Seeders/
+│   ├── CalculateMonthlyAttendance.php   ← جدید
+│   ├── RequestLeave.php / ApproveLeave.php / RejectLeave.php
+│   └── CalculatePayroll.php / FinalizePayrollRun.php
+├── Services/WorkCalendar.php
+├── Policies/EmployeePolicy.php + EmployeeSelfServicePolicy.php   ← جدید
+├── Database/{Migrations,Seeders}/
 └── Tests/
 
 app/Livewire/HR/
-├── Employees/EmployeeIndex.php
-├── Employees/EmployeeForm.php
-├── Attendance/AttendanceIndex.php
-├── Attendance/RecordForm.php
-├── Leaves/LeaveRequestForm.php
-├── Leaves/LeaveApprovalIndex.php
-├── Payroll/PayrollRunIndex.php
-└── Payroll/PayrollReport.php
-
-resources/views/livewire/hr/
-├── employees/employee-index.blade.php
-├── employees/employee-form.blade.php
-├── attendance/attendance-index.blade.php
-├── attendance/record-form.blade.php
-├── leaves/leave-request-form.blade.php
-├── leaves/leave-approval-index.blade.php
-├── payroll/payroll-run-index.blade.php
-└── payroll/payroll-report.blade.php
+├── Employees/ (ادمین)
+├── Attendance/ (ادمین)
+├── Leaves/ (ادمین)
+├── Payroll/ (ادمین)
+└── SelfService/            ← کاملاً جدید
+    ├── MyAttendance.php
+    ├── MyLeaves.php
+    └── MyPayslips.php
 ```
 
 ---
 
-# نکات حیاتی برای این ماژول
+# نکات حیاتی (به‌روزشده)
 
-## ۱. Snapshot در حقوق — قابل مذاکره نیست
-هرگز `payslips.gross_salary_amount` را به `employees.base_salary` reference نکن. همیشه لحظه محاسبه کپی شود.
-
-## ۲. قفل مالی بعد از finalize
-دقیقاً مثل قانون سفارش (`delivered` قفل می‌کند)، اینجا هم `finalized` باید قفل کند. یک تست صریح برای این باید وجود داشته باشد.
-
-## ۳. Authorization داخل Action — بدون استثنا
-طبق قانون کشف‌شده در Session 4 ماژول Auth، `CalculatePayroll` و `FinalizePayrollRun` باید مستقل از UI هم محافظت‌شده باشند — این دقیقاً همان سناریویی است که آن قانون برایش نوشته شد.
-
-## ۴. هیچ اتصال جعلی به Expenses نساز
-وسوسه نشو یک جدول ساده «هزینه» بسازی «فقط برای این‌که کامل به‌نظر برسد». طبق `DECISIONS.md`، این عمداً به فاز ۴ موکول شده.
+۱. **Snapshot در حقوق** — قابل مذاکره نیست.
+۲. **قفل مالی بعد از finalize.**
+۳. **Authorization داخل Action** — خصوصاً حیاتی در پنل خودِ کارمند: باید تضمین شود کارمند X هرگز نتواند رکورد کارمند Y را ببیند/تغییر دهد، حتی اگر URL را دستی حدس بزند.
+۴. **بیمه/مالیات فعلاً فرمول ساده و موقت‌اند** — این را صریح در کد و مستندات علامت بزن، چون قوانین واقعی بیمه/مالیات ایران پیچیده‌ترند و نیاز به دقیق‌سازی دارند (احتمالاً وقتی حسابدار واقعی کارفرما این بخش را چک کند).
+۵. **تسهیم بین شرکت‌ها ساخته نمی‌شود** — به BACKLOG منتقل شد، آگاهانه.
 
 ---
 
-# اولین قدم همین الان
+# اولین قدم
 
-۱. `CLAUDE.md`، `DATABASE_CONVENTIONS.md`، `BACKLOG.md`، `DECISIONS.md` را (که از قبل در `docs/` هستند) دوباره مرور کن تا مطمئن شوی تصمیم HR-زودتر و قرارداد نام‌گذاری تازه در ذهنت است.
-۲. Claude Code را باز کن، بگو `/clear` (اگر context قبلی باقی مانده).
-۳. پرامپت Session 1 (پرسنل) را بزن.
-۴. نقشه را بخوان، اینجا برایم بفرست، تأیید بگیر، بعد بگو «پیاده کن».
+۱. اگر Session 1 نسخه قبلی همین الان در حال اجراست، صبر کن تمام شود، سپس آن را با Session 1 **این نسخه** (فیلدهای قرارداد/تماس اضافه) گسترش بده — یک پرامپت اصلاحی کوچک بزن، نه از صفر.
+۲. بعد از پایان کامل این ۷ Session، طبق قولی که دادیم، برمی‌گردیم و ماژول هسته (طرف‌حساب‌ها + ارز/تقویم — دو ردیف باقی‌مانده گروه الف) را تکمیل می‌کنیم، قبل از فاز ۳.
