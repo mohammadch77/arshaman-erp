@@ -34,4 +34,9 @@ class UserPolicy
     {
         return $this->isAdmin($user);
     }
+
+    public function invite(User $user): bool
+    {
+        return $this->isAdmin($user);
+    }
 }

@@ -5,6 +5,7 @@
         </x-slot:middle>
         <x-slot:actions>
             <x-button label="کاربر جدید" :icon="theme_icon('add')" class="btn-primary" link="{{ route('users.create') }}" responsive />
+            <x-button label="دعوت کاربر" :icon="theme_icon('invite')" class="btn-primary btn-outline" link="{{ route('users.invite') }}" responsive />
             <x-button label="تخصیص نقش" :icon="theme_icon('assign-role')" class="btn-ghost" link="{{ route('users.assign-role') }}" responsive />
         </x-slot:actions>
     </x-header>

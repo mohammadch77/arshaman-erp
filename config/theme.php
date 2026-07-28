@@ -48,6 +48,7 @@ return [
         'activate' => 'o-check-circle',
         'deactivate' => 'o-no-symbol',
         'assign-role' => 'o-identification',
+        'invite' => 'o-paper-airplane',
     ],
 
 ];
