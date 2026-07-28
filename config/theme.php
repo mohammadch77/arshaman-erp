@@ -42,6 +42,9 @@ return [
         'filter' => 'o-funnel',
         'save' => 'o-check',
         'clear' => 'o-x-mark',
+        'login' => 'o-arrow-left-end-on-rectangle',
+        'email' => 'o-envelope',
+        'password' => 'o-lock-closed',
     ],
 
 ];
