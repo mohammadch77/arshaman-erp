@@ -58,6 +58,9 @@ return [
         'terminate' => 'o-x-circle',
         'money' => 'o-banknotes',
         'link-account' => 'o-link',
+        'attendance' => 'o-clock',
+        'check-in' => 'o-arrow-right-on-rectangle',
+        'check-out' => 'o-arrow-left-on-rectangle',
     ],
 
 ];
