@@ -300,7 +300,29 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 - [x] Session 3: حضور و غیاب (Attendance)
 - [x] Session 4: جمع ماهانه کارکرد و غیبت (monthly_attendance_summaries، CalculateMonthlyAttendance، MonthlyAttendanceReport)
 - [x] Session 5: مرخصی‌ها (Leave)
-- [ ] Session 6: حقوق و دستمزد
+- [x] Session 6: حقوق و دستمزد
+
+  **چه ساخته شد:** `payroll_runs` و `payslips` (+ منوی HR در `layouts/app.blade.php`)،
+  Action های `CalculatePayroll`/`FinalizePayrollRun`، `PayrollPolicy`، پنل ادمین `PayrollIndex`
+  (مسیر `/payroll`)، پنل خودِ کارمند `MyPayslips` (مسیر `/my/payslips`، فیش قابل چاپ)،
+  و `PayrollRun::pendingExpensePosting()` طبق BACKLOG #1.
+
+  **تصمیم‌های این Session که در Session های بعد باید رعایت شوند:**
+  - `payslips` عمداً ستون `owner_company_id` مستقیم دارد (برخلاف نسخه اول
+    `docs/schema_hr_mysql.sql`) تا `BelongsToCompany` یک‌لایه و بدون join کار کند —
+    بند ۵.۱ بر نسخه اول اسکیما مقدم شد. انحراف در همان فایل مستند شده.
+  - محاسبات پولی با `App\Support\Money` (bcmath روی رشته) انجام می‌شود، نه float.
+    `Farsi::toToman()` هم برای همین رشته‌امن شد.
+  - «همه یا هیچ» برای یک دوره: کل ساخت run + همه فیش‌ها در یک `DB::transaction`
+    بیرونی واحد، بدون هیچ `try/catch` داخل حلقه.
+  - قفل مالی **دولایه** است: هم در Action، هم نگهبان `updating`/`deleting` روی مدل
+    `Payslip` — چون Action تنها caller نیست (بند ۹).
+  - `net_amount` در صفر clamp می‌شود و مبلغ خام منفی در `raw_net_amount` می‌ماند
+    (`needsManualReview()`)، با هشدار صریح در هر دو پنل.
+
+  ⚠️ **فرمول بیمه، مالیات و مخرج نرخ روزانه موقت‌اند** — پارامترها در `config/payroll.php`،
+  نیازمند تأیید حسابدار واقعی کارفرما. تا آن زمان، مخرج ثابت ۲۲ در برابر ۲۶–۲۷ روز کاری
+  واقعی ماه شمسی می‌تواند خالص را منفی کند؛ دلیل وجود `raw_net_amount` همین است.
 - [ ] Session 7: گزارش پایه هزینه پرسنل
 
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

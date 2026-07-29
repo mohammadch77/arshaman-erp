@@ -65,6 +65,11 @@ return [
         'leave' => 'o-calendar-days',
         'approve' => 'o-check-circle',
         'reject' => 'o-x-circle',
+        'payroll' => 'o-banknotes',
+        'payslip' => 'o-document-text',
+        'finalize' => 'o-lock-closed',
+        'print' => 'o-printer',
+        'review' => 'o-exclamation-circle',
     ],
 
 ];

@@ -11,8 +11,10 @@ use App\Livewire\HR\EmployeeForm;
 use App\Livewire\HR\EmployeeIndex;
 use App\Livewire\HR\LeaveIndex;
 use App\Livewire\HR\MonthlyAttendanceReport;
+use App\Livewire\HR\PayrollIndex;
 use App\Livewire\HR\SelfService\MyAttendance;
 use App\Livewire\HR\SelfService\MyLeaves;
+use App\Livewire\HR\SelfService\MyPayslips;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -46,5 +48,8 @@ Route::livewire('/my/attendance', MyAttendance::class)->middleware('auth')->name
 
 Route::livewire('/leaves', LeaveIndex::class)->middleware('auth')->name('leaves.index');
 Route::livewire('/my/leaves', MyLeaves::class)->middleware('auth')->name('my-leaves');
+
+Route::livewire('/payroll', PayrollIndex::class)->middleware('auth')->name('payroll.index');
+Route::livewire('/my/payslips', MyPayslips::class)->middleware('auth')->name('my-payslips');
 
 Route::livewire('/theme-showcase', 'pages::theme-showcase');

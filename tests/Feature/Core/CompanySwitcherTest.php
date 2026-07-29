@@ -7,6 +7,7 @@ use App\Modules\Core\Models\Role;
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Models\UserCompanyRole;
 use App\Modules\Core\Services\CompanyContext;
+use Illuminate\Auth\Access\AuthorizationException;
 use Livewire\Livewire;
 
 function switcherCompany(string $slug, BusinessType $businessType = BusinessType::ProjectServices): Company
@@ -91,7 +92,7 @@ it('rejects switching to a company the user has no role in', function () {
     $this->actingAs($user);
 
     expect(fn () => app(CompanyContext::class)->set($companyA->id))
-        ->toThrow(Illuminate\Auth\Access\AuthorizationException::class);
+        ->toThrow(AuthorizationException::class);
 });
 
 it('shows sidebar menu items based on the active company business type', function () {

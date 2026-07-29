@@ -4,7 +4,6 @@ namespace App\Livewire\HR;
 
 use App\Modules\HR\Actions\ApproveLeave;
 use App\Modules\HR\Actions\RejectLeave;
-use App\Modules\HR\Enums\LeaveStatus;
 use App\Modules\HR\Models\Employee;
 use App\Modules\HR\Models\Leave;
 use Livewire\Component;

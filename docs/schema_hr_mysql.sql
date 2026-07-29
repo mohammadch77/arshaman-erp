@@ -171,11 +171,22 @@ CREATE TABLE payroll_runs (
 -- جدول ۷: payslips — فیش حقوقی هر کارمند در یک payroll_run
 -- تمام مبالغ snapshot هستند (کپی لحظه محاسبه، نه reference زنده به employees.base_salary)
 -- expense_posting_status همیشه 'pending' می‌ماند در این فاز — طبق BACKLOG.md #1
+--
+-- ⚠️ انحراف مستند از نسخه اول این فایل (تصمیم A، Session 6):
+-- نسخه اول ستون owner_company_id نداشت و شرکت را فقط از راه payroll_run استنتاج
+-- می‌کرد. این با CLAUDE.md بند ۵.۱ در تضاد بود («هر مدل عملیاتی بدون
+-- BelongsToCompany یک باگ امنیتی است»). ستون مستقیم اضافه شد تا Global Scope
+-- یک‌لایه و بدون join کار کند و گزارش هزینه پرسنل (Session 7) هم به join نیاز
+-- نداشته باشد. migration مرجع: 2026_07_29_100007_create_payslips_table.php
+--
+-- ⚠️ فرمول‌های insurance_amount، tax_amount و مخرج نرخ روزانه موقت‌اند و نیازمند
+-- تأیید حسابدار واقعی کارفرما — پارامترها در config/payroll.php.
 -- =====================================================================
 CREATE TABLE payslips (
     id                          CHAR(36)      NOT NULL PRIMARY KEY,
     payroll_run_id              CHAR(36)      NOT NULL,
     employee_id                 CHAR(36)      NOT NULL,
+    owner_company_id            CHAR(36)      NOT NULL,        -- ← افزوده در Session 6 (تصمیم A)
     gross_salary_amount         DECIMAL(18,2) NOT NULL,        -- snapshot از employees.base_salary
     overtime_amount              DECIMAL(18,2) NOT NULL DEFAULT 0,
     absence_deduction_amount     DECIMAL(18,2) NOT NULL DEFAULT 0,
@@ -183,7 +194,12 @@ CREATE TABLE payslips (
     insurance_amount             DECIMAL(18,2) NOT NULL DEFAULT 0, -- فرمول ساده موقت
     tax_amount                   DECIMAL(18,2) NOT NULL DEFAULT 0, -- فرمول ساده موقت
     benefits_amount               DECIMAL(18,2) NOT NULL DEFAULT 0,
-    net_amount                   DECIMAL(18,2) NOT NULL,        -- gross+overtime+benefits-deductions-insurance-tax
+    net_amount                   DECIMAL(18,2) NOT NULL,        -- gross+overtime+benefits-deductions-insurance-tax، clamp‌شده در صفر
+    -- ← افزوده در Session 6: مبلغ خام محاسبه‌شده، فقط وقتی منفی درآمد.
+    -- NULL = هیچ clamp ای رخ نداده. پرشدنش یعنی کسورات از حقوق و مزایا بیشتر
+    -- شده و فیش نیاز به بررسی دستی حسابدار دارد (در UI هشدار داده می‌شود).
+    -- migration مرجع: 2026_07_29_100008_add_raw_net_amount_to_payslips_table.php
+    raw_net_amount               DECIMAL(18,2) NULL,
     currency_id                  CHAR(36)      NULL,
     expense_posting_status       VARCHAR(20)   NOT NULL DEFAULT 'pending', -- pending | posted
     created_at                   TIMESTAMP     NULL,
@@ -191,8 +207,10 @@ CREATE TABLE payslips (
 
     UNIQUE KEY uq_payslip_run_employee (payroll_run_id, employee_id),
     KEY idx_payslip_expense_status (expense_posting_status),
-    CONSTRAINT fk_payslip_run      FOREIGN KEY (payroll_run_id) REFERENCES payroll_runs(id),
-    CONSTRAINT fk_payslip_employee FOREIGN KEY (employee_id)    REFERENCES employees(id)
+    KEY idx_payslip_company_employee (owner_company_id, employee_id),
+    CONSTRAINT fk_payslip_run      FOREIGN KEY (payroll_run_id)  REFERENCES payroll_runs(id),
+    CONSTRAINT fk_payslip_employee FOREIGN KEY (employee_id)     REFERENCES employees(id),
+    CONSTRAINT fk_payslip_company  FOREIGN KEY (owner_company_id) REFERENCES companies(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

@@ -6,9 +6,12 @@ use App\Modules\HR\Models\Attendance;
 use App\Modules\HR\Models\Employee;
 use App\Modules\HR\Models\Leave;
 use App\Modules\HR\Models\MonthlyAttendanceSummary;
+use App\Modules\HR\Models\PayrollRun;
+use App\Modules\HR\Models\Payslip;
 use App\Modules\HR\Policies\AttendancePolicy;
 use App\Modules\HR\Policies\EmployeePolicy;
 use App\Modules\HR\Policies\LeavePolicy;
+use App\Modules\HR\Policies\PayrollPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -20,5 +23,7 @@ class HrServiceProvider extends ServiceProvider
         Gate::policy(Attendance::class, AttendancePolicy::class);
         Gate::policy(MonthlyAttendanceSummary::class, AttendancePolicy::class);
         Gate::policy(Leave::class, LeavePolicy::class);
+        Gate::policy(PayrollRun::class, PayrollPolicy::class);
+        Gate::policy(Payslip::class, PayrollPolicy::class);
     }
 }

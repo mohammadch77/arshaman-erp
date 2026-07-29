@@ -47,8 +47,26 @@
                     <x-menu-item title="مدیریت کاربران" :icon="theme_icon('users')" link="{{ route('users.index') }}" />
                 @endif
 
+                {{-- منابع انسانی — پنل ادمین/حسابدار --}}
                 @if(auth()->check() && (auth()->user()->is_super_admin || auth()->user()->hasRole('holding_admin') || auth()->user()->hasRole('accountant')))
-                    <x-menu-item title="پرسنل" :icon="theme_icon('employee')" link="{{ route('employees.index') }}" />
+                    <x-menu-sub title="منابع انسانی" :icon="theme_icon('employee')">
+                        <x-menu-item title="پرسنل" :icon="theme_icon('employee')" link="{{ route('employees.index') }}" />
+                        <x-menu-item title="حضور و غیاب" :icon="theme_icon('attendance')" link="{{ route('attendance.index') }}" />
+                        <x-menu-item title="جمع ماهانه کارکرد" :icon="theme_icon('report')" link="{{ route('attendance.monthly-summary') }}" />
+                        <x-menu-item title="مرخصی‌ها" :icon="theme_icon('leave')" link="{{ route('leaves.index') }}" />
+                        <x-menu-item title="حقوق و دستمزد" :icon="theme_icon('payroll')" link="{{ route('payroll.index') }}" />
+                    </x-menu-sub>
+                @endif
+
+                {{-- پنل خودِ کارمند — بدون نیاز به نقش؛ هر کاربری که پرونده پرسنلی
+                     مرتبط داشته باشد. خود صفحه‌ها اگر پرونده‌ای نبود، پیام مناسب
+                     نشان می‌دهند (نه خطا) — طبق Session 3 سند HR. --}}
+                @if(auth()->check())
+                    <x-menu-sub title="پنل من" :icon="theme_icon('user')">
+                        <x-menu-item title="حضور و غیاب من" :icon="theme_icon('attendance')" link="{{ route('my-attendance') }}" />
+                        <x-menu-item title="مرخصی‌های من" :icon="theme_icon('leave')" link="{{ route('my-leaves') }}" />
+                        <x-menu-item title="فیش‌های حقوقی من" :icon="theme_icon('payslip')" link="{{ route('my-payslips') }}" />
+                    </x-menu-sub>
                 @endif
 
                 @if($activeCompany && in_array($activeCompany->business_type->value, ['physical_goods', 'hybrid']))
