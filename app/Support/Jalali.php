@@ -59,6 +59,34 @@ class Jalali
         return (new Jalalian($year, $month, 1))->getMonthDays();
     }
 
+    /**
+     * حداکثر روز معتبر برای یک ماه — حتی وقتی سال هنوز انتخاب نشده.
+     * ماه‌های ۱ تا ۶: ۳۱ روز. ماه‌های ۷ تا ۱۱: ۳۰ روز. اسفند (۱۲): وابسته به کبیسه‌بودن سال؛
+     * اگر سال هنوز انتخاب نشده، محافظه‌کارانه ۲۹ روز فرض می‌شود تا انتخاب سال.
+     */
+    public static function maxDayForMonth(int|string|null $year, int|string|null $month): int
+    {
+        if (! $month) {
+            return 31;
+        }
+
+        $month = (int) $month;
+
+        if ($year) {
+            return self::daysInMonth((int) $year, $month);
+        }
+
+        if ($month <= 6) {
+            return 31;
+        }
+
+        if ($month <= 11) {
+            return 30;
+        }
+
+        return 29;
+    }
+
     public static function monthOptions(): array
     {
         $names = [
@@ -80,9 +108,12 @@ class Jalali
             ->all();
     }
 
-    public static function dayOptions(): array
+    /**
+     * فهرست روزهای معتبر یک ماه — reactive نسبت به ماه (و برای اسفند، سال) انتخاب‌شده.
+     */
+    public static function dayOptions(int|string|null $year = null, int|string|null $month = null): array
     {
-        return collect(range(1, 31))
+        return collect(range(1, self::maxDayForMonth($year, $month)))
             ->map(fn ($day) => ['id' => $day, 'name' => Farsi::toDigits($day)])
             ->values()
             ->all();

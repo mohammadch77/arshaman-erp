@@ -13,7 +13,13 @@
             <x-textarea label="آدرس" wire:model="address" :icon="theme_icon('address')" rows="2" />
             <x-input label="سمت" wire:model="position" :icon="theme_icon('employee')" required />
 
-            <x-jalali-date-select field="hire_date" label="تاریخ استخدام" required />
+            <x-jalali-date-select
+                field="hire_date"
+                label="تاریخ استخدام"
+                :year="$jalaliParts['hire_date']['year']"
+                :month="$jalaliParts['hire_date']['month']"
+                required
+            />
 
             <x-select
                 label="نوع قرارداد"
@@ -27,8 +33,19 @@
                 required
             />
 
-            <x-jalali-date-select field="contract_start_date" label="شروع قرارداد" required />
-            <x-jalali-date-select field="contract_end_date" label="پایان قرارداد (خالی = دائم)" />
+            <x-jalali-date-select
+                field="contract_start_date"
+                label="شروع قرارداد"
+                :year="$jalaliParts['contract_start_date']['year']"
+                :month="$jalaliParts['contract_start_date']['month']"
+                required
+            />
+            <x-jalali-date-select
+                field="contract_end_date"
+                label="پایان قرارداد (خالی = دائم)"
+                :year="$jalaliParts['contract_end_date']['year']"
+                :month="$jalaliParts['contract_end_date']['month']"
+            />
 
             @if($this->isContractExpiringSoon)
                 <div class="alert alert-warning">
@@ -55,7 +72,13 @@
     @if($record && $record->employment_status->value !== 'terminated')
         <x-card title="پایان همکاری" shadow class="max-w-2xl mt-6">
             <x-form wire:submit="terminate" class="gap-5">
-                <x-jalali-date-select field="terminationDate" label="تاریخ پایان همکاری" required />
+                <x-jalali-date-select
+                    field="terminationDate"
+                    label="تاریخ پایان همکاری"
+                    :year="$jalaliParts['terminationDate']['year']"
+                    :month="$jalaliParts['terminationDate']['month']"
+                    required
+                />
 
                 <x-slot:actions>
                     <x-button

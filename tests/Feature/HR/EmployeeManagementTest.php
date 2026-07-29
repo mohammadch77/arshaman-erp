@@ -194,6 +194,45 @@ it('creates an employee from jalali year/month/day selects entered through the f
     expect($employee->contract_start_date->toDateString())->toBe('2024-03-20');
 });
 
+it('limits day options to 30 for a 30-day month like mehr (month 7)', function () {
+    $options = Jalali::dayOptions(1403, 7);
+
+    expect($options)->toHaveCount(30);
+    expect(collect($options)->pluck('id')->all())->not->toContain(31);
+});
+
+it('limits day options to 29 for esfand in a non-leap year', function () {
+    // ۱۴۰۴ سال غیرکبیسه است
+    $options = Jalali::dayOptions(1404, 12);
+
+    expect($options)->toHaveCount(29);
+    expect(collect($options)->pluck('id')->all())->not->toContain(30);
+});
+
+it('allows day 30 for esfand in a leap year', function () {
+    // ۱۴۰۳ سال کبیسه است
+    $options = Jalali::dayOptions(1403, 12);
+
+    expect($options)->toHaveCount(30);
+});
+
+it('clamps the selected day to 30 when the month changes from a 31-day month to mehr', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    hrGiveRole($admin, $company, 'holding_admin');
+
+    $this->actingAs($admin);
+    session(['active_company_id' => $company->id]);
+
+    Livewire::test(EmployeeForm::class)
+        ->set('jalaliParts.hire_date.year', 1403)
+        ->set('jalaliParts.hire_date.month', 1)
+        ->set('jalaliParts.hire_date.day', 31)
+        ->assertSet('jalaliParts.hire_date.day', 31)
+        ->set('jalaliParts.hire_date.month', 7)
+        ->assertSet('jalaliParts.hire_date.day', 30);
+});
+
 it('displays the employee contract end date in full jalali format in the index list, not gregorian', function () {
     $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
     $admin = User::factory()->create(['is_super_admin' => true]);

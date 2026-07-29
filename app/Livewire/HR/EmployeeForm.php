@@ -95,9 +95,22 @@ class EmployeeForm extends Component
             return;
         }
 
-        $parts = $this->jalaliParts[$field];
+        $year = $this->jalaliParts[$field]['year'] ?? null;
+        $month = $this->jalaliParts[$field]['month'] ?? null;
+        $day = $this->jalaliParts[$field]['day'] ?? null;
 
-        $this->{$field} = Jalali::toGregorian($parts['year'] ?? null, $parts['month'] ?? null, $parts['day'] ?? null) ?? '';
+        // اگر با تغییر ماه/سال، روز قبلاً انتخاب‌شده دیگر معتبر نباشد (مثلاً ۳۱ برای مهر)،
+        // به آخرین روز معتبر همان ماه کلمپ می‌شود — هم در select هم در تاریخ ذخیره‌شده.
+        if ($day && $month) {
+            $maxDay = Jalali::maxDayForMonth($year, $month);
+
+            if ((int) $day > $maxDay) {
+                $day = $maxDay;
+                $this->jalaliParts[$field]['day'] = $maxDay;
+            }
+        }
+
+        $this->{$field} = Jalali::toGregorian($year, $month, $day) ?? '';
     }
 
     public function getContractTypeOptionsProperty(): array

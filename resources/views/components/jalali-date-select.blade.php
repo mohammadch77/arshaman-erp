@@ -1,9 +1,9 @@
-@props(['field', 'label' => null, 'required' => false, 'icon' => null])
+@props(['field', 'label' => null, 'required' => false, 'icon' => null, 'year' => null, 'month' => null])
 
 @php
     $yearOptions = \App\Support\Jalali::yearOptions();
     $monthOptions = \App\Support\Jalali::monthOptions();
-    $dayOptions = \App\Support\Jalali::dayOptions();
+    $dayOptions = \App\Support\Jalali::dayOptions($year, $month);
 @endphp
 
 <fieldset class="fieldset py-0">
