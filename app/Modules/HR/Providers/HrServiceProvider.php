@@ -4,6 +4,7 @@ namespace App\Modules\HR\Providers;
 
 use App\Modules\HR\Models\Attendance;
 use App\Modules\HR\Models\Employee;
+use App\Modules\HR\Models\MonthlyAttendanceSummary;
 use App\Modules\HR\Policies\AttendancePolicy;
 use App\Modules\HR\Policies\EmployeePolicy;
 use Illuminate\Support\Facades\Gate;
@@ -15,5 +16,6 @@ class HrServiceProvider extends ServiceProvider
     {
         Gate::policy(Employee::class, EmployeePolicy::class);
         Gate::policy(Attendance::class, AttendancePolicy::class);
+        Gate::policy(MonthlyAttendanceSummary::class, AttendancePolicy::class);
     }
 }

@@ -61,6 +61,7 @@ return [
         'attendance' => 'o-clock',
         'check-in' => 'o-arrow-right-on-rectangle',
         'check-out' => 'o-arrow-left-on-rectangle',
+        'calculate' => 'o-calculator',
     ],
 
 ];

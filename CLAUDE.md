@@ -298,8 +298,8 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 - [x] Session 2: تقویم کاری و تعطیلات رسمی
 - [x] Session 2.5: اتصال کارمند به کاربر سیستم
 - [x] Session 3: حضور و غیاب (Attendance)
-- [ ] Session 4: مرخصی‌ها (Leave)
-- [ ] Session 5: جمع ماهانه کارکرد/غیبت
+- [x] Session 4: جمع ماهانه کارکرد و غیبت (monthly_attendance_summaries، CalculateMonthlyAttendance، MonthlyAttendanceReport)
+- [ ] Session 5: مرخصی‌ها (Leave)
 - [ ] Session 6: حقوق و دستمزد
 - [ ] Session 7: گزارش پایه هزینه پرسنل
 

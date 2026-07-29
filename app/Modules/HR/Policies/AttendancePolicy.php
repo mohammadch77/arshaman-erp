@@ -32,4 +32,17 @@ class AttendancePolicy
     {
         return $employee->user_id !== null && $employee->user_id === $user->id;
     }
+
+    /**
+     * دسترسی به گزارش جمع ماهانه کارکرد (MonthlyAttendanceSummary): همان دسترسی پنل ادمین حضور و غیاب.
+     */
+    public function viewSummary(User $user): bool
+    {
+        return $this->isAdminAuthorized($user);
+    }
+
+    public function calculate(User $user): bool
+    {
+        return $this->isAdminAuthorized($user);
+    }
 }
