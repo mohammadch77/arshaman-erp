@@ -120,6 +120,73 @@ it('does not count a friday inside the leave range in days_count', function () {
     expect($leave->days_count)->toBeLessThan(7);
 });
 
+it('rejects a new leave request that overlaps an existing pending request for the same employee', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(leaveValidEmployeeData($company->id, '3000000011'), $admin);
+
+    app(RequestLeave::class)->handle(
+        $employee,
+        ['leave_type' => 'annual', 'start_date' => '2026-08-01', 'end_date' => '2026-08-05'],
+        $admin,
+        RecordedBy::Admin,
+    );
+
+    expect(fn () => app(RequestLeave::class)->handle(
+        $employee,
+        ['leave_type' => 'unpaid', 'start_date' => '2026-08-03', 'end_date' => '2026-08-07'],
+        $admin,
+        RecordedBy::Admin,
+    ))->toThrow(ValidationException::class);
+
+    expect(Leave::withoutGlobalScopes()->where('employee_id', $employee->id)->count())->toBe(1);
+});
+
+it('rejects a new leave request that overlaps an existing approved request for the same employee', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(leaveValidEmployeeData($company->id, '3000000012'), $admin);
+
+    $approved = app(RequestLeave::class)->handle(
+        $employee,
+        ['leave_type' => 'annual', 'start_date' => '2026-08-01', 'end_date' => '2026-08-05'],
+        $admin,
+        RecordedBy::Admin,
+    );
+    app(ApproveLeave::class)->handle($approved, $admin);
+
+    expect(fn () => app(RequestLeave::class)->handle(
+        $employee,
+        ['leave_type' => 'sick', 'start_date' => '2026-08-05', 'end_date' => '2026-08-06'],
+        $admin,
+        RecordedBy::Admin,
+    ))->toThrow(ValidationException::class);
+});
+
+it('allows a new leave request over the same dates once the earlier request was rejected', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(leaveValidEmployeeData($company->id, '3000000013'), $admin);
+
+    $rejected = app(RequestLeave::class)->handle(
+        $employee,
+        ['leave_type' => 'annual', 'start_date' => '2026-08-01', 'end_date' => '2026-08-05'],
+        $admin,
+        RecordedBy::Admin,
+    );
+    app(RejectLeave::class)->handle($rejected, $admin);
+
+    $second = app(RequestLeave::class)->handle(
+        $employee,
+        ['leave_type' => 'sick', 'start_date' => '2026-08-01', 'end_date' => '2026-08-05'],
+        $admin,
+        RecordedBy::Admin,
+    );
+
+    expect($second->id)->not->toBe($rejected->id);
+    expect(Leave::withoutGlobalScopes()->where('employee_id', $employee->id)->count())->toBe(2);
+});
+
 it('rejects a self-service leave request for a different employee', function () {
     $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
     $admin = User::factory()->create(['is_super_admin' => true]);

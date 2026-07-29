@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class RequestLeave
 {
@@ -37,6 +38,22 @@ class RequestLeave
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['nullable', 'string'],
         ])->validate();
+
+        // یک روز نباید هم‌زمان زیر دو مرخصی «زنده» (در انتظار یا تأییدشده) این کارمند برود —
+        // وگرنه دو تصمیم تأیید متناقض روی همان روز ممکن می‌شود و مصرف‌کننده‌های بعدی این جدول
+        // (جمع ماهانه، و بعداً کسر مرخصی بدون‌حقوق در حقوق) داده مبهم/دوبار-شمرده می‌گیرند.
+        $hasOverlap = Leave::withoutGlobalScopes()
+            ->where('employee_id', $employee->id)
+            ->whereIn('leave_status', [LeaveStatus::Pending, LeaveStatus::Approved])
+            ->where('start_date', '<=', $data['end_date'])
+            ->where('end_date', '>=', $data['start_date'])
+            ->exists();
+
+        if ($hasOverlap) {
+            throw ValidationException::withMessages([
+                'start_date' => 'این کارمند برای بخشی از همین بازه، مرخصی در انتظار یا تأییدشده دیگری دارد.',
+            ]);
+        }
 
         $workCalendar = app(WorkCalendar::class);
         $daysCount = 0;
