@@ -296,7 +296,7 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 
 - [ ] Session 1: پرسنل (Employees)
 - [x] Session 2: تقویم کاری و تعطیلات رسمی
-- [ ] Session 2.5: اتصال کارمند به کاربر سیستم
+- [x] Session 2.5: اتصال کارمند به کاربر سیستم
 - [ ] Session 3: حضور و غیاب (Attendance)
 - [ ] Session 4: مرخصی‌ها (Leave)
 - [ ] Session 5: جمع ماهانه کارکرد/غیبت

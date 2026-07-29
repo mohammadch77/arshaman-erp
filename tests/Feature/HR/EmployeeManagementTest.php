@@ -1,13 +1,14 @@
 <?php
 
+use App\Livewire\HR\EmployeeForm;
+use App\Livewire\HR\EmployeeIndex;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Role;
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Models\UserCompanyRole;
 use App\Modules\HR\Actions\CreateEmployee;
+use App\Modules\HR\Actions\LinkEmployeeToUser;
 use App\Modules\HR\Models\Employee;
-use App\Livewire\HR\EmployeeForm;
-use App\Livewire\HR\EmployeeIndex;
 use App\Support\Jalali;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\QueryException;
@@ -248,4 +249,87 @@ it('displays the employee contract end date in full jalali format in the index l
     Livewire::test(EmployeeIndex::class)
         ->assertSee('۱۴۰۳/۰۱/۰۱')
         ->assertDontSee('2024-03-20');
+});
+
+it('links an employee to a user account successfully', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(hrValidEmployeeData($company->id, '8888888880'), $admin);
+    $account = User::factory()->create(['is_super_admin' => false]);
+
+    $linked = app(LinkEmployeeToUser::class)->handle($employee, $account, $admin);
+
+    expect($linked->user_id)->toBe($account->id);
+});
+
+it('prevents linking a user that is already linked to another employee', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employeeA = app(CreateEmployee::class)->handle(hrValidEmployeeData($company->id, '8888888881'), $admin);
+    $employeeB = app(CreateEmployee::class)->handle(hrValidEmployeeData($company->id, '8888888882'), $admin);
+    $account = User::factory()->create(['is_super_admin' => false]);
+
+    app(LinkEmployeeToUser::class)->handle($employeeA, $account, $admin);
+
+    expect(fn () => app(LinkEmployeeToUser::class)->handle($employeeB, $account, $admin))
+        ->toThrow(ValidationException::class);
+
+    expect($employeeB->refresh()->user_id)->toBeNull();
+});
+
+it('prevents linking an already-linked user at the database constraint level even bypassing validation', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employeeA = app(CreateEmployee::class)->handle(hrValidEmployeeData($company->id, '8888888883'), $admin);
+    $employeeB = app(CreateEmployee::class)->handle(hrValidEmployeeData($company->id, '8888888884'), $admin);
+    $account = User::factory()->create(['is_super_admin' => false]);
+
+    app(LinkEmployeeToUser::class)->handle($employeeA, $account, $admin);
+
+    expect(fn () => Employee::withoutGlobalScopes()->where('id', $employeeB->id)->update(['user_id' => $account->id]))
+        ->toThrow(QueryException::class);
+});
+
+it('rejects a link attempt by an actor without an authorized role, even bypassing Livewire entirely', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(hrValidEmployeeData($company->id, '8888888885'), $admin);
+    $intruder = User::factory()->create(['is_super_admin' => false]);
+    hrGiveRole($intruder, $company, 'operator');
+    $account = User::factory()->create(['is_super_admin' => false]);
+
+    expect(fn () => app(LinkEmployeeToUser::class)->handle($employee, $account, $intruder))
+        ->toThrow(AuthorizationException::class);
+
+    expect($employee->refresh()->user_id)->toBeNull();
+});
+
+it('links an employee to a user from the EmployeeIndex modal and excludes already-linked users from the picker', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    hrGiveRole($admin, $company, 'holding_admin');
+
+    $employeeA = app(CreateEmployee::class)->handle(hrValidEmployeeData($company->id, '8888888886'), $admin);
+    $employeeB = app(CreateEmployee::class)->handle(hrValidEmployeeData($company->id, '8888888887'), $admin);
+    $linkedAccount = User::factory()->create(['is_super_admin' => false, 'full_name' => 'قبلاً وصل‌شده']);
+    app(LinkEmployeeToUser::class)->handle($employeeB, $linkedAccount, $admin);
+    $freeAccount = User::factory()->create(['is_super_admin' => false, 'full_name' => 'کاربر آزاد']);
+
+    $this->actingAs($admin);
+    session(['active_company_id' => $company->id]);
+
+    $component = Livewire::test(EmployeeIndex::class)
+        ->call('openLinkModal', $employeeA->id)
+        ->assertSet('showLinkModal', true);
+
+    expect($component->get('unlinkedUsers')->pluck('id'))
+        ->toContain($freeAccount->id)
+        ->not->toContain($linkedAccount->id);
+
+    $component->set('linkUserId', $freeAccount->id)
+        ->call('link')
+        ->assertHasNoErrors()
+        ->assertSet('showLinkModal', false);
+
+    expect($employeeA->refresh()->user_id)->toBe($freeAccount->id);
 });

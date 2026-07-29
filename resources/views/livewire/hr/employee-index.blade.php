@@ -65,13 +65,41 @@
             @endscope
 
             @scope('actions', $employee)
-                <x-button
-                    :icon="theme_icon('edit')"
-                    tooltip-left="ویرایش"
-                    class="btn-circle btn-ghost btn-sm"
-                    link="{{ route('employees.edit', $employee->id) }}"
-                />
+                <div class="flex items-center gap-1">
+                    @unless($employee->user_id)
+                        <x-button
+                            :icon="theme_icon('link-account')"
+                            tooltip-left="اتصال به حساب کاربری"
+                            class="btn-circle btn-ghost btn-sm"
+                            wire:click="openLinkModal('{{ $employee->id }}')"
+                        />
+                    @endunless
+                    <x-button
+                        :icon="theme_icon('edit')"
+                        tooltip-left="ویرایش"
+                        class="btn-circle btn-ghost btn-sm"
+                        link="{{ route('employees.edit', $employee->id) }}"
+                    />
+                </div>
             @endscope
         </x-table>
     </x-card>
+
+    <x-modal wire:model="showLinkModal" title="اتصال به حساب کاربری" separator>
+        <x-select
+            label="کاربر"
+            wire:model="linkUserId"
+            :options="$this->unlinkedUsers"
+            option-value="id"
+            option-label="full_name"
+            placeholder="انتخاب کاربر"
+            placeholder-value=""
+            required
+        />
+
+        <x-slot:actions>
+            <x-button label="انصراف" @click="$wire.showLinkModal = false" />
+            <x-button label="اتصال" class="btn-primary" wire:click="link" spinner="link" />
+        </x-slot:actions>
+    </x-modal>
 </div>

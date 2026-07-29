@@ -57,6 +57,7 @@ return [
         'warning' => 'o-exclamation-triangle',
         'terminate' => 'o-x-circle',
         'money' => 'o-banknotes',
+        'link-account' => 'o-link',
     ],
 
 ];

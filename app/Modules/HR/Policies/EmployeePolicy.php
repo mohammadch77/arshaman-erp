@@ -40,4 +40,9 @@ class EmployeePolicy
     {
         return $this->isAuthorized($user);
     }
+
+    public function link(User $user, Employee $employee): bool
+    {
+        return $this->isAuthorized($user);
+    }
 }
