@@ -62,6 +62,9 @@ return [
         'check-in' => 'o-arrow-right-on-rectangle',
         'check-out' => 'o-arrow-left-on-rectangle',
         'calculate' => 'o-calculator',
+        'leave' => 'o-calendar-days',
+        'approve' => 'o-check-circle',
+        'reject' => 'o-x-circle',
     ],
 
 ];

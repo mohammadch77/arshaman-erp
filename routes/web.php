@@ -9,8 +9,10 @@ use App\Livewire\Core\Users\UserIndex;
 use App\Livewire\HR\AttendanceIndex;
 use App\Livewire\HR\EmployeeForm;
 use App\Livewire\HR\EmployeeIndex;
+use App\Livewire\HR\LeaveIndex;
 use App\Livewire\HR\MonthlyAttendanceReport;
 use App\Livewire\HR\SelfService\MyAttendance;
+use App\Livewire\HR\SelfService\MyLeaves;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -41,5 +43,8 @@ Route::livewire('/employees/{employee}/edit', EmployeeForm::class)->middleware('
 Route::livewire('/attendance', AttendanceIndex::class)->middleware('auth')->name('attendance.index');
 Route::livewire('/attendance/monthly-summary', MonthlyAttendanceReport::class)->middleware('auth')->name('attendance.monthly-summary');
 Route::livewire('/my/attendance', MyAttendance::class)->middleware('auth')->name('my-attendance');
+
+Route::livewire('/leaves', LeaveIndex::class)->middleware('auth')->name('leaves.index');
+Route::livewire('/my/leaves', MyLeaves::class)->middleware('auth')->name('my-leaves');
 
 Route::livewire('/theme-showcase', 'pages::theme-showcase');
