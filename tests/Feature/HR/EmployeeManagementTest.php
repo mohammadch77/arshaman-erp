@@ -154,6 +154,44 @@ it('does not flag a permanent contract or a far-future end date as expiring', fu
     expect($employee->isContractExpiringSoon())->toBeFalse();
 });
 
+it('judges contract expiry by the local calendar day, not the UTC one', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+
+    // ۲۱:۰۰ UTC = ۰۰:۳۰ بامداد روز بعد به وقت تهران. در این لحظه، «امروز» به
+    // وقت تهران یک روز جلوتر از «امروز» به وقت UTC است.
+    $this->travelTo(Carbon::parse('2026-08-05 21:00:00', 'UTC'));
+
+    // قراردادی که دقیقاً امروزِ تهران (۶ آگوست) تمام می‌شود باید هشدار بدهد.
+    $endingToday = hrValidEmployeeData($company->id, '6666666666');
+    $endingToday['contract_end_date'] = '2026-08-06';
+    $employee = app(CreateEmployee::class)->handle($endingToday, $admin);
+
+    expect($employee->isContractExpiringSoon())->toBeTrue();
+
+    // و قراردادی که دیروزِ تهران تمام شده، دیگر «نزدیک» نیست.
+    $expired = hrValidEmployeeData($company->id, '7777777777');
+    $expired['contract_end_date'] = '2026-08-05';
+    $past = app(CreateEmployee::class)->handle($expired, $admin);
+
+    expect($past->isContractExpiringSoon())->toBeFalse();
+});
+
+it('includes a contract ending exactly thirty local days out', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+
+    $this->travelTo(Carbon::parse('2026-08-05 12:00:00', 'Asia/Tehran'));
+
+    // مرز دقیق ۳۰ روز: با مقایسه لحظه‌ای (به‌جای روز-با-روز) این مورد به‌خاطر
+    // ۳:۳۰ اختلاف ساعت از قلم می‌افتاد.
+    $data = hrValidEmployeeData($company->id, '8888888888');
+    $data['contract_end_date'] = '2026-09-04';
+    $employee = app(CreateEmployee::class)->handle($data, $admin);
+
+    expect($employee->isContractExpiringSoon())->toBeTrue();
+});
+
 it('converts a jalali date round-trip to the correct gregorian date and back', function () {
     // ۱۴۰۳/۰۱/۰۱ (نوروز) == ۲۰۲۴-۰۳-۲۰ میلادی
     expect(Jalali::toGregorian(1403, 1, 1))->toBe('2024-03-20');

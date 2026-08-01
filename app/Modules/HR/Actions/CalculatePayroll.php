@@ -160,6 +160,12 @@ class CalculatePayroll
      *    نباید به آن نگهبان تکیه کند: اگر داده قدیمی یا دستی هم‌پوشان وجود داشته
      *    باشد، این مجموعه هر روز را فقط یک‌بار می‌شمارد و کسر مضاعف رخ نمی‌دهد.
      *
+     * ۳. مرخصی ساعتی هرگز از این مسیر عبور نمی‌کند. این متد روز-محور است و یک
+     *    مرخصی دو ساعته را یک **روز کامل** کسر می‌کرد. فیلتر نوع از قبل فقط
+     *    Unpaid را می‌گیرد و Hourly نوع جداگانه‌ای است، ولی استثنای صریح گذاشته
+     *    شده تا اگر بعداً کسی مرخصی ساعتی را بدون‌حقوق کرد، این کسر اشتباه
+     *    بی‌صدا فعال نشود.
+     *
      * @param  Collection<int, Employee>  $employees
      * @return array<string, int> employee_id => تعداد روز
      */
@@ -169,12 +175,18 @@ class CalculatePayroll
         Carbon $periodStart,
         Carbon $periodEnd
     ): array {
-        $leavesByEmployee = Leave::withoutGlobalScopes()
+        // withoutGlobalScope('owner_company') و نه withoutGlobalScopes() — دومی
+        // scope حذف نرم را هم برمی‌داشت و یک مرخصی حذف‌شده از حقوق کسر می‌شد.
+        $leavesByEmployee = Leave::withoutGlobalScope('owner_company')
             ->whereIn('employee_id', $employees->pluck('id'))
             ->where('leave_type', LeaveType::Unpaid)
+            ->where('leave_type', '!=', LeaveType::Hourly)
             ->where('leave_status', LeaveStatus::Approved)
-            ->where('start_date', '<=', $periodEnd->toDateString())
-            ->where('end_date', '>=', $periodStart->toDateString())
+            // whereDate چون ستون تاریخ به‌شکل کامل datetime ذخیره می‌شود؛ با
+            // مقایسه رشته‌ای خام، مرخصی بدون‌حقوقی که دقیقاً روزِ آخر ماه شروع
+            // می‌شد از کسر حقوق همان ماه جا می‌ماند.
+            ->whereDate('start_date', '<=', $periodEnd->toDateString())
+            ->whereDate('end_date', '>=', $periodStart->toDateString())
             ->get()
             ->groupBy('employee_id');
 

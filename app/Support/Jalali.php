@@ -11,15 +11,110 @@ use Morilog\Jalali\Jalalian;
  */
 class Jalali
 {
-    public static function toDisplay(Carbon|string|null $date): ?string
+    /**
+     * یک لحظه ذخیره‌شده (UTC) را به منطقه زمانی نمایش می‌برد.
+     *
+     * چرا لازم است: ذخیره همیشه UTC است، ولی «ساعت ۸ صبح» و «کدام روز» فقط به
+     * وقت محلی معنا دارند. بدون این تبدیل، یک تردد ساعت ۱۱:۲۳ تهران به‌صورت
+     * ۰۷:۵۳ نمایش داده می‌شد و یک تردد ساعت ۰۲:۰۰ بامداد، زیر تاریخ **دیروز**
+     * می‌افتاد — هر دو به اندازه اختلاف تهران با UTC (۳ ساعت و ۳۰ دقیقه) غلط.
+     */
+    public static function local(Carbon|string|null $date): ?Carbon
     {
         if ($date === null || $date === '') {
             return null;
         }
 
-        $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
+        $carbon = $date instanceof Carbon ? $date->copy() : Carbon::parse($date);
 
-        return Farsi::toDigits(Jalalian::fromCarbon($carbon)->format('Y/m/d'));
+        return $carbon->setTimezone(config('app.display_timezone'));
+    }
+
+    /**
+     * عکسِ local(): یک ساعتِ دیواریِ محلی که کاربر وارد کرده را به لحظه UTC
+     * تبدیل می‌کند تا ذخیره شود.
+     *
+     * بدون این، ادمینی که در فرم «۰۸:۱۰» می‌نویسد، ۰۸:۱۰ **UTC** ذخیره می‌کرد
+     * که به وقت تهران ۱۱:۴۰ است — یعنی عددی که نوشته و عددی که ذخیره شده یکی
+     * نبودند.
+     */
+    public static function fromLocal(string $localDateTime): Carbon
+    {
+        return Carbon::parse($localDateTime, config('app.display_timezone'))
+            ->setTimezone(config('app.timezone'));
+    }
+
+    /**
+     * «امروز» به وقت محلی، نه به وقت UTC سرور.
+     */
+    public static function today(): Carbon
+    {
+        return Carbon::now(config('app.display_timezone'))->startOfDay();
+    }
+
+    /**
+     * تاریخ تقویمی محلیِ یک لحظه (Y-m-d میلادی) — برای ستون‌های DATE که یک روز
+     * کاری را نشان می‌دهند، نه یک لحظه.
+     */
+    public static function localDateString(Carbon|string|null $date): ?string
+    {
+        return self::local($date)?->toDateString();
+    }
+
+    /**
+     * یک ستون DATE را در نیمه‌شبِ همان روز به وقت محلی می‌نشاند.
+     *
+     * تفاوتش با local(): آن یک **لحظه** را بین منطقه‌های زمانی جابه‌جا می‌کند،
+     * ولی ستون‌های DATE (تاریخ استخدام، پایان قرارداد، شروع مرخصی) اصلاً لحظه
+     * نیستند — یک روز تقویمی‌اند و نباید جابه‌جا شوند. اگر با local() تبدیل
+     * می‌شدند، «۱ مرداد» به «۳۱ تیر ساعت ۲۰:۳۰» تبدیل می‌شد.
+     *
+     * کاربردش مقایسه روز-با-روز است، جایی که اختلاف ساعت نباید مرز را جابه‌جا کند.
+     */
+    public static function calendarDay(Carbon|string|null $date): ?Carbon
+    {
+        if ($date === null || $date === '') {
+            return null;
+        }
+
+        $dateString = $date instanceof Carbon ? $date->toDateString() : Carbon::parse($date)->toDateString();
+
+        return Carbon::parse($dateString, config('app.display_timezone'))->startOfDay();
+    }
+
+    /**
+     * ساعت محلی به شکل ۰۸:۳۰ با ارقام فارسی.
+     */
+    public static function toDisplayTime(Carbon|string|null $date): ?string
+    {
+        $local = self::local($date);
+
+        return $local === null ? null : Farsi::toDigits($local->format('H:i'));
+    }
+
+    public static function toDisplay(Carbon|string|null $date): ?string
+    {
+        $local = self::local($date);
+
+        if ($local === null) {
+            return null;
+        }
+
+        return Farsi::toDigits(Jalalian::fromCarbon($local)->format('Y/m/d'));
+    }
+
+    /**
+     * تاریخ و ساعت با هم — برای مهرهای زمانی مثل «آخرین محاسبه».
+     */
+    public static function toDisplayDateTime(Carbon|string|null $date): ?string
+    {
+        $local = self::local($date);
+
+        if ($local === null) {
+            return null;
+        }
+
+        return Farsi::toDigits(Jalalian::fromCarbon($local)->format('Y/m/d').' '.$local->format('H:i'));
     }
 
     /**
@@ -27,12 +122,13 @@ class Jalali
      */
     public static function toJalaliParts(Carbon|string|null $date): array
     {
-        if ($date === null || $date === '') {
+        $local = self::local($date);
+
+        if ($local === null) {
             return ['year' => null, 'month' => null, 'day' => null];
         }
 
-        $carbon = $date instanceof Carbon ? $date : Carbon::parse($date);
-        $jalali = Jalalian::fromCarbon($carbon);
+        $jalali = Jalalian::fromCarbon($local);
 
         return ['year' => $jalali->getYear(), 'month' => $jalali->getMonth(), 'day' => $jalali->getDay()];
     }

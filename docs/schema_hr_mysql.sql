@@ -65,8 +65,22 @@ CREATE TABLE holidays (
 
 
 -- =====================================================================
--- جدول ۳: attendances — ثبت ورود/خروج روزانه
+-- جدول ۳: attendances — ثبت تردد (ورود/خروج)
 -- recorded_by: self (خودِ کارمند از پنل شخصی) | admin (ثبت دستی ادمین/حسابدار)
+--
+-- ⚠️ انحراف مستند از نسخه اول (Session 6.6):
+-- هر ردیف یک **تردد** است (یک ورود و یک خروج)، نه یک روز. کارمند می‌تواند در
+-- یک روز چند بار ورود/خروج بزند (رفتن برای کار شخصی و برگشتن)، پس:
+--   ۱. UNIQUE(employee_id, attendance_date) برداشته شد.
+--   ۲. late_minutes و overtime_minutes از این جدول حذف شدند — مفهومشان
+--      **روزانه** است نه ردیفی. با دو تردد چهارساعته در یک روز، هر ردیف جدا
+--      با ۴۸۰ دقیقه مقایسه می‌شد و روزِ کاملاً کارشده ۴۸۰ دقیقه کسری می‌گرفت.
+--      حالا AttendanceCalculator در سطح روز محاسبه می‌کند و نتیجه فقط در
+--      monthly_attendance_summaries ذخیره می‌شود.
+--   ۳. ستون تولیدشده open_punch_marker + UNIQUE(employee_id, open_punch_marker)
+--      تضمین می‌کند هر کارمند حداکثر یک تردد **باز** دارد. چون NULL ها در
+--      ایندکس یکتا با هم برخورد نمی‌کنند، ردیف‌های بسته آزادند.
+-- migration مرجع: 2026_07_29_100013_convert_attendances_to_punch_pairs.php
 -- =====================================================================
 CREATE TABLE attendances (
     id                   CHAR(36)      NOT NULL PRIMARY KEY,
@@ -74,19 +88,29 @@ CREATE TABLE attendances (
     owner_company_id     CHAR(36)      NOT NULL,
     attendance_date      DATE          NOT NULL,
     check_in_at          TIMESTAMP     NULL,
-    check_out_at         TIMESTAMP     NULL,
-    late_minutes         INT           NOT NULL DEFAULT 0,
-    overtime_minutes     INT           NOT NULL DEFAULT 0,
+    check_out_at         TIMESTAMP     NULL,   -- NULL = تردد باز (هنوز خروج نزده)
+    -- ستون تولیدشده: فقط برای ردیف‌های باز مقدار می‌گیرد.
+    open_punch_marker    INT GENERATED ALWAYS AS (CASE WHEN check_out_at IS NULL THEN 1 ELSE NULL END) VIRTUAL,
+    -- «چه کسی اولین بار ثبت کرد» — با ویرایش عوض نمی‌شود، وگرنه ویرایش ادمین
+    -- روی یک رکورد self آن را به admin برمی‌گرداند و تفکیکی که این ستون برای
+    -- آن ساخته شده از بین می‌رود.
     recorded_by          VARCHAR(10)   NOT NULL DEFAULT 'admin', -- self | admin
     created_by_user_id   CHAR(36)      NULL,
+    -- ← افزوده در Session 6+: «چه کسی آخرین بار ویرایش کرد».
+    -- migration مرجع: 2026_07_29_100009_add_updated_by_user_id_to_attendances_table.php
+    updated_by_user_id   CHAR(36)      NULL,
     created_at           TIMESTAMP     NULL,
     updated_at           TIMESTAMP     NULL,
 
-    UNIQUE KEY uq_attendance_employee_date (employee_id, attendance_date),
+    -- هر کارمند حداکثر یک تردد باز — تنها راه گرفتن این تضمین در MySQL 8 که
+    -- ایندکس یکتای شرطی ندارد.
+    UNIQUE KEY uq_attendance_single_open_punch (employee_id, open_punch_marker),
     KEY idx_attendance_company_date (owner_company_id, attendance_date),
+    KEY idx_attendance_employee_open (employee_id, check_out_at),
     CONSTRAINT fk_attendance_employee   FOREIGN KEY (employee_id)        REFERENCES employees(id),
     CONSTRAINT fk_attendance_company    FOREIGN KEY (owner_company_id)   REFERENCES companies(id),
-    CONSTRAINT fk_attendance_created_by FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+    CONSTRAINT fk_attendance_created_by FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+    CONSTRAINT fk_attendance_updated_by FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -128,7 +152,11 @@ CREATE TABLE leaves (
     end_date             DATE          NOT NULL,
     days_count           INT           NOT NULL,               -- بدون جمعه/تعطیل، از WorkCalendar
     leave_status         VARCHAR(20)   NOT NULL DEFAULT 'pending',
-    reason               TEXT          NULL,
+    reason               TEXT          NULL,                   -- دلیل خودِ درخواست (نوشته کارمند)
+    -- ← افزوده در Session 6+: دلیل تصمیم مدیر هنگام رد. عمداً ستون جدا از
+    -- reason است چون دو نقش متفاوت‌اند و هر دو باید هم‌زمان قابل مشاهده بمانند.
+    -- migration مرجع: 2026_07_29_100010_add_rejection_reason_to_leaves_table.php
+    rejection_reason     TEXT          NULL,
     approved_by_user_id  CHAR(36)      NULL,                   -- تا تأیید، خالی
     created_by_user_id   CHAR(36)      NULL,
     created_at           TIMESTAMP     NULL,

@@ -14,9 +14,25 @@ class LeaveIndex extends Component
 {
     use Toast, WithPagination;
 
-    public string $filterStatus = 'pending';
+    /**
+     * پیش‌فرض «همه» — نه 'pending'. با پیش‌فرض pending، صفحه در نگاه اول
+     * فیلترشده به‌نظر می‌رسید و کاربر فکر می‌کرد مرخصی‌های دیگر وجود ندارند.
+     */
+    public string $filterStatus = '';
 
     public string $filterEmployeeId = '';
+
+    public bool $showReasonModal = false;
+
+    public string $reasonModalTitle = '';
+
+    public string $reasonModalBody = '';
+
+    public bool $showRejectModal = false;
+
+    public ?string $rejectingLeaveId = null;
+
+    public string $rejectionReason = '';
 
     public function mount(): void
     {
@@ -32,13 +48,44 @@ class LeaveIndex extends Component
         $this->success('مرخصی تأیید شد.');
     }
 
-    public function reject(string $leaveId, RejectLeave $action): void
+    public function openReject(string $leaveId): void
+    {
+        $this->authorize('review', Leave::class);
+
+        $this->rejectingLeaveId = $leaveId;
+        $this->rejectionReason = '';
+        $this->resetErrorBag();
+        $this->showRejectModal = true;
+    }
+
+    public function reject(RejectLeave $action): void
+    {
+        $leave = Leave::findOrFail($this->rejectingLeaveId);
+
+        $action->handle($leave, auth()->user(), $this->rejectionReason);
+
+        $this->showRejectModal = false;
+        $this->rejectingLeaveId = null;
+        $this->rejectionReason = '';
+        $this->success('مرخصی رد شد.');
+    }
+
+    public function showReason(string $leaveId): void
     {
         $leave = Leave::findOrFail($leaveId);
 
-        $action->handle($leave, auth()->user());
+        $this->reasonModalTitle = 'دلیل درخواست — '.$leave->employee->full_name;
+        $this->reasonModalBody = (string) $leave->reason;
+        $this->showReasonModal = true;
+    }
 
-        $this->success('مرخصی رد شد.');
+    public function showRejectionReason(string $leaveId): void
+    {
+        $leave = Leave::findOrFail($leaveId);
+
+        $this->reasonModalTitle = 'دلیل رد — '.$leave->employee->full_name;
+        $this->reasonModalBody = (string) $leave->rejection_reason;
+        $this->showReasonModal = true;
     }
 
     public function updatedFilterStatus(): void
@@ -54,10 +101,10 @@ class LeaveIndex extends Component
     public function getStatusOptionsProperty(): array
     {
         return [
+            ['id' => '', 'name' => 'همه وضعیت‌ها'],
             ['id' => 'pending', 'name' => 'در انتظار'],
             ['id' => 'approved', 'name' => 'تأییدشده'],
             ['id' => 'rejected', 'name' => 'ردشده'],
-            ['id' => '', 'name' => 'همه'],
         ];
     }
 

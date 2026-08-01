@@ -5,6 +5,7 @@ namespace App\Livewire\HR;
 use App\Modules\Core\Services\CompanyContext;
 use App\Modules\HR\Actions\CalculatePayroll;
 use App\Modules\HR\Actions\FinalizePayrollRun;
+use App\Modules\HR\Actions\ReopenPayrollRun;
 use App\Modules\HR\Models\PayrollRun;
 use App\Support\Money;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +20,10 @@ class PayrollIndex extends Component
     public ?int $year = null;
 
     public ?int $month = null;
+
+    public bool $showReopenModal = false;
+
+    public string $reopenReason = '';
 
     public function mount(): void
     {
@@ -79,6 +84,44 @@ class PayrollIndex extends Component
         }
 
         $this->success('حقوق این دوره محاسبه شد.');
+    }
+
+    public function openReopen(): void
+    {
+        $this->authorize('reopen', PayrollRun::class);
+
+        $this->reopenReason = '';
+        $this->resetErrorBag();
+        $this->showReopenModal = true;
+    }
+
+    /**
+     * بازگشایی دوره — تنها مسیر مجاز برای برداشتن قفل مالی. بعد از آن دوره در
+     * وضعیت draft است و باید دوباره محاسبه و نهایی شود.
+     */
+    public function reopen(ReopenPayrollRun $action): void
+    {
+        $this->authorize('reopen', PayrollRun::class);
+
+        $run = $this->run;
+
+        if (! $run) {
+            $this->error('برای این ماه دوره حقوقی وجود ندارد.');
+
+            return;
+        }
+
+        try {
+            $action->handle($run, $this->reopenReason, auth()->user());
+        } catch (ValidationException $exception) {
+            $this->error(collect($exception->errors())->flatten()->implode(' '));
+
+            return;
+        }
+
+        $this->showReopenModal = false;
+        $this->reopenReason = '';
+        $this->success('دوره بازگشایی شد. برای اعمال داده جدید، دوباره محاسبه و سپس نهایی کنید.');
     }
 
     public function finalize(FinalizePayrollRun $action): void

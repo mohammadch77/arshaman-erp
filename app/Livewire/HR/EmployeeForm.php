@@ -124,9 +124,11 @@ class EmployeeForm extends Component
             return false;
         }
 
-        $endDate = Carbon::parse($this->contract_end_date);
+        // همان قاعده مدل: مقایسه روز-با-روز به وقت محلی، نه UTC.
+        $today = Jalali::today();
 
-        return $endDate->between(Carbon::today(), Carbon::today()->addDays(30));
+        return Jalali::calendarDay($this->contract_end_date)
+            ->between($today, $today->copy()->addDays(30));
     }
 
     protected function rules(): array

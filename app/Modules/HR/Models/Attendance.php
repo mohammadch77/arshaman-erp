@@ -20,10 +20,9 @@ class Attendance extends Model
         'attendance_date',
         'check_in_at',
         'check_out_at',
-        'late_minutes',
-        'overtime_minutes',
         'recorded_by',
         'created_by_user_id',
+        'updated_by_user_id',
     ];
 
     protected function casts(): array
@@ -44,5 +43,34 @@ class Attendance extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * تردد هنوز باز است — ورود ثبت شده ولی خروج نه.
+     *
+     * هر کارمند حداکثر یک تردد باز دارد؛ این را ایندکس یکتای
+     * `uq_attendance_single_open_punch` در سطح دیتابیس تضمین می‌کند.
+     */
+    public function isOpen(): bool
+    {
+        return $this->check_in_at !== null && $this->check_out_at === null;
+    }
+
+    /**
+     * مدت **همین تردد** به دقیقه، یا null تا وقتی بسته نشده.
+     *
+     * ⚠️ این «کارکرد روز» نیست. یک روز می‌تواند چند تردد داشته باشد؛ کسری و
+     * اضافه‌کاری فقط در سطح روز معنا دارند و کارشان با AttendanceCalculator است.
+     */
+    public function getDurationMinutesAttribute(): ?int
+    {
+        if ($this->check_in_at === null || $this->check_out_at === null) {
+            return null;
+        }
+
+        $minutes = (int) $this->check_in_at->diffInMinutes($this->check_out_at, false);
+
+        // خروج قبل از ورود یک داده نامعتبر است، نه مدت منفی.
+        return max($minutes, 0);
     }
 }

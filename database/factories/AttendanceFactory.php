@@ -25,8 +25,6 @@ class AttendanceFactory extends Factory
             'attendance_date' => $date->format('Y-m-d'),
             'check_in_at' => $date->format('Y-m-d').' 08:00:00',
             'check_out_at' => $date->format('Y-m-d').' 16:00:00',
-            'late_minutes' => 0,
-            'overtime_minutes' => 0,
             'recorded_by' => RecordedBy::Admin,
         ];
     }

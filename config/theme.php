@@ -70,6 +70,11 @@ return [
         'finalize' => 'o-lock-closed',
         'print' => 'o-printer',
         'review' => 'o-exclamation-circle',
+        'now' => 'o-bolt',
+        'balance' => 'o-scale',
+        'hourly' => 'o-clock',
+        'note' => 'o-chat-bubble-bottom-center-text',
+        'reopen' => 'o-lock-open',
     ],
 
 ];

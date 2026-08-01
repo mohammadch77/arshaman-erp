@@ -6,7 +6,7 @@ use App\Modules\Core\Concerns\BelongsToCompany;
 use App\Modules\Core\Models\User;
 use App\Modules\HR\Enums\ContractType;
 use App\Modules\HR\Enums\EmploymentStatus;
-use Carbon\Carbon;
+use App\Support\Jalali;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -63,12 +63,23 @@ class Employee extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * قرارداد کمتر از ۳۰ روز دیگر تمام می‌شود.
+     *
+     * مقایسه روز-با-روز و به وقت محلی است، نه UTC: هر دو طرف با
+     * Jalali::calendarDay در نیمه‌شب همان روز به وقت نمایش می‌نشینند. با
+     * Carbon::today() که UTC است، بین ۰۰:۰۰ تا ۰۳:۳۰ بامداد تهران یک روز عقب
+     * حساب می‌شد و هشدار یک روز دیر/زود ظاهر می‌شد.
+     */
     public function isContractExpiringSoon(): bool
     {
         if ($this->contract_end_date === null) {
             return false;
         }
 
-        return $this->contract_end_date->between(Carbon::today(), Carbon::today()->addDays(30));
+        $today = Jalali::today();
+
+        return Jalali::calendarDay($this->contract_end_date)
+            ->between($today, $today->copy()->addDays(30));
     }
 }

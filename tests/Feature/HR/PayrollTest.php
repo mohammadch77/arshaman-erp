@@ -13,6 +13,7 @@ use App\Modules\HR\Actions\CalculatePayroll;
 use App\Modules\HR\Actions\CreateEmployee;
 use App\Modules\HR\Actions\FinalizePayrollRun;
 use App\Modules\HR\Actions\LinkEmployeeToUser;
+use App\Modules\HR\Actions\ReopenPayrollRun;
 use App\Modules\HR\Actions\RequestLeave;
 use App\Modules\HR\Enums\ExpensePostingStatus;
 use App\Modules\HR\Enums\LeaveStatus;
@@ -28,6 +29,7 @@ use Carbon\Carbon;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use Spatie\Activitylog\Models\Activity;
 
 /*
 |--------------------------------------------------------------------------
@@ -839,4 +841,201 @@ it('rejects an invalid period_month format', function () {
 
     expect(fn () => app(CalculatePayroll::class)->handle($company, '1405-5', $admin))
         ->toThrow(ValidationException::class);
+});
+
+// =====================================================================
+// بازگشایی دوره نهایی‌شده — ReopenPayrollRun
+//
+// این Action تنها مسیر مجاز برای برداشتن قفل مالی است. ویرایش مستقیم فیش
+// قفل‌شده همچنان ممنوع می‌ماند (نگهبان مدل Payslip) — بند ۵.۵ CLAUDE.md.
+// اصلاح یک دوره یعنی: بازگشایی ثبت‌شده با دلیل ← محاسبه دوباره ← نهایی‌کردن دوباره.
+// =====================================================================
+
+/**
+ * یک دوره نهایی‌شده آماده، برای تست‌هایی که نقطه شروعشان «قفل‌شده» است.
+ *
+ * @return array{0: Company, 1: User, 2: Employee, 3: PayrollRun}
+ */
+function payrollFinalizedRun(string $nationalId): array
+{
+    $company = payrollCompany();
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(payrollEmployeeData($company->id, $nationalId), $admin);
+    payrollSummary($employee);
+
+    $run = app(CalculatePayroll::class)->handle($company, PAYROLL_PERIOD, $admin);
+    app(FinalizePayrollRun::class)->handle($run->fresh(), $admin);
+
+    return [$company, $admin, $employee, $run->fresh()];
+}
+
+it('reopens a finalized run back to draft and clears the finalization stamps', function () {
+    [, $admin, , $run] = payrollFinalizedRun('4000000040');
+
+    $reopened = app(ReopenPayrollRun::class)->handle($run, 'چون کارکرد ماهانه آپدیت شد', $admin);
+
+    expect($reopened->payroll_status)->toBe(PayrollStatus::Draft);
+    expect($reopened->finalized_at)->toBeNull();
+    expect($reopened->finalized_by_user_id)->toBeNull();
+});
+
+it('records who reopened a payroll run, when, and why', function () {
+    [, $admin, , $run] = payrollFinalizedRun('4000000041');
+
+    app(ReopenPayrollRun::class)->handle($run, 'چون کارکرد ماهانه آپدیت شد', $admin);
+
+    $activity = Activity::query()->latest('id')->first();
+
+    expect($activity)->not->toBeNull();
+    expect($activity->causer_id)->toBe($admin->id);
+    expect($activity->subject_id)->toBe($run->id);
+    expect($activity->properties['reason'])->toBe('چون کارکرد ماهانه آپدیت شد');
+    expect($activity->properties['period_month'])->toBe(PAYROLL_PERIOD);
+    expect($activity->properties['previous_status'])->toBe('finalized');
+});
+
+it('rejects reopening without a meaningful reason', function () {
+    [, $admin, , $run] = payrollFinalizedRun('4000000042');
+
+    foreach (['', '   ', 'کوتاه'] as $badReason) {
+        expect(fn () => app(ReopenPayrollRun::class)->handle($run->fresh(), $badReason, $admin))
+            ->toThrow(ValidationException::class);
+    }
+
+    expect($run->fresh()->payroll_status)->toBe(PayrollStatus::Finalized);
+});
+
+it('rejects reopening a run that is not finalized', function () {
+    $company = payrollCompany();
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(payrollEmployeeData($company->id, '4000000043'), $admin);
+    payrollSummary($employee);
+
+    // وضعیت calculated — هنوز قفل نشده، پس چیزی برای بازگشایی نیست.
+    $run = app(CalculatePayroll::class)->handle($company, PAYROLL_PERIOD, $admin);
+
+    expect(fn () => app(ReopenPayrollRun::class)->handle($run->fresh(), 'یک دلیل کاملاً معتبر', $admin))
+        ->toThrow(ValidationException::class);
+
+    expect($run->fresh()->payroll_status)->toBe(PayrollStatus::Calculated);
+});
+
+it('rejects reopening by a user without an authorized role', function () {
+    [$company, , , $run] = payrollFinalizedRun('4000000044');
+
+    $outsider = User::factory()->create(['is_super_admin' => false]);
+    payrollGiveRole($outsider, $company, 'sales_agent');
+
+    expect(fn () => app(ReopenPayrollRun::class)->handle($run, 'یک دلیل کاملاً معتبر', $outsider))
+        ->toThrow(AuthorizationException::class);
+
+    expect($run->fresh()->payroll_status)->toBe(PayrollStatus::Finalized);
+});
+
+it('unlocks the payslip model guard once the run is reopened', function () {
+    [, $admin, $employee, $run] = payrollFinalizedRun('4000000045');
+
+    $payslip = Payslip::withoutGlobalScopes()->where('employee_id', $employee->id)->firstOrFail();
+
+    expect(fn () => $payslip->update(['net_amount' => '1']))->toThrow(ValidationException::class);
+
+    app(ReopenPayrollRun::class)->handle($run, 'یک دلیل کاملاً معتبر', $admin);
+
+    // نگهبان مدل به وضعیت run نگاه می‌کند، نه به یک flag جدا — پس بدون هیچ
+    // کد اضافه‌ای با بازگشایی باز می‌شود.
+    $payslip->fresh()->update(['net_amount' => '123.00']);
+
+    expect(Payslip::withoutGlobalScopes()->find($payslip->id)->net_amount)->toEqual('123.00');
+});
+
+it('replaces payslips rather than accumulating them after a reopen and recalculation', function () {
+    [$company, $admin, $employee, $run] = payrollFinalizedRun('4000000046');
+
+    $originalPayslipId = Payslip::withoutGlobalScopes()->where('employee_id', $employee->id)->value('id');
+
+    app(ReopenPayrollRun::class)->handle($run, 'کارکرد ماهانه اصلاح شد', $admin);
+
+    // کارکرد ماهانه اصلاح می‌شود و دوره دوباره محاسبه می‌شود.
+    MonthlyAttendanceSummary::withoutGlobalScopes()
+        ->where('employee_id', $employee->id)
+        ->update(['total_overtime_minutes' => 600]);
+
+    app(CalculatePayroll::class)->handle($company, PAYROLL_PERIOD, $admin);
+
+    $payslips = Payslip::withoutGlobalScopes()->get();
+
+    expect($payslips)->toHaveCount(1);
+    expect($payslips->first()->id)->toBe($originalPayslipId);
+    expect($payslips->first()->overtime_amount)
+        ->toEqual(number_format(10 * PAYROLL_HOURLY_RATE, 2, '.', ''));
+});
+
+it('requires a fresh calculation before a reopened run can be finalized again', function () {
+    [$company, $admin, , $run] = payrollFinalizedRun('4000000047');
+
+    app(ReopenPayrollRun::class)->handle($run, 'یک دلیل کاملاً معتبر', $admin);
+
+    // draft است، نه calculated — پس finalize باید رد شود.
+    expect(fn () => app(FinalizePayrollRun::class)->handle($run->fresh(), $admin))
+        ->toThrow(ValidationException::class);
+
+    app(CalculatePayroll::class)->handle($company, PAYROLL_PERIOD, $admin);
+    $finalized = app(FinalizePayrollRun::class)->handle($run->fresh(), $admin);
+
+    expect($finalized->payroll_status)->toBe(PayrollStatus::Finalized);
+    expect($finalized->finalized_by_user_id)->toBe($admin->id);
+});
+
+it('lets an accountant reopen a finalized run', function () {
+    [$company, , , $run] = payrollFinalizedRun('4000000048');
+
+    $accountant = User::factory()->create(['is_super_admin' => false]);
+    payrollGiveRole($accountant, $company, 'accountant');
+
+    $reopened = app(ReopenPayrollRun::class)->handle($run, 'یک دلیل کاملاً معتبر', $accountant);
+
+    expect($reopened->payroll_status)->toBe(PayrollStatus::Draft);
+});
+
+it('offers a reopen button instead of a dead end on a finalized run', function () {
+    [$company, $admin] = payrollFinalizedRun('4000000049');
+
+    payrollGiveRole($admin, $company, 'holding_admin');
+    $this->actingAs($admin);
+    app(CompanyContext::class)->set($company->id);
+
+    $component = Livewire::actingAs($admin)->test(PayrollIndex::class)
+        ->set('year', 1405)
+        ->set('month', 5)
+        ->assertOk()
+        ->assertSeeHtml('wire:click="openReopen"')
+        ->assertDontSeeHtml('wire:click="finalize"');
+
+    $component->call('openReopen')
+        ->assertSet('showReopenModal', true)
+        ->set('reopenReason', 'کارکرد ماهانه اصلاح شد')
+        ->call('reopen')
+        ->assertSet('showReopenModal', false)
+        // بعد از بازگشایی، دوباره draft است: محاسبه در دسترس، نهایی‌کردن نه.
+        ->assertSeeHtml('wire:click="calculate"');
+
+    expect(PayrollRun::withoutGlobalScopes()->first()->payroll_status)->toBe(PayrollStatus::Draft);
+});
+
+it('keeps the run locked when the reopen modal is submitted without a reason', function () {
+    [$company, $admin, , $run] = payrollFinalizedRun('4000000050');
+
+    payrollGiveRole($admin, $company, 'holding_admin');
+    $this->actingAs($admin);
+    app(CompanyContext::class)->set($company->id);
+
+    Livewire::actingAs($admin)->test(PayrollIndex::class)
+        ->set('year', 1405)
+        ->set('month', 5)
+        ->call('openReopen')
+        ->set('reopenReason', '')
+        ->call('reopen')
+        ->assertOk();
+
+    expect($run->fresh()->payroll_status)->toBe(PayrollStatus::Finalized);
 });

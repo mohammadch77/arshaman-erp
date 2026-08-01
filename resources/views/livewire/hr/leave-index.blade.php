@@ -25,7 +25,7 @@
                 ['key' => 'leave_type', 'label' => 'نوع مرخصی'],
                 ['key' => 'start_date', 'label' => 'از تاریخ'],
                 ['key' => 'end_date', 'label' => 'تا تاریخ'],
-                ['key' => 'days_count', 'label' => 'تعداد روز'],
+                ['key' => 'amount', 'label' => 'مدت'],
                 ['key' => 'leave_status', 'label' => 'وضعیت'],
                 ['key' => 'actions', 'label' => ''],
             ]"
@@ -48,8 +48,20 @@
                 {{ \App\Support\Jalali::toDisplay($leave->end_date) }}
             @endscope
 
-            @scope('cell_days_count', $leave)
-                {{ \App\Support\Farsi::toDigits($leave->days_count) }}
+            @scope('cell_amount', $leave)
+                @if($leave->leave_type->isHourly())
+                    <div class="flex items-center gap-1">
+                        <x-icon :name="theme_icon('hourly')" class="w-4 h-4 text-base-content/60" />
+                        <span>{{ \App\Support\Farsi::toDigits($leave->hours_count) }} ساعت</span>
+                    </div>
+                    <div class="text-xs text-base-content/60">
+                        {{ \App\Support\Farsi::toDigits($leave->start_time) }}
+                        تا
+                        {{ \App\Support\Farsi::toDigits($leave->end_time) }}
+                    </div>
+                @else
+                    {{ \App\Support\Farsi::toDigits($leave->days_count) }} روز
+                @endif
             @endscope
 
             @scope('cell_leave_status', $leave)
@@ -64,8 +76,28 @@
             @endscope
 
             @scope('cell_actions', $leave)
-                @if($leave->leave_status->value === 'pending')
-                    <div class="flex gap-1 justify-end">
+                <div class="flex gap-1 justify-end">
+                    {{-- دکمه دلیل فقط وقتی واقعاً دلیلی نوشته شده — نه یک دکمه
+                         همیشه‌حاضر که مودال خالی باز کند. --}}
+                    @if(filled($leave->reason))
+                        <x-button
+                            :icon="theme_icon('note')"
+                            class="btn-ghost btn-circle btn-sm"
+                            tooltip-left="مشاهده دلیل درخواست"
+                            wire:click="showReason('{{ $leave->id }}')"
+                        />
+                    @endif
+
+                    @if($leave->leave_status->value === 'rejected' && filled($leave->rejection_reason))
+                        <x-button
+                            :icon="theme_icon('reject')"
+                            class="btn-ghost btn-circle btn-sm text-error"
+                            tooltip-left="مشاهده دلیل رد"
+                            wire:click="showRejectionReason('{{ $leave->id }}')"
+                        />
+                    @endif
+
+                    @if($leave->leave_status->value === 'pending')
                         <x-button
                             :icon="theme_icon('approve')"
                             class="btn-success btn-circle btn-sm"
@@ -77,12 +109,33 @@
                             :icon="theme_icon('reject')"
                             class="btn-error btn-circle btn-sm"
                             tooltip-left="رد"
-                            wire:click="reject('{{ $leave->id }}')"
-                            wire:confirm="این مرخصی رد شود؟"
+                            wire:click="openReject('{{ $leave->id }}')"
                         />
-                    </div>
-                @endif
+                    @endif
+                </div>
             @endscope
         </x-table>
     </x-card>
+
+    <x-modal wire:model="showReasonModal" :title="$reasonModalTitle" separator>
+        <p class="whitespace-pre-line leading-relaxed">{{ $reasonModalBody }}</p>
+
+        <x-slot:actions>
+            <x-button label="بستن" @click="$wire.showReasonModal = false" />
+        </x-slot:actions>
+    </x-modal>
+
+    <x-modal wire:model="showRejectModal" title="رد درخواست مرخصی" separator>
+        <x-textarea
+            label="دلیل رد (اختیاری)"
+            wire:model="rejectionReason"
+            hint="اگر دلیلی بنویسید، خودِ کارمند آن را در پنل شخصی‌اش می‌بیند."
+            rows="3"
+        />
+
+        <x-slot:actions>
+            <x-button label="انصراف" @click="$wire.showRejectModal = false" />
+            <x-button label="رد درخواست" class="btn-error" wire:click="reject" spinner="reject" />
+        </x-slot:actions>
+    </x-modal>
 </div>

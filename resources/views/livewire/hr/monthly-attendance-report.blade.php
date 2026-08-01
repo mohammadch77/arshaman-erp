@@ -1,5 +1,5 @@
 <div>
-    <x-header title="جمع ماهانه کارکرد" subtitle="کارکرد، غیبت، تأخیر و اضافه‌کاری هر کارمند در یک ماه" separator>
+    <x-header title="جمع ماهانه کارکرد" subtitle="کارکرد، غیبت، کسری و اضافه‌کاری هر کارمند در یک ماه" separator>
         <x-slot:actions>
             <x-select
                 wire:model.live="filterEmployeeId"
@@ -33,7 +33,7 @@
                 ['key' => 'employee', 'label' => 'کارمند'],
                 ['key' => 'total_worked_days', 'label' => 'روز کارکرد'],
                 ['key' => 'total_absent_days', 'label' => 'روز غیبت'],
-                ['key' => 'total_late_minutes', 'label' => 'تأخیر (دقیقه)'],
+                ['key' => 'total_late_minutes', 'label' => 'کسری (دقیقه)'],
                 ['key' => 'total_overtime_minutes', 'label' => 'اضافه‌کاری (دقیقه)'],
                 ['key' => 'total_leave_days', 'label' => 'روز مرخصی'],
                 ['key' => 'calculated_at', 'label' => 'آخرین محاسبه'],
@@ -67,7 +67,7 @@
             @endscope
 
             @scope('cell_calculated_at', $summary)
-                {{ $summary->calculated_at ? \App\Support\Jalali::toDisplay($summary->calculated_at) : '—' }}
+                {{ $summary->calculated_at ? \App\Support\Jalali::toDisplayDateTime($summary->calculated_at) : '—' }}
             @endscope
         </x-table>
     </x-card>
