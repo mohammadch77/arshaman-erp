@@ -112,3 +112,43 @@ it('shows sidebar menu items based on the active company business type', functio
         ->assertSee('انبار')
         ->assertDontSee('پروژه‌ها');
 });
+
+// =====================================================================
+// دسترسی مهمان
+//
+// پوسته پیشخوان سوییچر شرکت را روی هر صفحه رندر می‌کند و سوییچر به کاربر
+// لاگین‌شده نیاز دارد. پس هر مسیری که این پوسته را استفاده کند باید پشت auth
+// باشد — وگرنه مهمان به‌جای ریدایرکت به ورود، خطای ۵۰۰ می‌گیرد.
+// =====================================================================
+
+it('redirects a guest away from the internal theme showcase instead of failing', function () {
+    $this->get('/theme-showcase')->assertRedirect('/login');
+});
+
+it('still serves the theme showcase to a signed-in user', function () {
+    $company = switcherCompany('arshaman');
+    $role = Role::firstOrCreate(
+        ['name' => 'holding_admin'],
+        ['display_name' => 'holding_admin', 'is_system' => true]
+    );
+    $user = User::factory()->create(['is_super_admin' => false]);
+
+    UserCompanyRole::create([
+        'user_id' => $user->id,
+        'owner_company_id' => $company->id,
+        'assigned_role_id' => $role->id,
+    ]);
+
+    $this->actingAs($user)->get('/theme-showcase')
+        ->assertOk()
+        ->assertSee('نمایش تم');
+});
+
+it('renders the company switcher empty rather than fatally when there is no user', function () {
+    // اگر session بین بارگذاری صفحه و درخواست بعدی Livewire منقضی شود، این
+    // کامپوننت اولین چیزی است که به کاربر null می‌رسد.
+    Livewire::test(CompanySwitcher::class)
+        ->assertOk()
+        ->assertSet('isSuperAdmin', false)
+        ->assertSet('activeCompanyId', null);
+});

@@ -52,4 +52,7 @@ Route::livewire('/my/leaves', MyLeaves::class)->middleware('auth')->name('my-lea
 Route::livewire('/payroll', PayrollIndex::class)->middleware('auth')->name('payroll.index');
 Route::livewire('/my/payslips', MyPayslips::class)->middleware('auth')->name('my-payslips');
 
-Route::livewire('/theme-showcase', 'pages::theme-showcase');
+// صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
+// نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای
+// ریدایرکت به ورود، خطای ۵۰۰ می‌داد.
+Route::livewire('/theme-showcase', 'pages::theme-showcase')->middleware('auth')->name('theme-showcase');

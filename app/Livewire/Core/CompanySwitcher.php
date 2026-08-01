@@ -16,10 +16,22 @@ class CompanySwitcher extends Component
 
     public bool $isSuperAdmin = false;
 
+    /**
+     * بدون کاربر لاگین‌شده، سوییچر چیزی برای نشان‌دادن ندارد و خالی رندر می‌شود
+     * — نه اینکه با خطای ۵۰۰ کل صفحه را پایین بیاورد.
+     *
+     * این فقط محافظت از یک مسیر نیست: سوییچر در پوسته پیشخوان روی **هر** صفحه
+     * رندر می‌شود، پس اگر session بین بارگذاری صفحه و درخواست بعدی Livewire
+     * منقضی شود، این کامپوننت اولین چیزی است که به کاربر null می‌رسد. تبدیل آن
+     * از خطای کشنده به یک رندر خالی، کاربر را به مسیر عادی ورود می‌رساند.
+     */
     public function mount(CompanyContext $context): void
     {
-        /** @var User $user */
         $user = auth()->user();
+
+        if (! $user) {
+            return;
+        }
 
         $this->isSuperAdmin = $user->is_super_admin;
         $this->activeCompanyId = $context->id();
@@ -28,8 +40,12 @@ class CompanySwitcher extends Component
 
     public function getCompaniesProperty(): Collection
     {
-        /** @var User $user */
+        /** @var User|null $user */
         $user = auth()->user();
+
+        if (! $user) {
+            return collect();
+        }
 
         if ($this->isSuperAdmin) {
             return Company::query()->where('is_active', true)->orderBy('name')->get();
