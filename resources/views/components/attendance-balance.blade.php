@@ -6,24 +6,12 @@
     چون از Session 6.5 محاسبه واحد شد، کسری و اضافه‌کاری هرگز هم‌زمان غیرصفر
     نیستند — پس یک عدد علامت‌دار همه‌چیز را می‌گوید:
       مثبت = اضافه‌کاری، منفی = کسری، صفر = دقیقاً یک روز کاری کامل.
+
+    متن مدت از Farsi::duration می‌آید (تنها نقطه تولید این متن در پروژه).
 --}}
 
 @php
     $value = (int) $minutes;
-    $hours = intdiv(abs($value), 60);
-    $remainingMinutes = abs($value) % 60;
-
-    $label = match (true) {
-        $hours > 0 && $remainingMinutes > 0 => \App\Support\Farsi::toDigits($hours).' ساعت و '.\App\Support\Farsi::toDigits($remainingMinutes).' دقیقه',
-        $hours > 0 => \App\Support\Farsi::toDigits($hours).' ساعت',
-        default => \App\Support\Farsi::toDigits($remainingMinutes).' دقیقه',
-    };
-
-    $sign = match (true) {
-        $value > 0 => '+',
-        $value < 0 => '−',
-        default => '',
-    };
 
     $badgeClass = match (true) {
         $value > 0 => 'badge-success',
@@ -36,10 +24,11 @@
         $value < 0 => 'کسری کارکرد',
         default => 'دقیقاً یک روز کاری کامل',
     };
+
+    // علامت منفی را خود Farsi::duration می‌گذارد؛ مثبت را اینجا اضافه می‌کنیم.
+    $label = $value > 0
+        ? '+ '.\App\Support\Farsi::duration($value)
+        : \App\Support\Farsi::duration($value);
 @endphp
 
-<x-badge
-    value="{{ $value === 0 ? '۰' : $sign.' '.$label }}"
-    class="{{ $badgeClass }}"
-    :tooltip="$tooltip"
-/>
+<x-badge :value="$label" class="{{ $badgeClass }}" :tooltip="$tooltip" />

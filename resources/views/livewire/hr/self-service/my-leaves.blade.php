@@ -43,7 +43,7 @@
                     @if($leave->leave_type->isHourly())
                         <div class="flex items-center gap-1">
                             <x-icon :name="theme_icon('hourly')" class="w-4 h-4 text-base-content/60" />
-                            <span>{{ \App\Support\Farsi::toDigits($leave->hours_count) }} ساعت</span>
+                            <span>{{ \App\Support\Farsi::durationFromHours($leave->hours_count) }}</span>
                         </div>
                         <div class="text-xs text-base-content/60">
                             {{ \App\Support\Farsi::toDigits($leave->start_time) }}
@@ -132,8 +132,8 @@
                      می‌شود. --}}
                 @if($this->isHourly)
                     <div class="grid grid-cols-2 gap-4">
-                        <x-input label="از ساعت" wire:model="start_time" type="time" :icon="theme_icon('hourly')" required />
-                        <x-input label="تا ساعت" wire:model="end_time" type="time" :icon="theme_icon('hourly')" required />
+                        <x-time-picker field="start_time" label="از ساعت" :icon="theme_icon('hourly')" required />
+                        <x-time-picker field="end_time" label="تا ساعت" :icon="theme_icon('hourly')" required />
                     </div>
                 @else
                     <x-jalali-date-select

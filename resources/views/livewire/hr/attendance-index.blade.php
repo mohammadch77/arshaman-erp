@@ -117,8 +117,8 @@
                 />
             @endif
 
-            <x-input label="ساعت ورود" wire:model="check_in_time" type="time" :icon="theme_icon('check-in')" />
-            <x-input label="ساعت خروج" wire:model="check_out_time" type="time" :icon="theme_icon('check-out')" />
+            <x-time-picker field="check_in_time" label="ساعت ورود" :icon="theme_icon('check-in')" />
+            <x-time-picker field="check_out_time" label="ساعت خروج" :icon="theme_icon('check-out')" />
         </div>
 
         <x-slot:actions>

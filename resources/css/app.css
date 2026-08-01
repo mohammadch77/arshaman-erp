@@ -14,6 +14,14 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
+/*
+ * تا پیش از راه‌افتادن Alpine، عناصر x-cloak پنهان می‌مانند — وگرنه پنل انتخابگر
+ * ساعت در لحظه اول بارگذاری یک‌بار باز و بسته دیده می‌شود.
+ */
+[x-cloak] {
+    display: none !important;
+}
+
 
 
 /**

@@ -52,7 +52,7 @@
                 @if($leave->leave_type->isHourly())
                     <div class="flex items-center gap-1">
                         <x-icon :name="theme_icon('hourly')" class="w-4 h-4 text-base-content/60" />
-                        <span>{{ \App\Support\Farsi::toDigits($leave->hours_count) }} ساعت</span>
+                        <span>{{ \App\Support\Farsi::durationFromHours($leave->hours_count) }}</span>
                     </div>
                     <div class="text-xs text-base-content/60">
                         {{ \App\Support\Farsi::toDigits($leave->start_time) }}

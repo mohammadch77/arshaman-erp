@@ -21,6 +21,7 @@ use App\Modules\HR\Enums\RecordedBy;
 use App\Modules\HR\Models\Employee;
 use App\Modules\HR\Models\Leave;
 use App\Modules\HR\Services\WorkCalendar;
+use App\Support\Farsi;
 use App\Support\Jalali;
 use Carbon\Carbon;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -903,6 +904,111 @@ it('hides edit and delete controls once a request is approved', function () {
     $component->call('delete', $leave->id);
 
     expect(Leave::withoutGlobalScope('owner_company')->find($leave->id))->not->toBeNull();
+});
+
+it('renders an hourly leave duration in human form, not as a decimal', function () {
+    [$company, $admin, $employee, $account] = leavePendingRequest('3000000080');
+
+    // ۴۶ دقیقه ⇒ hours_count = 0.77 ذخیره می‌شود، ولی کاربر نباید «۰٫۷۷» ببیند.
+    $leave = app(RequestLeave::class)->handle($employee, [
+        'leave_type' => 'hourly',
+        'start_date' => '2026-09-07',
+        'end_date' => '2026-09-07',
+        'start_time' => '09:00',
+        'end_time' => '09:46',
+    ], $admin, RecordedBy::Admin);
+
+    expect($leave->hours_count)->toEqual('0.77');
+
+    // پنل خودِ کارمند
+    Livewire::actingAs($account)->test(MyLeaves::class)
+        ->assertOk()
+        ->assertSee('۴۶ دقیقه')
+        ->assertDontSee('۰.۷۷');
+
+    // پنل ادمین — همان متن، از همان helper مشترک.
+    leaveGiveRole($admin, $company, 'holding_admin');
+    $this->actingAs($admin);
+    app(CompanyContext::class)->set($company->id);
+
+    Livewire::actingAs($admin)->test(LeaveIndex::class)
+        ->assertOk()
+        ->assertSee('۴۶ دقیقه')
+        ->assertDontSee('۰.۷۷');
+});
+
+it('renders a whole-hour leave without a trailing zero minutes', function () {
+    [, $admin, $employee, $account] = leavePendingRequest('3000000081');
+
+    app(RequestLeave::class)->handle($employee, [
+        'leave_type' => 'hourly',
+        'start_date' => '2026-09-07',
+        'end_date' => '2026-09-07',
+        'start_time' => '09:00',
+        'end_time' => '11:00',
+    ], $admin, RecordedBy::Admin);
+
+    Livewire::actingAs($account)->test(MyLeaves::class)
+        ->assertOk()
+        ->assertSee('۲ ساعت')
+        ->assertDontSee('۲ ساعت و ۰ دقیقه');
+});
+
+it('uses the time picker instead of a native time input in the hourly form', function () {
+    [, , , $account] = leavePendingRequest('3000000082');
+
+    $component = Livewire::actingAs($account)->test(MyLeaves::class)
+        ->call('openForm')
+        ->set('leave_type', 'hourly')
+        ->assertOk();
+
+    // دیگر فیلد قابل‌تایپ نیست.
+    $component->assertDontSeeHtml('type="time"');
+
+    // و انتخابگر به همان property لایو‌وایر وصل است.
+    $component->assertSeeHtml("entangle('start_time')");
+    $component->assertSeeHtml("entangle('end_time')");
+
+    // دامنه کامل رندر شده باشد: ساعت ۰۰–۲۳ و دقیقه ۰۰–۵۹، با ارقام فارسی که
+    // در PHP ساخته می‌شوند (نه یک نگاشت ارقام دوم در JS).
+    //
+    // @js آرایه را داخل JSON.parse می‌گذارد و ارقام غیر-اسکی را دوبار escape
+    // می‌کند (۲۳ → \\u06f2\\u06f3). برچسب مورد انتظار با همان تبدیل ساخته
+    // می‌شود تا تست به یک رشته رمزی سخت‌کدشده تبدیل نشود.
+    $html = $component->html();
+    $escaped = fn (string $label) => str_replace('\u', '\\\\u', trim(json_encode($label), '"'));
+
+    foreach (['۰۰', '۲۳', '۵۹', '۴۶'] as $label) {
+        expect($html)->toContain($escaped($label));
+    }
+
+    // ۶۰ در هیچ‌کدام از دو ستون نباید باشد (ساعت تا ۲۳، دقیقه تا ۵۹).
+    // برای «۲۴» نمی‌شود همین را گفت: ۲۴ یک دقیقه معتبر است و در ستون دقیقه هست.
+    expect($html)->not->toContain($escaped('۶۰'));
+});
+
+it('lands a value picked through the time picker in the property as H:i', function () {
+    [, , $employee, $account] = leavePendingRequest('3000000083');
+
+    // انتخابگر دقیقاً همان کاری را می‌کند که این set انجام می‌دهد: مقدار H:i را
+    // در همان property می‌نشاند. از آنجا به بعد مسیر سرور تغییری نکرده.
+    Livewire::actingAs($account)->test(MyLeaves::class)
+        ->call('openForm')
+        ->set('leave_type', 'hourly')
+        ->set('start_date', '2026-09-07')
+        ->set('start_time', '09:00')
+        ->set('end_time', '10:45')
+        ->call('save')
+        ->assertSet('showForm', false);
+
+    $leave = Leave::withoutGlobalScope('owner_company')
+        ->where('employee_id', $employee->id)
+        ->where('leave_type', LeaveType::Hourly)
+        ->firstOrFail();
+
+    expect($leave->start_time)->toBe('09:00');
+    expect($leave->end_time)->toBe('10:45');
+    expect(Farsi::durationFromHours($leave->hours_count))->toBe('۱ ساعت و ۴۵ دقیقه');
 });
 
 it('shows hourly fields in the self-service form when the hourly type is selected', function () {

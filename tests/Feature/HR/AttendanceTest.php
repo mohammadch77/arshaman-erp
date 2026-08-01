@@ -616,6 +616,22 @@ it('allows a holding_admin to record a punch from the AttendanceIndex form', fun
     expect(attendanceDayMinutes($employee, '2026-07-20'))->toBe([10, 0]);
 });
 
+it('uses the time picker in the admin attendance form too', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => false]);
+    attendanceGiveRole($admin, $company, 'holding_admin');
+
+    $this->actingAs($admin);
+    session(['active_company_id' => $company->id]);
+
+    Livewire::test(AttendanceIndex::class)
+        ->call('openForm')
+        ->assertOk()
+        ->assertDontSeeHtml('type="time"')
+        ->assertSeeHtml("entangle('check_in_time')")
+        ->assertSeeHtml("entangle('check_out_time')");
+});
+
 it('round-trips admin form times through the display timezone', function () {
     $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
     $admin = User::factory()->create(['is_super_admin' => false]);

@@ -1,16 +1,3 @@
-@php
-    $formatMinutes = function (int $minutes): string {
-        $hours = intdiv(abs($minutes), 60);
-        $rest = abs($minutes) % 60;
-
-        return match (true) {
-            $hours > 0 && $rest > 0 => \App\Support\Farsi::toDigits($hours).' ساعت و '.\App\Support\Farsi::toDigits($rest).' دقیقه',
-            $hours > 0 => \App\Support\Farsi::toDigits($hours).' ساعت',
-            default => \App\Support\Farsi::toDigits($rest).' دقیقه',
-        };
-    };
-@endphp
-
 <div>
     <x-header title="حضور و غیاب من" subtitle="ثبت ورود و خروج" separator />
 
@@ -53,7 +40,7 @@
                                         </div>
 
                                         <span class="text-sm text-base-content/70">
-                                            {{ $punch->duration_minutes !== null ? $formatMinutes($punch->duration_minutes) : '—' }}
+                                            {{ $punch->duration_minutes !== null ? \App\Support\Farsi::duration($punch->duration_minutes) : '—' }}
                                         </span>
                                     </li>
                                 @endforeach
@@ -62,7 +49,7 @@
 
                         <div class="flex items-center justify-between border-t border-base-300 pt-3">
                             <span class="font-semibold">جمع کارکرد امروز</span>
-                            <span class="font-semibold">{{ $formatMinutes($this->todayWorkedMinutes) }}</span>
+                            <span class="font-semibold">{{ \App\Support\Farsi::duration($this->todayWorkedMinutes) }}</span>
                         </div>
 
                         <div class="flex items-center justify-between">
