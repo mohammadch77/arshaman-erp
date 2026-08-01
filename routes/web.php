@@ -11,6 +11,7 @@ use App\Livewire\HR\EmployeeForm;
 use App\Livewire\HR\EmployeeIndex;
 use App\Livewire\HR\LeaveIndex;
 use App\Livewire\HR\MonthlyAttendanceReport;
+use App\Livewire\HR\PayrollExpenseReport;
 use App\Livewire\HR\PayrollIndex;
 use App\Livewire\HR\SelfService\MyAttendance;
 use App\Livewire\HR\SelfService\MyLeaves;
@@ -50,6 +51,7 @@ Route::livewire('/leaves', LeaveIndex::class)->middleware('auth')->name('leaves.
 Route::livewire('/my/leaves', MyLeaves::class)->middleware('auth')->name('my-leaves');
 
 Route::livewire('/payroll', PayrollIndex::class)->middleware('auth')->name('payroll.index');
+Route::livewire('/payroll/expense-report', PayrollExpenseReport::class)->middleware('auth')->name('payroll.expense-report');
 Route::livewire('/my/payslips', MyPayslips::class)->middleware('auth')->name('my-payslips');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware

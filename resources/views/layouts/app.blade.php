@@ -55,6 +55,7 @@
                         <x-menu-item title="جمع ماهانه کارکرد" :icon="theme_icon('report')" link="{{ route('attendance.monthly-summary') }}" />
                         <x-menu-item title="مرخصی‌ها" :icon="theme_icon('leave')" link="{{ route('leaves.index') }}" />
                         <x-menu-item title="حقوق و دستمزد" :icon="theme_icon('payroll')" link="{{ route('payroll.index') }}" />
+                        <x-menu-item title="گزارش هزینه حقوق" :icon="theme_icon('report')" link="{{ route('payroll.expense-report') }}" />
                     </x-menu-sub>
                 @endif
 
