@@ -71,6 +71,51 @@ it('rejects a manual interaction record by an actor without an authorized role, 
     expect(Interaction::withoutGlobalScopes()->count())->toBe(0);
 });
 
+it('rejects an operator recording an interaction on a contact site profile of a company where they have no role at all', function () {
+    $companyA = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $operatorOfA = User::factory()->create(['is_super_admin' => false]);
+    interactionGiveRole($operatorOfA, $companyA, 'operator');
+
+    $profileB = app(CreateContactSiteProfile::class)->handle(
+        ['full_name' => 'مشتری شرکت ب', 'phone' => '09121234580', 'email' => null, 'site_full_name' => null, 'owner_company_id' => $companyB->id],
+        $admin,
+        app(ContactMatcher::class)
+    );
+
+    expect(fn () => app(RecordInteraction::class)->handle($profileB, [
+        'interaction_type' => 'call',
+        'notes' => null,
+        'occurred_at' => now(),
+    ], $operatorOfA))->toThrow(AuthorizationException::class);
+
+    expect(Interaction::withoutGlobalScopes()->count())->toBe(0);
+});
+
+it('rejects a user who is only a viewer in the target company, even though they are operator in a different company — cross-company role leak regression', function () {
+    $companyA = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $user = User::factory()->create(['is_super_admin' => false]);
+    interactionGiveRole($user, $companyA, 'operator');
+    interactionGiveRole($user, $companyB, 'viewer');
+
+    $profileB = app(CreateContactSiteProfile::class)->handle(
+        ['full_name' => 'مشتری شرکت ب دوم', 'phone' => '09121234581', 'email' => null, 'site_full_name' => null, 'owner_company_id' => $companyB->id],
+        $admin,
+        app(ContactMatcher::class)
+    );
+
+    expect(fn () => app(RecordInteraction::class)->handle($profileB, [
+        'interaction_type' => 'call',
+        'notes' => null,
+        'occurred_at' => now(),
+    ], $user))->toThrow(AuthorizationException::class);
+
+    expect(Interaction::withoutGlobalScopes()->count())->toBe(0);
+});
+
 it('rejects a manual interaction record by an accountant', function () {
     $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
     $admin = User::factory()->create(['is_super_admin' => true]);
