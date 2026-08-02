@@ -77,6 +77,8 @@ return [
         'reopen' => 'o-lock-open',
         'party' => 'o-identification',
         'economic-code' => 'o-hashtag',
+        'currency' => 'o-currency-dollar',
+        'exchange-rate' => 'o-arrows-right-left',
     ],
 
 ];

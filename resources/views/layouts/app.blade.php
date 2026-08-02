@@ -51,6 +51,10 @@
                     <x-menu-item title="طرف‌حساب‌ها" :icon="theme_icon('party')" link="{{ route('parties.index') }}" />
                 @endif
 
+                @if(auth()->check())
+                    <x-menu-item title="نرخ ارز" :icon="theme_icon('currency')" link="{{ route('exchange-rates.index') }}" />
+                @endif
+
                 {{-- منابع انسانی — پنل ادمین/حسابدار --}}
                 @if(auth()->check() && (auth()->user()->is_super_admin || auth()->user()->hasRole('holding_admin') || auth()->user()->hasRole('accountant')))
                     <x-menu-sub title="منابع انسانی" :icon="theme_icon('employee')">

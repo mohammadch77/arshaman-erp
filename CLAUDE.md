@@ -290,6 +290,18 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 - [x] Session 4: مدیریت کاربران (Action ها، UserPolicy، UserIndex/UserCreate/AssignRole، activity_log)
 - [x] Session 5: دعوت‌نامه (اختیاری)
 
+### تکمیل هسته باقی‌مانده (`docs/PROJECT_00_CORE_REMAINING.md`)
+
+- [x] Session 1: طرف‌حساب‌ها (Parties)
+- [x] Session 2: ارز و نرخ ارز — `currencies`/`exchange_rates` (بدون `owner_company_id`، چون طبق طراحی
+  سند مشترک بین کل هلدینگ‌اند)، `ExchangeRateResolver::rate()` (نرخ دقیق یا آخرین نرخ قبلی)،
+  `RecordExchangeRate` (فقط `holding_admin`/`accountant`؛ مشاهده برای همه آزاد)، `CurrencySeeder`
+  (USD/EUR/AED)، پنل `/exchange-rates` + `/exchange-rates/create`.
+  **تصمیم این Session:** cast تاریخ `effective_date` عمداً `'date:Y-m-d'` است نه `'date'` خام —
+  بدون فرمت صریح، مقایسه `<=` در resolver و کلید `updateOrCreate` به‌خاطر مهر زمانی اضافه در رشته
+  ذخیره‌شده (`00:00:00`) شکست می‌خورد.
+- [ ] Session 3: سال مالی (Fiscal Periods)
+
 ### ماژول HR (فاز ۲)
 
 طبق `docs/PROJECT_02_HR.md`:

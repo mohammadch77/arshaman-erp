@@ -2,8 +2,10 @@
 
 namespace App\Modules\Core\Providers;
 
+use App\Modules\Core\Models\ExchangeRate;
 use App\Modules\Core\Models\Party;
 use App\Modules\Core\Models\User;
+use App\Modules\Core\Policies\ExchangeRatePolicy;
 use App\Modules\Core\Policies\PartyPolicy;
 use App\Modules\Core\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
@@ -19,5 +21,6 @@ class CoreServiceProvider extends ServiceProvider
 
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Party::class, PartyPolicy::class);
+        Gate::policy(ExchangeRate::class, ExchangeRatePolicy::class);
     }
 }
