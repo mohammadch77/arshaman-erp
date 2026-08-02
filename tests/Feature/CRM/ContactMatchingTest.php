@@ -140,7 +140,7 @@ it('allows an operator to view and create contact site profiles', function () {
     expect($profile->owner_company_id)->toBe($company->id);
 });
 
-it('forbids an operator (company-level role) from viewing the holding-wide 360 profile', function () {
+it('allows an operator to view the holding-wide 360 profile — same role set as ContactSiteProfilePolicy', function () {
     $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
     $admin = User::factory()->create(['is_super_admin' => true]);
     $operator = User::factory()->create(['is_super_admin' => false]);
@@ -153,6 +153,23 @@ it('forbids an operator (company-level role) from viewing the holding-wide 360 p
     );
 
     $this->actingAs($operator)
+        ->get("/contacts/{$profile->contact_id}/profile")
+        ->assertOk();
+});
+
+it('forbids an accountant from viewing the holding-wide 360 profile — Contact is not the Party-facing accountant role', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $accountant = User::factory()->create(['is_super_admin' => false]);
+    crmGiveRole($accountant, $company, 'accountant');
+
+    $profile = app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(), 'owner_company_id' => $company->id],
+        $admin,
+        app(ContactMatcher::class)
+    );
+
+    $this->actingAs($accountant)
         ->get("/contacts/{$profile->contact_id}/profile")
         ->assertForbidden();
 });
