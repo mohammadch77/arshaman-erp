@@ -275,6 +275,9 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
    **چرا:** لایه Livewire فقط یک caller است، نه تنها caller. اگر Action به caller اعتماد کورکورانه داشته باشد، هر مسیر دیگری (کنسول، job، Action دیگر، تست، کد آینده) که مستقیم آن را صدا بزند بدون رد شدن اجرا می‌شود — حتی با یک کاربر عادی. این دقیقاً همان دسته باگ امنیتی است که بند ۵.۱ (ایزولاسیون شرکت) درباره‌اش هشدار می‌دهد، فقط این‌بار در سطح Action.
    **این خصوصاً در فاز مالی (Finance) حیاتی است:** Action هایی مثل تأیید هزینه، صدور فاکتور، یا ثبت سند حسابداری هرگز نباید فقط به این تکیه کنند که کامپوننت Livewire قبلش authorize زده — خود Action باید authorize کند.
    مرجع پیاده‌سازی: `app/Modules/Core/Actions/CreateUser.php`, `AssignRole.php`, `ToggleUserActive.php` (Session 4) — و تست مستقیم روی Action (نه از مسیر Livewire) در `tests/Feature/Core/UserManagementTest.php`.
+10. **هرگز رمز عبور یک کاربر واقعی/موجود را برای تست بصری تغییر نده.** اگر نیاز به ورود
+    برای تأیید بصری بود، یا یک کاربر تستی موقت جدید بساز و در پایان حذفش کن، یا از کاربر
+    بخواه خودش تست کند.
 
 ---
 
@@ -300,7 +303,28 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
   **تصمیم این Session:** cast تاریخ `effective_date` عمداً `'date:Y-m-d'` است نه `'date'` خام —
   بدون فرمت صریح، مقایسه `<=` در resolver و کلید `updateOrCreate` به‌خاطر مهر زمانی اضافه در رشته
   ذخیره‌شده (`00:00:00`) شکست می‌خورد.
-- [ ] Session 3: سال مالی (Fiscal Periods)
+- [x] Session 3: سال مالی (Fiscal Periods)
+
+  **چه ساخته شد:** `fiscal_periods` (بدون snapshot ستون‌های `created_by_user_id` — طبق
+  طراحی سند، این جدول فقط `closed_by_user_id` دارد چون تنها نقش قابل‌ردیابی همان است)،
+  Action های `CreateFiscalPeriod`/`CloseFiscalPeriod`، `FiscalPeriodPolicy`
+  (مشاهده = هر نقشی در شرکت فعال، ساخت/بستن = فقط `holding_admin`)، پنل
+  `FiscalPeriodIndex` (مسیر `/fiscal-periods`)، و `FiscalPeriodSeeder` (سال مالی جاری
+  برای هر شش شرکت).
+
+  **تصمیم‌های این Session:**
+  - محاسبه محدوده (اول فروردین تا آخر اسفند، کبیسه‌آگاه) در یک متد استاتیک جدا
+    `CreateFiscalPeriod::buildAttributes()` است، مستقل از `handle()` که authorize
+    می‌کند — چون seeder هیچ کاربر واردشده‌ای برای عبور از Gate ندارد و نباید authorization
+    واقعی را دور بزند؛ به‌جایش کلاً از مسیر Action دیگری (بدون Gate) استفاده می‌کند،
+    دقیقاً مثل الگوی `CompanySeeder`/`CurrencySeeder`.
+  - بستن سال مالی **بدون Action بازگشایی** است (برخلاف حقوق) — طبق طراحی سند این
+    قفل عمداً یک‌طرفه است؛ اصلاح واقعی در فاز ۶ با منطق انتقال مانده اضافه می‌شود.
+  - `FiscalPeriodSeeder` باید صریحاً `withoutGlobalScopes()` بزند وقتی برای
+    `updateOrCreate` دنبال رکورد موجود می‌گردد — وگرنه Global Scope خودکار
+    `BelongsToCompany` (که بدون کاربر واردشده `owner_company_id = null` می‌سازد)
+    با شرط صریح `owner_company_id = $company->id` تناقض پیدا می‌کند و re-seed هر بار
+    رکورد تکراری می‌سازد.
 
 ### ماژول HR (فاز ۲)
 

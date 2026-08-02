@@ -4,6 +4,7 @@ use App\Livewire\Core\Auth\AcceptInvitation;
 use App\Livewire\Core\Auth\Login;
 use App\Livewire\Core\Currencies\ExchangeRateForm;
 use App\Livewire\Core\Currencies\ExchangeRateIndex;
+use App\Livewire\Core\FiscalPeriods\FiscalPeriodIndex;
 use App\Livewire\Core\Parties\PartyForm;
 use App\Livewire\Core\Parties\PartyIndex;
 use App\Livewire\Core\Users\AssignRole;
@@ -49,6 +50,8 @@ Route::livewire('/parties/{party}/edit', PartyForm::class)->middleware('auth')->
 
 Route::livewire('/exchange-rates', ExchangeRateIndex::class)->middleware('auth')->name('exchange-rates.index');
 Route::livewire('/exchange-rates/create', ExchangeRateForm::class)->middleware('auth')->name('exchange-rates.create');
+
+Route::livewire('/fiscal-periods', FiscalPeriodIndex::class)->middleware('auth')->name('fiscal-periods.index');
 
 Route::livewire('/employees', EmployeeIndex::class)->middleware('auth')->name('employees.index');
 Route::livewire('/employees/create', EmployeeForm::class)->middleware('auth')->name('employees.create');
