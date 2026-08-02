@@ -102,6 +102,44 @@ it('forbids a role without company access from viewing the contact list', functi
     $this->actingAs($stranger)->get('/contacts')->assertForbidden();
 });
 
+it('forbids an accountant from viewing the contact list — Contact belongs to operator/holding_admin, not the Party-facing accountant role', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $accountant = User::factory()->create(['is_super_admin' => false]);
+    crmGiveRole($accountant, $company, 'accountant');
+
+    $this->actingAs($accountant)->get('/contacts')->assertForbidden();
+});
+
+it('rejects a create attempt by an accountant, even bypassing Livewire entirely', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $accountant = User::factory()->create(['is_super_admin' => false]);
+    crmGiveRole($accountant, $company, 'accountant');
+
+    expect(fn () => app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(), 'owner_company_id' => $company->id],
+        $accountant,
+        app(ContactMatcher::class)
+    ))->toThrow(AuthorizationException::class);
+
+    expect(Contact::count())->toBe(0);
+});
+
+it('allows an operator to view and create contact site profiles', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $operator = User::factory()->create(['is_super_admin' => false]);
+    crmGiveRole($operator, $company, 'operator');
+
+    $this->actingAs($operator)->get('/contacts')->assertOk();
+
+    $profile = app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(['full_name' => 'مخاطب اپراتور']), 'owner_company_id' => $company->id],
+        $operator,
+        app(ContactMatcher::class)
+    );
+
+    expect($profile->owner_company_id)->toBe($company->id);
+});
+
 it('forbids an operator (company-level role) from viewing the holding-wide 360 profile', function () {
     $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
     $admin = User::factory()->create(['is_super_admin' => true]);

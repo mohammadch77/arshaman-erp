@@ -486,6 +486,12 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
     می‌شود Livewire پیش از اجرای `mount()` سعی کند مقدار خام رشته‌ای route را
     مستقیم روی همان property بنشاند و با خطای type mismatch شکست بخورد.
 
+  **اصلاح بعد از Session:** دسترسی `ContactSiteProfilePolicy` (مشاهده/ساخت/ویرایش)
+  از «هر نقشی در شرکت + holding_admin/accountant/operator برای ساخت» به فقط
+  `holding_admin`/`operator` محدود شد — کار `accountant` با `Party` (طرف‌حساب
+  مالی) است، نه `Contact`؛ `viewer` هم اساساً دسترسی مدیریتی ندارد. `ContactPolicy`
+  سطح هلدینگ دست‌نخورده ماند (همچنان `holding_admin`/`accountant`).
+
 - [ ] تعاملات (Interactions)
 - [ ] قیف فروش (Lead)
 - [ ] RFM
