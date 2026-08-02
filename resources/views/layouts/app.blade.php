@@ -71,6 +71,13 @@
                     </x-menu-sub>
                 @endif
 
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-sub title="مخاطبین" :icon="theme_icon('crm')">
+                        <x-menu-item title="فهرست مخاطبین" :icon="theme_icon('contact')" link="{{ route('contacts.index') }}" />
+                        <x-menu-item title="مخاطب جدید" :icon="theme_icon('add')" link="{{ route('contacts.create') }}" />
+                    </x-menu-sub>
+                @endif
+
                 {{-- پنل خودِ کارمند — بدون نیاز به نقش؛ هر کاربری که پرونده پرسنلی
                      مرتبط داشته باشد. خود صفحه‌ها اگر پرونده‌ای نبود، پیام مناسب
                      نشان می‌دهند (نه خطا) — طبق Session 3 سند HR. --}}

@@ -462,7 +462,30 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 
 ### ماژول CRM (فاز جدید — طبق `docs/DECISIONS.md`، منتقل‌شده زودتر از فاز ۶ اصلی سند)
 
-- [ ] مخاطبین (Contacts)
+- [x] Session 1: مخاطبین (Contacts)
+
+  **چه ساخته شد:** `contacts` (Golden Record هلدینگی — عمداً بدون `owner_company_id`،
+  مثل `Holiday` در HR) و `contact_site_profiles` (`BelongsToCompany`، `UNIQUE(contact_id, owner_company_id)`)،
+  سرویس `ContactMatcher::findOrCreateContact()` (تطبیق بر پایه موبایل یا ایمیل)،
+  Action `CreateContactSiteProfile` (authorize داخل خودِ Action)، دو Policy جدا —
+  `ContactSiteProfilePolicy` (سطح شرکت) و `ContactPolicy` (سطح هلدینگ، محدودتر:
+  فقط `holding_admin`/`accountant`، نه `operator`)، و کامپوننت‌های `ContactIndex`/
+  `ContactForm`/`ContactProfile` (نمای ۳۶۰، مسیر `/contacts/{contactId}/profile`).
+
+  **تصمیم‌های این Session:**
+  - امضای `ContactMatcher::findOrCreateContact()` نسبت به تعریف اولیه سند دو
+    پارامتر اضافه گرفت: `fullName` (چون `contacts.full_name` ستون اجباری است و
+    بدون آن نمی‌شد Contact جدید ساخت) و `User $actor` به‌جای `companyId` خام
+    (برای `created_by_user_id`؛ چون خودِ جدول `contacts` اصلاً `owner_company_id`
+    ندارد، پارامتر شرکت در سطح تطبیق مخاطب بی‌معنا بود).
+  - نمای ۳۶۰ هلدینگی عمداً **Policy جدا** دارد، نه استفاده از همان
+    `ContactSiteProfilePolicy` با یک متد اضافه — چون دامنه دسترسی متفاوت است
+    (چندشرکتی هم‌زمان، نه فقط شرکت فعال سوییچر) و باید بتواند مستقل‌تر محدود شود.
+  - در مسیر Livewire، پارامتر `mount()` عمداً `contactId` نام‌گذاری شد نه `contact`
+    — همنام‌بودن با یک public property تایپ‌شده (`public Contact $contact`) باعث
+    می‌شود Livewire پیش از اجرای `mount()` سعی کند مقدار خام رشته‌ای route را
+    مستقیم روی همان property بنشاند و با خطای type mismatch شکست بخورد.
+
 - [ ] تعاملات (Interactions)
 - [ ] قیف فروش (Lead)
 - [ ] RFM

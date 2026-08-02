@@ -79,6 +79,10 @@ return [
         'economic-code' => 'o-hashtag',
         'currency' => 'o-currency-dollar',
         'exchange-rate' => 'o-arrows-right-left',
+        'contact' => 'o-user-circle',
+        'profile' => 'o-identification',
+        'site' => 'o-building-storefront',
+        'purchase' => 'o-shopping-bag',
     ],
 
 ];
