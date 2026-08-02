@@ -47,6 +47,10 @@
                     <x-menu-item title="مدیریت کاربران" :icon="theme_icon('users')" link="{{ route('users.index') }}" />
                 @endif
 
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-item title="طرف‌حساب‌ها" :icon="theme_icon('party')" link="{{ route('parties.index') }}" />
+                @endif
+
                 {{-- منابع انسانی — پنل ادمین/حسابدار --}}
                 @if(auth()->check() && (auth()->user()->is_super_admin || auth()->user()->hasRole('holding_admin') || auth()->user()->hasRole('accountant')))
                     <x-menu-sub title="منابع انسانی" :icon="theme_icon('employee')">

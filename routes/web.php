@@ -2,6 +2,8 @@
 
 use App\Livewire\Core\Auth\AcceptInvitation;
 use App\Livewire\Core\Auth\Login;
+use App\Livewire\Core\Parties\PartyForm;
+use App\Livewire\Core\Parties\PartyIndex;
 use App\Livewire\Core\Users\AssignRole;
 use App\Livewire\Core\Users\InviteUser;
 use App\Livewire\Core\Users\UserCreate;
@@ -38,6 +40,10 @@ Route::livewire('/users', UserIndex::class)->middleware('auth')->name('users.ind
 Route::livewire('/users/create', UserCreate::class)->middleware('auth')->name('users.create');
 Route::livewire('/users/roles', AssignRole::class)->middleware('auth')->name('users.assign-role');
 Route::livewire('/users/invite', InviteUser::class)->middleware('auth')->name('users.invite');
+
+Route::livewire('/parties', PartyIndex::class)->middleware('auth')->name('parties.index');
+Route::livewire('/parties/create', PartyForm::class)->middleware('auth')->name('parties.create');
+Route::livewire('/parties/{party}/edit', PartyForm::class)->middleware('auth')->name('parties.edit');
 
 Route::livewire('/employees', EmployeeIndex::class)->middleware('auth')->name('employees.index');
 Route::livewire('/employees/create', EmployeeForm::class)->middleware('auth')->name('employees.create');

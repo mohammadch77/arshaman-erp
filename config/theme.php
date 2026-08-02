@@ -75,6 +75,8 @@ return [
         'hourly' => 'o-clock',
         'note' => 'o-chat-bubble-bottom-center-text',
         'reopen' => 'o-lock-open',
+        'party' => 'o-identification',
+        'economic-code' => 'o-hashtag',
     ],
 
 ];
