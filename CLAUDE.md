@@ -460,4 +460,13 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
   - **موقتی است** (طبق BACKLOG.md #1): فقط نمایش، هیچ رکورد `expense` نمی‌سازد؛ در فاز ۴
     با `PostPayrollToExpenses` واقعی جایگزین می‌شود.
 
+### ماژول CRM (فاز جدید — طبق `docs/DECISIONS.md`، منتقل‌شده زودتر از فاز ۶ اصلی سند)
+
+- [ ] مخاطبین (Contacts)
+- [ ] تعاملات (Interactions)
+- [ ] قیف فروش (Lead)
+- [ ] RFM
+- [ ] کمپین (Campaign)
+- [ ] تیکتینگ (Ticket)
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.
