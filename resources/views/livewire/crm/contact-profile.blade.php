@@ -51,4 +51,8 @@
             @endscope
         </x-table>
     </x-card>
+
+    <div class="mt-4">
+        @livewire('crm.interaction-timeline', ['contactId' => $contact->id], key('interaction-timeline-'.$contact->id))
+    </div>
 </div>

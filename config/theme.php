@@ -83,6 +83,10 @@ return [
         'profile' => 'o-identification',
         'site' => 'o-building-storefront',
         'purchase' => 'o-shopping-bag',
+        'call' => 'o-phone',
+        'telegram' => 'o-paper-airplane',
+        'site-form' => 'o-clipboard-document-list',
+        'timeline' => 'o-queue-list',
     ],
 
 ];

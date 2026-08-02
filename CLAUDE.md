@@ -496,7 +496,34 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
      تغییر کرد. علت جدابودن این دو Policy («شرکت جاری» در برابر «چندشرکتی
      هم‌زمان») همچنان پابرجاست، فقط مجموعه نقش مجازشان حالا یکی است.
 
-- [ ] تعاملات (Interactions)
+- [x] Session 2: تعاملات (Interactions)
+
+  **چه ساخته شد:** `interactions` (فقط `created_at`، بدون `updated_at` —
+  تعامل ثبت‌شده ویرایش نمی‌شود؛ `source_order_id` بدون FK با کامنت TODO فاز ۳
+  طبق `docs/schema_crm_mysql.sql`)، مدل `Interaction` (با
+  `Interaction::createFromOrder()` فقط امضا+TODO برای اتصال آینده خرید)،
+  Action `RecordInteraction` (authorize داخل خودِ Action، فقط انواع دستی
+  `call`/`telegram`/`site_form` — نه `purchase`)، `InteractionPolicy`، و
+  کامپوننت `InteractionTimeline` (تایم‌لاین + فرم ثبت دستی، جاسازی‌شده در
+  همان صفحه پروفایل ۳۶۰ `ContactProfile`).
+
+  **تصمیم‌های این Session:**
+  - `InteractionPolicy` برخلاف `ContactSiteProfilePolicy` به `CompanyContext`
+    فعال سوییچر تکیه **نمی‌کند** — چون از نمای ۳۶۰ هلدینگی می‌شود برای هر
+    پروفایل سایتِ این مخاطب (در هر شرکتی) تعامل ثبت کرد، نه فقط شرکت فعال
+    session. به‌جایش `isAuthorizedForCompany($user, $profile->owner_company_id)`
+    شرکت هدف را از خودِ `ContactSiteProfile` می‌خواند، نه از session جاری.
+    همان دو نقش (`holding_admin`/`operator`) رعایت شده، فقط منبع تشخیص شرکت فرق دارد.
+  - `InteractionTimeline` هم مثل `ContactProfile::getSiteProfilesProperty()`
+    از `withoutGlobalScopes()` استفاده می‌کند — تایم‌لاین باید تعاملات همه
+    شرکت‌های این مخاطب را کنار هم نشان بدهد، نه فقط شرکت فعال.
+  - زمان تعامل دستی (`occurred_at`) عمداً از **سرور** گرفته می‌شود
+    (`now()`)، نه از یک ورودی تاریخ/ساعت در فرم — مثل الگوی `PunchAttendance`
+    در HR (بند ۹؛ ساعت قابل‌دستکاری فقط باید دست ادمین/Action مشخص باشد،
+    نه هر فرم ثبت دستی).
+  - تبدیل خودکار خرید→تعامل عمداً پیاده نشد؛ در `docs/BACKLOG.md` («تبدیل
+    خودکار خرید به تعامل») از قبل ثبت بود، وابسته به ماژول Sales (فاز ۳).
+
 - [ ] قیف فروش (Lead)
 - [ ] RFM
 - [ ] کمپین (Campaign)

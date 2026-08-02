@@ -9,6 +9,7 @@ use App\Modules\Core\Models\User;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * پروفایل مخاطب در یک شرکت مشخص. لینک به Golden Record هلدینگی (Contact) از
@@ -50,6 +51,11 @@ class ContactSiteProfile extends Model
     public function party(): BelongsTo
     {
         return $this->belongsTo(Party::class);
+    }
+
+    public function interactions(): HasMany
+    {
+        return $this->hasMany(Interaction::class);
     }
 
     public function createdBy(): BelongsTo
