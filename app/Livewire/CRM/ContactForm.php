@@ -21,6 +21,14 @@ class ContactForm extends Component
 
     public string $site_full_name = '';
 
+    /**
+     * وقتی موبایل/ایمیل واردشده به یک Contact موجود تعلق دارد که در همین شرکت
+     * از قبل پروفایل دارد، این پر می‌شود تا view لینک مستقیم به همان پروفایل
+     * را نشان دهد — به‌جای این‌که کاربر فقط یک پیام خطا ببیند و ندونه الان چه
+     * کاری باید بکند.
+     */
+    public ?string $duplicateContactId = null;
+
     public function mount(): void
     {
         $this->authorize('create', ContactSiteProfile::class);
@@ -43,6 +51,24 @@ class ContactForm extends Component
         $data['email'] = $data['email'] ?: null;
         $data['site_full_name'] = $data['site_full_name'] ?: null;
         $data['owner_company_id'] = $companyContext->id();
+
+        $this->duplicateContactId = null;
+
+        $existingContact = $matcher->findExisting($data['phone'], $data['email']);
+
+        if ($existingContact) {
+            $hasProfileInThisCompany = ContactSiteProfile::withoutGlobalScopes()
+                ->where('contact_id', $existingContact->id)
+                ->where('owner_company_id', $data['owner_company_id'])
+                ->exists();
+
+            if ($hasProfileInThisCompany) {
+                $this->duplicateContactId = $existingContact->id;
+                $this->addError('phone', 'این مخاطب از قبل در این شرکت پروفایل دارد.');
+
+                return;
+            }
+        }
 
         $action->handle($data, auth()->user(), $matcher);
 

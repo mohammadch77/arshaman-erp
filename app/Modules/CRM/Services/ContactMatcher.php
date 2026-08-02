@@ -15,10 +15,7 @@ class ContactMatcher
 {
     public function findOrCreateContact(string $fullName, string $phone, ?string $email, User $actor): Contact
     {
-        $existing = Contact::query()
-            ->where('phone', $phone)
-            ->when($email, fn ($query) => $query->orWhere('email', $email))
-            ->first();
+        $existing = $this->findExisting($phone, $email);
 
         if ($existing) {
             return $existing;
@@ -31,5 +28,17 @@ class ContactMatcher
             'created_by_user_id' => $actor->id,
             'updated_by_user_id' => $actor->id,
         ]);
+    }
+
+    /**
+     * جست‌وجوی بدون ساخت — برای پیش‌بینی UI (مثلاً هشدار «این مخاطب از قبل
+     * وجود دارد» قبل از submit واقعی) بدون تعهد به ساخت رکورد جدید.
+     */
+    public function findExisting(string $phone, ?string $email): ?Contact
+    {
+        return Contact::query()
+            ->where('phone', $phone)
+            ->when($email, fn ($query) => $query->orWhere('email', $email))
+            ->first();
     }
 }

@@ -12,6 +12,7 @@ use App\Modules\CRM\Models\Contact;
 use App\Modules\CRM\Models\ContactSiteProfile;
 use App\Modules\CRM\Services\ContactMatcher;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 
 function crmMakeRole(string $name): Role
@@ -261,6 +262,117 @@ it('creates a contact from the ContactForm Livewire component using ContactMatch
 
     $profile = ContactSiteProfile::where('contact_id', $contact->id)->first();
     expect($profile->owner_company_id)->toBe($company->id);
+});
+
+it('rejects creating a second ContactSiteProfile for the same contact and company with a friendly Persian message instead of a raw database exception', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+
+    app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(), 'owner_company_id' => $company->id],
+        $admin,
+        app(ContactMatcher::class)
+    );
+
+    expect(fn () => app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(['full_name' => 'همان مخاطب، تلاش دوم']), 'owner_company_id' => $company->id],
+        $admin,
+        app(ContactMatcher::class)
+    ))->toThrow(ValidationException::class, 'این مخاطب از قبل در این شرکت پروفایل دارد.');
+
+    expect(ContactSiteProfile::withoutGlobalScopes()->count())->toBe(1);
+});
+
+it('converts a genuine unique-constraint race condition into the same friendly Persian message instead of a raw database exception', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+
+    app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(['phone' => '09121110099', 'email' => 'race@example.com']), 'owner_company_id' => $company->id],
+        $admin,
+        app(ContactMatcher::class)
+    );
+
+    // شبیه‌سازی race واقعی: پیش‌چک (hasDuplicateProfile) را مجبور می‌کنیم
+    // بگوید «تکراری نیست»، درست مثل پنجره‌ای که یک request موازی دیگر بین
+    // SELECT و INSERT همین رکورد را می‌سازد. مسیر بعدی باید فقط از قید یکتای
+    // دیتابیس (uq_contact_site_profile) که پایین‌تر توسط try/catch گرفته
+    // می‌شود، جلوگیری کند — نه از این پیش‌چک.
+    $action = Mockery::mock(CreateContactSiteProfile::class)->makePartial();
+    $action->shouldAllowMockingProtectedMethods();
+    $action->shouldReceive('hasDuplicateProfile')->once()->andReturn(false);
+
+    expect(fn () => $action->handle(
+        [...crmContactData(['full_name' => 'تلاش هم‌زمان', 'phone' => '09121110099', 'email' => 'race@example.com']), 'owner_company_id' => $company->id],
+        $admin,
+        app(ContactMatcher::class)
+    ))->toThrow(ValidationException::class, 'این مخاطب از قبل در این شرکت پروفایل دارد.');
+
+    expect(ContactSiteProfile::withoutGlobalScopes()->count())->toBe(1);
+});
+
+it('does not swallow an unrelated database error under the same catch block', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+
+    $action = Mockery::mock(CreateContactSiteProfile::class)->makePartial();
+    $action->shouldAllowMockingProtectedMethods();
+    $action->shouldReceive('hasDuplicateProfile')->once()->andReturn(false);
+
+    // owner_company_id نامعتبر (بدون FK متناظر) یک QueryException واقعاً
+    // نامرتبط ایجاد می‌کند (نقض fk_csp_company، نه uq_contact_site_profile) —
+    // این باید خام بالا برود، نه به پیام «مخاطب تکراری» تبدیل شود.
+    expect(fn () => $action->handle(
+        [...crmContactData(), 'owner_company_id' => (string) \Illuminate\Support\Str::uuid()],
+        $admin,
+        app(ContactMatcher::class)
+    ))->toThrow(\Illuminate\Database\QueryException::class);
+});
+
+it('allows creating a profile for the same contact in a different company — the duplicate guard is scoped per company', function () {
+    $companyA = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+
+    $profileA = app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(), 'owner_company_id' => $companyA->id],
+        $admin,
+        app(ContactMatcher::class)
+    );
+
+    $profileB = app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(), 'owner_company_id' => $companyB->id],
+        $admin,
+        app(ContactMatcher::class)
+    );
+
+    expect($profileB->contact_id)->toBe($profileA->contact_id);
+    expect(ContactSiteProfile::withoutGlobalScopes()->count())->toBe(2);
+});
+
+it('shows a friendly duplicate-profile error with a link to the existing profile on the ContactForm Livewire component, instead of a 500', function () {
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    crmGiveRole($admin, $company, 'holding_admin');
+
+    $existingProfile = app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(['phone' => '09121110022', 'email' => 'dup@example.com']), 'owner_company_id' => $company->id],
+        $admin,
+        app(ContactMatcher::class)
+    );
+
+    $this->actingAs($admin);
+    session(['active_company_id' => $company->id]);
+
+    Livewire::test(ContactForm::class)
+        ->set('full_name', 'تلاش دوباره برای همان مخاطب')
+        ->set('phone', '09121110022')
+        ->set('email', 'dup@example.com')
+        ->call('save')
+        ->assertHasErrors(['phone'])
+        ->assertSet('duplicateContactId', $existingProfile->contact_id);
+
+    expect(ContactSiteProfile::withoutGlobalScopes()->count())->toBe(1);
 });
 
 it('lists contacts of the active company on the ContactIndex page', function () {
