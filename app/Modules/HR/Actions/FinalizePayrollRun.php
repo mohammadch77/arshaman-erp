@@ -20,7 +20,7 @@ class FinalizePayrollRun
 {
     public function handle(PayrollRun $run, User $actor): PayrollRun
     {
-        Gate::forUser($actor)->authorize('finalize', PayrollRun::class);
+        Gate::forUser($actor)->authorize('finalize', [PayrollRun::class, $run->owner_company_id]);
 
         // فقط از وضعیت «محاسبه‌شده» — یک دوره draft خالی نباید نهایی شود،
         // وگرنه ماهی بدون هیچ فیشی برای همیشه قفل می‌ماند.

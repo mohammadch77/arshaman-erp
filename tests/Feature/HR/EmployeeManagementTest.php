@@ -92,6 +92,31 @@ it('rejects Action calls made by an unauthorized actor, even bypassing Livewire 
     expect(Employee::withoutGlobalScopes()->where('owner_company_id', $company->id)->exists())->toBeFalse();
 });
 
+it('rejects a holding_admin of company A creating an employee for company B where they have no role at all', function () {
+    $companyA = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    $holdingAdminOfA = User::factory()->create(['is_super_admin' => false]);
+    hrGiveRole($holdingAdminOfA, $companyA, 'holding_admin');
+
+    expect(fn () => app(CreateEmployee::class)->handle(hrValidEmployeeData($companyB->id), $holdingAdminOfA))
+        ->toThrow(AuthorizationException::class);
+
+    expect(Employee::withoutGlobalScopes()->where('owner_company_id', $companyB->id)->exists())->toBeFalse();
+});
+
+it('rejects a user who is only a viewer in company B, even though they are holding_admin in company A — cross-company role leak regression', function () {
+    $companyA = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    $user = User::factory()->create(['is_super_admin' => false]);
+    hrGiveRole($user, $companyA, 'holding_admin');
+    hrGiveRole($user, $companyB, 'viewer');
+
+    expect(fn () => app(CreateEmployee::class)->handle(hrValidEmployeeData($companyB->id), $user))
+        ->toThrow(AuthorizationException::class);
+
+    expect(Employee::withoutGlobalScopes()->where('owner_company_id', $companyB->id)->exists())->toBeFalse();
+});
+
 it('rejects duplicate national_id within the same company at the validation layer', function () {
     $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
     $admin = User::factory()->create(['is_super_admin' => true]);

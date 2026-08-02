@@ -34,7 +34,7 @@ class RecordAttendance
         User $actor,
         ?Attendance $target = null
     ): Attendance {
-        Gate::forUser($actor)->authorize('recordAny', Attendance::class);
+        Gate::forUser($actor)->authorize('recordAny', [Attendance::class, $employee->owner_company_id]);
 
         Validator::make(['attendance_date' => $attendanceDate], [
             'attendance_date' => ['required', 'date'],

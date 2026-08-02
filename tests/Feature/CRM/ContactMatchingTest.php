@@ -3,14 +3,14 @@
 use App\Livewire\CRM\ContactForm;
 use App\Livewire\CRM\ContactIndex;
 use App\Livewire\CRM\ContactProfile;
-use App\Modules\CRM\Actions\CreateContactSiteProfile;
-use App\Modules\CRM\Models\Contact;
-use App\Modules\CRM\Models\ContactSiteProfile;
-use App\Modules\CRM\Services\ContactMatcher;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Role;
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Models\UserCompanyRole;
+use App\Modules\CRM\Actions\CreateContactSiteProfile;
+use App\Modules\CRM\Models\Contact;
+use App\Modules\CRM\Models\ContactSiteProfile;
+use App\Modules\CRM\Services\ContactMatcher;
 use Illuminate\Auth\Access\AuthorizationException;
 use Livewire\Livewire;
 
@@ -89,6 +89,37 @@ it('rejects a create attempt by an actor without an authorized role, even bypass
     expect(fn () => app(CreateContactSiteProfile::class)->handle(
         [...crmContactData(), 'owner_company_id' => $company->id],
         $intruder,
+        app(ContactMatcher::class)
+    ))->toThrow(AuthorizationException::class);
+
+    expect(Contact::count())->toBe(0);
+});
+
+it('rejects an operator creating a contact site profile for a company where they have no role at all', function () {
+    $companyA = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    $operatorOfA = User::factory()->create(['is_super_admin' => false]);
+    crmGiveRole($operatorOfA, $companyA, 'operator');
+
+    expect(fn () => app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(), 'owner_company_id' => $companyB->id],
+        $operatorOfA,
+        app(ContactMatcher::class)
+    ))->toThrow(AuthorizationException::class);
+
+    expect(Contact::count())->toBe(0);
+});
+
+it('rejects a user who is only a viewer in the target company, even though they are operator in a different company — cross-company role leak regression', function () {
+    $companyA = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    $user = User::factory()->create(['is_super_admin' => false]);
+    crmGiveRole($user, $companyA, 'operator');
+    crmGiveRole($user, $companyB, 'viewer');
+
+    expect(fn () => app(CreateContactSiteProfile::class)->handle(
+        [...crmContactData(), 'owner_company_id' => $companyB->id],
+        $user,
         app(ContactMatcher::class)
     ))->toThrow(AuthorizationException::class);
 

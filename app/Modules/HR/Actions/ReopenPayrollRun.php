@@ -37,7 +37,7 @@ class ReopenPayrollRun
     public function handle(PayrollRun $run, string $reason, User $actor): PayrollRun
     {
         // authorize داخل خود Action — بند ۹ CLAUDE.md.
-        Gate::forUser($actor)->authorize('reopen', PayrollRun::class);
+        Gate::forUser($actor)->authorize('reopen', [PayrollRun::class, $run->owner_company_id]);
 
         $reason = trim($reason);
 

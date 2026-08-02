@@ -19,7 +19,7 @@ class CreateEmployee
      */
     public function handle(array $data, User $actor): Employee
     {
-        Gate::forUser($actor)->authorize('create', Employee::class);
+        Gate::forUser($actor)->authorize('create', [Employee::class, $data['owner_company_id']]);
 
         Validator::make($data, [
             'national_id' => [

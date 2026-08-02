@@ -3,27 +3,38 @@
 namespace App\Modules\HR\Policies;
 
 use App\Modules\Core\Models\User;
+use App\Modules\Core\Services\CompanyContext;
 use App\Modules\HR\Models\Employee;
 use App\Modules\HR\Models\Leave;
 
 class LeavePolicy
 {
     /**
-     * دسترسی پنل ادمین به مرخصی‌ها: فقط ادمین کل، ادمین هلدینگ، یا حسابدار.
+     * دسترسی پنل ادمین به مرخصی‌ها: فقط ادمین کل، ادمین هلدینگ، یا حسابدار
+     * — و دقیقاً در همان شرکت هدف.
      */
-    protected function isAdminAuthorized(User $user): bool
+    protected function isAdminAuthorized(User $user, ?string $companyId): bool
     {
-        return $user->is_super_admin || $user->hasRole('holding_admin') || $user->hasRole('accountant');
+        if ($companyId === null) {
+            return false;
+        }
+
+        return $user->hasRoleInCompany($companyId, ['holding_admin', 'accountant']);
     }
 
     public function viewAny(User $user): bool
     {
-        return $this->isAdminAuthorized($user);
+        return $this->isAdminAuthorized($user, app(CompanyContext::class)->id());
     }
 
-    public function requestAny(User $user): bool
+    /**
+     * بدون نمونه (مرخصی هنوز ثبت نشده). $companyId اختیاری: RequestLeave
+     * (مسیر ادمین) شرکت هدف واقعی ($employee->owner_company_id) را صریح
+     * پاس می‌دهد؛ در غیر این صورت شرکت فعال سوییچر پیش‌فرض است.
+     */
+    public function requestAny(User $user, ?string $companyId = null): bool
     {
-        return $this->isAdminAuthorized($user);
+        return $this->isAdminAuthorized($user, $companyId ?? app(CompanyContext::class)->id());
     }
 
     /**
@@ -36,11 +47,13 @@ class LeavePolicy
 
     /**
      * تأیید/رد درخواست مرخصی: فقط پنل ادمین — کارمند هرگز نمی‌تواند مرخصی
-     * (حتی مرخصی خودش) را تأیید/رد کند.
+     * (حتی مرخصی خودش) را تأیید/رد کند. $companyId اختیاری: ApproveLeave/
+     * RejectLeave شرکت هدف واقعی ($leave->owner_company_id) را صریح پاس
+     * می‌دهند؛ در غیر این صورت شرکت فعال سوییچر پیش‌فرض است.
      */
-    public function review(User $user): bool
+    public function review(User $user, ?string $companyId = null): bool
     {
-        return $this->isAdminAuthorized($user);
+        return $this->isAdminAuthorized($user, $companyId ?? app(CompanyContext::class)->id());
     }
 
     /**

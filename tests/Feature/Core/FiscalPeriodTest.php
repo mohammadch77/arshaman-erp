@@ -84,3 +84,28 @@ it('only allows a holding_admin to create a fiscal period', function () {
 
     expect(FiscalPeriod::withoutGlobalScopes()->where('owner_company_id', $company->id)->count())->toBe(0);
 });
+
+it('rejects a holding_admin of company A creating a fiscal period for company B where they have no role at all', function () {
+    [$holdingAdminOfA] = fiscalActingAsWithRole('holding_admin');
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+
+    expect(fn () => app(CreateFiscalPeriod::class)->handle($companyB->id, 1404, $holdingAdminOfA))
+        ->toThrow(AuthorizationException::class);
+
+    expect(FiscalPeriod::withoutGlobalScopes()->where('owner_company_id', $companyB->id)->count())->toBe(0);
+});
+
+it('rejects a user who is only a viewer in company B, even though they are holding_admin in company A — cross-company role leak regression', function () {
+    [$user, $companyA] = fiscalActingAsWithRole('holding_admin');
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    UserCompanyRole::create([
+        'user_id' => $user->id,
+        'owner_company_id' => $companyB->id,
+        'assigned_role_id' => fiscalMakeRole('viewer')->id,
+    ]);
+
+    expect(fn () => app(CreateFiscalPeriod::class)->handle($companyB->id, 1404, $user))
+        ->toThrow(AuthorizationException::class);
+
+    expect(FiscalPeriod::withoutGlobalScopes()->where('owner_company_id', $companyB->id)->count())->toBe(0);
+});

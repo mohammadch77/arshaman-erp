@@ -44,7 +44,7 @@ class CalculatePayroll
     public function handle(Company $company, string $periodMonth, User $actor): PayrollRun
     {
         // authorize داخل خود Action، نه فقط در کامپوننت Livewire — CLAUDE.md بند ۹.
-        Gate::forUser($actor)->authorize('calculate', PayrollRun::class);
+        Gate::forUser($actor)->authorize('calculate', [PayrollRun::class, $company->id]);
 
         Validator::make(['period_month' => $periodMonth], [
             'period_month' => ['required', 'regex:/^\d{4}-\d{2}$/'],

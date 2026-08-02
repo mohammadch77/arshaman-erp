@@ -16,7 +16,7 @@ class CreateFiscalPeriod
      */
     public function handle(string $ownerCompanyId, int $jalaliYear, User $actor): FiscalPeriod
     {
-        Gate::forUser($actor)->authorize('create', FiscalPeriod::class);
+        Gate::forUser($actor)->authorize('create', [FiscalPeriod::class, $ownerCompanyId]);
 
         return FiscalPeriod::create(self::buildAttributes($ownerCompanyId, $jalaliYear));
     }

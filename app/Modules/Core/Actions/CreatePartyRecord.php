@@ -14,7 +14,7 @@ class CreatePartyRecord
      */
     public function handle(array $data, User $actor): Party
     {
-        Gate::forUser($actor)->authorize('create', Party::class);
+        Gate::forUser($actor)->authorize('create', [Party::class, $data['owner_company_id']]);
 
         return DB::transaction(function () use ($data, $actor) {
             return Party::create([

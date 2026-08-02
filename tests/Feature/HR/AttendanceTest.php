@@ -331,6 +331,39 @@ it('rejects an admin-recording Action call by an unauthorized actor, even bypass
     expect(Attendance::withoutGlobalScopes()->where('employee_id', $employee->id)->exists())->toBeFalse();
 });
 
+it('rejects a holding_admin of company A recording attendance for an employee of company B where they have no role at all', function () {
+    [$companyB, , $employee] = attendanceEmployee('1000000005');
+    $companyA = Company::create(['name' => 'شرکت دیگر', 'slug' => 'company-a-1000000005', 'business_type' => 'project_services']);
+    $holdingAdminOfA = User::factory()->create(['is_super_admin' => false]);
+    attendanceGiveRole($holdingAdminOfA, $companyA, 'holding_admin');
+
+    expect(fn () => app(RecordAttendance::class)->handle(
+        $employee,
+        '2026-07-20',
+        ['check_in_at' => '2026-07-20 08:00:00'],
+        $holdingAdminOfA,
+    ))->toThrow(AuthorizationException::class);
+
+    expect(Attendance::withoutGlobalScopes()->where('employee_id', $employee->id)->exists())->toBeFalse();
+});
+
+it('rejects a user who is only a viewer in company B, even though they are holding_admin in company A — cross-company role leak regression', function () {
+    [$companyB, , $employee] = attendanceEmployee('1000000006');
+    $companyA = Company::create(['name' => 'شرکت دیگر', 'slug' => 'company-a-1000000006', 'business_type' => 'project_services']);
+    $user = User::factory()->create(['is_super_admin' => false]);
+    attendanceGiveRole($user, $companyA, 'holding_admin');
+    attendanceGiveRole($user, $companyB, 'viewer');
+
+    expect(fn () => app(RecordAttendance::class)->handle(
+        $employee,
+        '2026-07-20',
+        ['check_in_at' => '2026-07-20 08:00:00'],
+        $user,
+    ))->toThrow(AuthorizationException::class);
+
+    expect(Attendance::withoutGlobalScopes()->where('employee_id', $employee->id)->exists())->toBeFalse();
+});
+
 // =====================================================================
 // PunchAttendance — تردد خودِ کارمند، زمان فقط از سرور
 // =====================================================================

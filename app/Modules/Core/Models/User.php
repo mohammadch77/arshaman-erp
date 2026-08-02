@@ -53,15 +53,49 @@ class User extends Authenticatable
         return $this->hasMany(UserCompanyRole::class);
     }
 
-    public function hasRoleInCompany(string $companyId): bool
+    /**
+     * آیا کاربر در $companyId نقش دارد — و اگر $roleName داده شده، دقیقاً همان
+     * نقش (یا یکی از نقش‌های فهرست) را در **همان** شرکت دارد؟ یک کوئری واحد،
+     * scoped هم روی شرکت هم روی نام نقش.
+     *
+     * قبلاً Policy ها دو متد جدا را ترکیب می‌کردند:
+     * `hasRoleInCompany($companyId) && hasRole('operator')` — که چون
+     * hasRole() سراسری است (نقش را در *هر* شرکتی که کاربر داشته باشد پیدا
+     * می‌کند)، کاربری که فقط viewer شرکت ب بود ولی operator شرکت الف هم بود،
+     * برای عملیات شرکت ب هم مجاز تشخیص داده می‌شد — نشت ایزولاسیون شرکت
+     * (بند ۵.۱ CLAUDE.md). این متد تنها راه مجاز برای چک نقش+شرکت با هم است؛
+     * هرگز hasRoleInCompany() و hasRole() را جدا از هم صدا نزن (بند ۹).
+     *
+     * @param  string|array<int, string>|null  $roleName  null = فقط وجود *هر* نقشی در آن شرکت
+     */
+    public function hasRoleInCompany(string $companyId, string|array|null $roleName = null): bool
     {
         if ($this->is_super_admin) {
             return true;
         }
 
-        return $this->companyRoles()->where('owner_company_id', $companyId)->exists();
+        return $this->companyRoles()
+            ->where('owner_company_id', $companyId)
+            ->when(
+                $roleName !== null,
+                fn ($query) => $query->whereHas(
+                    'role',
+                    fn ($roleQuery) => is_array($roleName)
+                        ? $roleQuery->whereIn('name', $roleName)
+                        : $roleQuery->where('name', $roleName)
+                )
+            )
+            ->exists();
     }
 
+    /**
+     * سراسری است — نقش را در *هر* شرکتی که کاربر داشته باشد پیدا می‌کند، نه
+     * فقط یک شرکت مشخص. فقط برای تصمیم‌های دسترسی که واقعاً holding-wide
+     * هستند (مثلاً ContactPolicy — نمای ۳۶۰ چندشرکتی، یا UserPolicy —
+     * مدیریت کاربران/نقش که ذاتاً محدود به یک شرکت نیست) مجاز است.
+     * برای هر تصمیمی که به یک شرکت مشخص مربوط می‌شود، همیشه
+     * hasRoleInCompany($companyId, $roleName) را به‌جای این متد به‌کار ببر.
+     */
     public function hasRole(string $roleName): bool
     {
         return $this->companyRoles()

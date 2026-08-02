@@ -584,6 +584,39 @@ it('rejects finalizing a payroll run by a user without an authorized role', func
     expect($run->fresh()->payroll_status)->toBe(PayrollStatus::Calculated);
 });
 
+it('rejects a holding_admin of company A calculating payroll for company B where they have no role at all', function () {
+    $companyB = payrollCompany('tkart-payroll-a');
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(payrollEmployeeData($companyB->id, '4000000030'), $admin);
+    payrollSummary($employee);
+
+    $companyA = payrollCompany('other-payroll-a');
+    $holdingAdminOfA = User::factory()->create(['is_super_admin' => false]);
+    payrollGiveRole($holdingAdminOfA, $companyA, 'holding_admin');
+
+    expect(fn () => app(CalculatePayroll::class)->handle($companyB, PAYROLL_PERIOD, $holdingAdminOfA))
+        ->toThrow(AuthorizationException::class);
+
+    expect(Payslip::withoutGlobalScopes()->count())->toBe(0);
+});
+
+it('rejects a user who is only a viewer in company B, even though they are holding_admin in company A — cross-company role leak regression', function () {
+    $companyB = payrollCompany('tkart-payroll-b');
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(payrollEmployeeData($companyB->id, '4000000031'), $admin);
+    payrollSummary($employee);
+
+    $companyA = payrollCompany('other-payroll-b');
+    $user = User::factory()->create(['is_super_admin' => false]);
+    payrollGiveRole($user, $companyA, 'holding_admin');
+    payrollGiveRole($user, $companyB, 'viewer');
+
+    expect(fn () => app(CalculatePayroll::class)->handle($companyB, PAYROLL_PERIOD, $user))
+        ->toThrow(AuthorizationException::class);
+
+    expect(Payslip::withoutGlobalScopes()->count())->toBe(0);
+});
+
 it('lets an accountant calculate and finalize payroll', function () {
     $company = payrollCompany();
     $admin = User::factory()->create(['is_super_admin' => true]);

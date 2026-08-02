@@ -275,6 +275,49 @@ it('rejects approving a leave request that is not pending anymore', function () 
         ->toThrow(ValidationException::class);
 });
 
+it('rejects a holding_admin of company A approving a leave request in company B where they have no role at all', function () {
+    $companyB = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman-b1', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(leaveValidEmployeeData($companyB->id, '3000000100'), $admin);
+    $leave = app(RequestLeave::class)->handle(
+        $employee,
+        ['leave_type' => 'annual', 'start_date' => '2026-08-01', 'end_date' => '2026-08-02'],
+        $admin,
+        RecordedBy::Admin,
+    );
+
+    $companyA = Company::create(['name' => 'شرکت دیگر', 'slug' => 'company-a-b1', 'business_type' => 'project_services']);
+    $holdingAdminOfA = User::factory()->create(['is_super_admin' => false]);
+    leaveGiveRole($holdingAdminOfA, $companyA, 'holding_admin');
+
+    expect(fn () => app(ApproveLeave::class)->handle($leave, $holdingAdminOfA))
+        ->toThrow(AuthorizationException::class);
+
+    expect($leave->fresh()->leave_status)->toBe(LeaveStatus::Pending);
+});
+
+it('rejects a user who is only a viewer in company B, even though they are holding_admin in company A — cross-company role leak regression', function () {
+    $companyB = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman-b2', 'business_type' => 'project_services']);
+    $admin = User::factory()->create(['is_super_admin' => true]);
+    $employee = app(CreateEmployee::class)->handle(leaveValidEmployeeData($companyB->id, '3000000101'), $admin);
+    $leave = app(RequestLeave::class)->handle(
+        $employee,
+        ['leave_type' => 'annual', 'start_date' => '2026-08-01', 'end_date' => '2026-08-02'],
+        $admin,
+        RecordedBy::Admin,
+    );
+
+    $companyA = Company::create(['name' => 'شرکت دیگر', 'slug' => 'company-a-b2', 'business_type' => 'project_services']);
+    $user = User::factory()->create(['is_super_admin' => false]);
+    leaveGiveRole($user, $companyA, 'holding_admin');
+    leaveGiveRole($user, $companyB, 'viewer');
+
+    expect(fn () => app(ApproveLeave::class)->handle($leave, $user))
+        ->toThrow(AuthorizationException::class);
+
+    expect($leave->fresh()->leave_status)->toBe(LeaveStatus::Pending);
+});
+
 it('shows a friendly message instead of a server error when the logged-in user has no linked employee record', function () {
     $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
     $user = User::factory()->create(['is_super_admin' => true]);

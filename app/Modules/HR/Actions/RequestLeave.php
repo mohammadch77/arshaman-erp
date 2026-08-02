@@ -26,7 +26,7 @@ class RequestLeave
         if ($requestedBy === RecordedBy::SelfService) {
             Gate::forUser($actor)->authorize('requestSelf', [Leave::class, $employee]);
         } else {
-            Gate::forUser($actor)->authorize('requestAny', Leave::class);
+            Gate::forUser($actor)->authorize('requestAny', [Leave::class, $employee->owner_company_id]);
         }
 
         $scheduler = app(LeaveScheduler::class);

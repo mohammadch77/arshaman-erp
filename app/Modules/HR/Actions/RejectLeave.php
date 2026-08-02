@@ -21,7 +21,7 @@ class RejectLeave
      */
     public function handle(Leave $leave, User $actor, ?string $rejectionReason = null): Leave
     {
-        Gate::forUser($actor)->authorize('review', Leave::class);
+        Gate::forUser($actor)->authorize('review', [Leave::class, $leave->owner_company_id]);
 
         if ($leave->leave_status !== LeaveStatus::Pending) {
             throw ValidationException::withMessages([

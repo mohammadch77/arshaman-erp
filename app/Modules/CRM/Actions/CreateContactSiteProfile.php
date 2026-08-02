@@ -2,9 +2,9 @@
 
 namespace App\Modules\CRM\Actions;
 
+use App\Modules\Core\Models\User;
 use App\Modules\CRM\Models\ContactSiteProfile;
 use App\Modules\CRM\Services\ContactMatcher;
-use App\Modules\Core\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
@@ -15,7 +15,7 @@ class CreateContactSiteProfile
      */
     public function handle(array $data, User $actor, ContactMatcher $matcher): ContactSiteProfile
     {
-        Gate::forUser($actor)->authorize('create', ContactSiteProfile::class);
+        Gate::forUser($actor)->authorize('create', [ContactSiteProfile::class, $data['owner_company_id']]);
 
         return DB::transaction(function () use ($data, $actor, $matcher) {
             $contact = $matcher->findOrCreateContact($data['full_name'], $data['phone'], $data['email'], $actor);

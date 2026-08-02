@@ -3,32 +3,53 @@
 namespace App\Modules\HR\Policies;
 
 use App\Modules\Core\Models\User;
+use App\Modules\Core\Services\CompanyContext;
 use App\Modules\HR\Models\Payslip;
 
 class PayrollPolicy
 {
     /**
-     * دسترسی پنل ادمین به حقوق و دستمزد: فقط ادمین کل، ادمین هلدینگ، یا حسابدار.
-     * همان الگوی LeavePolicy::isAdminAuthorized.
+     * دسترسی پنل ادمین به حقوق و دستمزد: فقط ادمین کل، ادمین هلدینگ، یا
+     * حسابدار — و دقیقاً در همان شرکت هدف. همان الگوی LeavePolicy::isAdminAuthorized.
      */
-    protected function isAdminAuthorized(User $user): bool
+    protected function isAdminAuthorized(User $user, ?string $companyId): bool
     {
-        return $user->is_super_admin || $user->hasRole('holding_admin') || $user->hasRole('accountant');
+        if ($companyId === null) {
+            return false;
+        }
+
+        return $user->hasRoleInCompany($companyId, ['holding_admin', 'accountant']);
     }
 
+    /**
+     * هم پنل ادمین شرکت‌محور (PayrollIndex) و هم گزارش هلدینگ‌محور
+     * (PayrollExpenseReport) از همین متد عبور می‌کنند — طبق تصمیم Session 7:
+     * «دسترسی همان PayrollPolicy::viewAny پنل ادمین حقوق است، رل جدیدی
+     * تعریف نشد». شرط ورود یکسان می‌ماند (accountant/holding_admin در شرکت
+     * فعال)؛ گزارش خودش بعد از این گیت با withoutGlobalScopes() همه شرکت‌ها
+     * را تجمیع می‌کند.
+     */
     public function viewAny(User $user): bool
     {
-        return $this->isAdminAuthorized($user);
+        return $this->isAdminAuthorized($user, app(CompanyContext::class)->id());
     }
 
-    public function calculate(User $user): bool
+    /**
+     * بدون نمونه (دوره هنوز محاسبه نشده). $companyId اختیاری: CalculatePayroll
+     * شرکت هدف واقعی ($company->id) را صریح پاس می‌دهد.
+     */
+    public function calculate(User $user, ?string $companyId = null): bool
     {
-        return $this->isAdminAuthorized($user);
+        return $this->isAdminAuthorized($user, $companyId ?? app(CompanyContext::class)->id());
     }
 
-    public function finalize(User $user): bool
+    /**
+     * $companyId اختیاری: FinalizePayrollRun شرکت هدف واقعی
+     * ($run->owner_company_id) را صریح پاس می‌دهد.
+     */
+    public function finalize(User $user, ?string $companyId = null): bool
     {
-        return $this->isAdminAuthorized($user);
+        return $this->isAdminAuthorized($user, $companyId ?? app(CompanyContext::class)->id());
     }
 
     /**
@@ -36,11 +57,13 @@ class PayrollPolicy
      *
      * عمداً متد جدا از finalize است (نه استفاده دوباره از همان) تا اگر بعداً
      * کارفرما تصمیم گرفت بازگشایی فقط کار holding_admin باشد و نه حسابدار،
-     * تغییرش یک خط اینجا باشد، نه بازنویسی گارد در Action.
+     * تغییرش یک خط اینجا باشد، نه بازنویسی گارد در Action. $companyId
+     * اختیاری: ReopenPayrollRun شرکت هدف واقعی ($run->owner_company_id) را
+     * صریح پاس می‌دهد.
      */
-    public function reopen(User $user): bool
+    public function reopen(User $user, ?string $companyId = null): bool
     {
-        return $this->isAdminAuthorized($user);
+        return $this->isAdminAuthorized($user, $companyId ?? app(CompanyContext::class)->id());
     }
 
     /**

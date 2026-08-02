@@ -28,7 +28,7 @@ class CalculateMonthlyAttendance
      */
     public function handle(Employee $employee, string $periodMonth, User $actor): MonthlyAttendanceSummary
     {
-        Gate::forUser($actor)->authorize('calculate', MonthlyAttendanceSummary::class);
+        Gate::forUser($actor)->authorize('calculate', [MonthlyAttendanceSummary::class, $employee->owner_company_id]);
 
         Validator::make(['period_month' => $periodMonth], [
             'period_month' => ['required', 'regex:/^\d{4}-\d{2}$/'],

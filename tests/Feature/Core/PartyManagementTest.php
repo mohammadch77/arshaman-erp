@@ -150,3 +150,42 @@ it('forbids a user with no role in any company from viewing parties', function (
 
     $this->get('/parties')->assertForbidden();
 });
+
+it('rejects an operator of company A creating a party for company B where they have no role at all', function () {
+    [$operatorOfA] = partyActingAsWithRole('operator');
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+
+    expect(fn () => app(CreatePartyRecord::class)->handle([
+        'owner_company_id' => $companyB->id,
+        'name' => 'نفوذی شرکت ب',
+        'party_type' => 'individual',
+        'is_customer' => true,
+        'is_supplier' => false,
+        'phone' => null,
+        'email' => null,
+        'economic_code' => null,
+        'address' => null,
+    ], $operatorOfA))->toThrow(AuthorizationException::class);
+
+    expect(Party::withoutGlobalScopes()->where('owner_company_id', $companyB->id)->exists())->toBeFalse();
+});
+
+it('rejects a user who is only a viewer in company B, even though they are operator in company A — cross-company role leak regression', function () {
+    [$user, $companyA] = partyActingAsWithRole('operator');
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    partyGiveRole($user, $companyB, 'viewer');
+
+    expect(fn () => app(CreatePartyRecord::class)->handle([
+        'owner_company_id' => $companyB->id,
+        'name' => 'نشت بین‌شرکتی',
+        'party_type' => 'individual',
+        'is_customer' => true,
+        'is_supplier' => false,
+        'phone' => null,
+        'email' => null,
+        'economic_code' => null,
+        'address' => null,
+    ], $user))->toThrow(AuthorizationException::class);
+
+    expect(Party::withoutGlobalScopes()->where('owner_company_id', $companyB->id)->exists())->toBeFalse();
+});
