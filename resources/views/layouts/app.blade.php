@@ -75,6 +75,7 @@
                     <x-menu-sub title="مخاطبین" :icon="theme_icon('crm')">
                         <x-menu-item title="فهرست مخاطبین" :icon="theme_icon('contact')" link="{{ route('contacts.index') }}" />
                         <x-menu-item title="مخاطب جدید" :icon="theme_icon('add')" link="{{ route('contacts.create') }}" />
+                        <x-menu-item title="قیف فروش" :icon="theme_icon('lead')" link="{{ route('leads.index') }}" />
                     </x-menu-sub>
                 @endif
 

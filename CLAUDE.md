@@ -546,7 +546,29 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
   - تبدیل خودکار خرید→تعامل عمداً پیاده نشد؛ در `docs/BACKLOG.md` («تبدیل
     خودکار خرید به تعامل») از قبل ثبت بود، وابسته به ماژول Sales (فاز ۳).
 
-- [ ] قیف فروش (Lead)
+- [x] Session 3: قیف فروش (Lead)
+
+  **چه ساخته شد:** `leads` (طبق جدول ۴ سند، `contact_site_profile_id` nullable —
+  لید می‌تواند بدون مخاطب کامل باشد؛ `contract_id` بدون FK با کامنت TODO فاز ۵)،
+  مدل `Lead` با ثابت‌های `SOURCES`/`PIPELINE_STAGES` و نقشه `TRANSITIONS`،
+  Action های `CreateLead`/`UpdateLeadStage`/`AssignLead` (authorize داخل خودِ
+  Action با متد مرکزی `hasRoleInCompany`)، `LeadPolicy` (همان دو نقش
+  `holding_admin`/`operator` بقیه CRM)، و کامپوننت `LeadBoard` (نمای قیف،
+  مسیر `/leads`، ستون به‌ازای هر مرحله + فرم ساخت + دکمه تغییر مرحله + تخصیص).
+
+  **تصمیم‌های این Session:**
+  - ماشین وضعیت قیف (بند ۶ CLAUDE.md) صریح تعریف شد: `new→contacted→qualified
+    →proposal→won` رو-به-جلو یک‌به‌یک، به‌علاوه «باخت» از هر مرحله فعال؛
+    `won`/`lost` پایانی‌اند و بدون Action بازگشایی — مثل بستن سال مالی
+    (بند ۲ تکمیل هسته). هر ترنزیشن تعریف‌نشده در `UpdateLeadStage` با
+    `InvalidArgumentException` رد می‌شود.
+  - `LeadBoard` برخلاف `ContactProfile`/`InteractionTimeline` هلدینگ‌محور
+    **نیست** — مثل `PayrollIndex` فقط شرکت فعال سوییچر را نشان می‌دهد، چون
+    مدیریت قیف کار همان شرکت است.
+  - اتصال «لید برد شد → قرارداد» طبق درخواست صریح کارفرما ساخته **نشد** —
+    از قبل در `docs/BACKLOG.md` («اتصال «لید برد شد → قرارداد» برای آرشامان»)
+    ثبت بود.
+
 - [ ] RFM
 - [ ] کمپین (Campaign)
 - [ ] تیکتینگ (Ticket)

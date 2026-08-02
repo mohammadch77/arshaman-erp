@@ -87,6 +87,8 @@ return [
         'telegram' => 'o-paper-airplane',
         'site-form' => 'o-clipboard-document-list',
         'timeline' => 'o-queue-list',
+        'lead' => 'o-funnel',
+        'assign' => 'o-user-plus',
     ],
 
 ];

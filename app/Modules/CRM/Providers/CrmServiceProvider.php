@@ -5,9 +5,11 @@ namespace App\Modules\CRM\Providers;
 use App\Modules\CRM\Models\Contact;
 use App\Modules\CRM\Models\ContactSiteProfile;
 use App\Modules\CRM\Models\Interaction;
+use App\Modules\CRM\Models\Lead;
 use App\Modules\CRM\Policies\ContactPolicy;
 use App\Modules\CRM\Policies\ContactSiteProfilePolicy;
 use App\Modules\CRM\Policies\InteractionPolicy;
+use App\Modules\CRM\Policies\LeadPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -18,5 +20,6 @@ class CrmServiceProvider extends ServiceProvider
         Gate::policy(ContactSiteProfile::class, ContactSiteProfilePolicy::class);
         Gate::policy(Contact::class, ContactPolicy::class);
         Gate::policy(Interaction::class, InteractionPolicy::class);
+        Gate::policy(Lead::class, LeadPolicy::class);
     }
 }

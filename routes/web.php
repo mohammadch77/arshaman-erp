@@ -3,6 +3,7 @@
 use App\Livewire\CRM\ContactForm;
 use App\Livewire\CRM\ContactIndex;
 use App\Livewire\CRM\ContactProfile;
+use App\Livewire\CRM\LeadBoard;
 use App\Livewire\Core\Auth\AcceptInvitation;
 use App\Livewire\Core\Auth\Login;
 use App\Livewire\Core\Currencies\ExchangeRateForm;
@@ -74,6 +75,8 @@ Route::livewire('/my/payslips', MyPayslips::class)->middleware('auth')->name('my
 Route::livewire('/contacts', ContactIndex::class)->middleware('auth')->name('contacts.index');
 Route::livewire('/contacts/create', ContactForm::class)->middleware('auth')->name('contacts.create');
 Route::livewire('/contacts/{contactId}/profile', ContactProfile::class)->middleware('auth')->name('contacts.profile');
+
+Route::livewire('/leads', LeadBoard::class)->middleware('auth')->name('leads.index');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
 // نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای
