@@ -2,7 +2,7 @@
 
 use Tests\TestCase;
 
-// نگاه کن CLAUDE.md بند ۹.۱ — این تست ثابت می‌کند گارد داخل Tests\TestCase واقعاً
+// نگاه کن CLAUDE.md بند ۸.۱ — این تست ثابت می‌کند گارد داخل Tests\TestCase واقعاً
 // جلوی اجرای RefreshDatabase روی دیتابیس واقعی arshaman_erp را می‌گیرد، نه اینکه
 // فقط یک قرارداد مستندشده باشد. عمداً از `new class(...) extends TestCase` استفاده
 // شده (نه Livewire::test یا اجرای واقعی یک تست Feature) چون هدف این است که فقط

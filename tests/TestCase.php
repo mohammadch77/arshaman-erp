@@ -9,7 +9,7 @@ abstract class TestCase extends BaseTestCase
 {
     /**
      * نام دیتابیس(های) واقعی dev/production که هیچ‌وقت نباید هدف تست باشند —
-     * RefreshDatabase این دیتابیس را کاملاً drop/migrate می‌کند (نگاه کن CLAUDE.md بند ۹.۱).
+     * RefreshDatabase این دیتابیس را کاملاً drop/migrate می‌کند (نگاه کن CLAUDE.md بند ۸.۱).
      *
      * @var list<string>
      */
