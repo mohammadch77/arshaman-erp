@@ -98,6 +98,24 @@
 
 ---
 
+### CHECK constraint های campaigns/campaign_logs/tickets
+- **از کجا آمد:** migration `2026_08_04_000001_shrink_column_widths_and_add_more_checks`
+  (اصلاح طول/CHECK چهار ماژول Auth/HR/CRM/Core) قرار بود ۵ CHECK زیر را هم اضافه کند، اما
+  هنگام اجرا مشخص شد جدول‌های `campaigns`، `campaign_logs` و `tickets` هنوز در دیتابیس
+  ساخته نشده‌اند (Session کمپین/تیکتینگ در CLAUDE.md هنوز `[ ]` است) — نمی‌شود روی جدول
+  ناموجود ALTER زد.
+- **چه چیزی به‌تعویق افتاد:** وقتی این دو Session (کمپین، تیکتینگ) ساخته شدند، این CHECK ها
+  باید همان‌جا در migration ساخت جدول (نه یک migration اصلاحی جدا) اضافه شوند:
+  - `campaigns.channel IN ('telegram','sms')`
+  - `campaign_logs.channel IN ('telegram','sms')`
+  - `campaign_logs.status IN ('simulated','sent','failed')`
+  - `tickets.status IN ('open','in_progress','resolved','closed')`
+  - `tickets.priority IN ('low','normal','high')`
+- **⏰ اولویت: همراه ساخت خودِ ماژول کمپین/تیکتینگ**
+- **وضعیت:** باز.
+
+---
+
 ## قالب افزودن آیتم جدید
 
 ```

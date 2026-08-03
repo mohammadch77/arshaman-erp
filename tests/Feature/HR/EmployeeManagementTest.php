@@ -38,7 +38,7 @@ function hrValidEmployeeData(string $companyId, string $nationalId = '1234567890
         'national_id' => $nationalId,
         'phone' => '09121234567',
         'address' => 'تهران',
-        'position' => 'برنامه‌نویس',
+        'position' => 'developer',
         'hire_date' => '2025-01-01',
         'contract_type' => 'permanent',
         'contract_start_date' => '2025-01-01',
@@ -241,7 +241,7 @@ it('creates an employee from jalali year/month/day selects entered through the f
     Livewire::test(EmployeeForm::class)
         ->set('full_name', 'کارمند شمسی')
         ->set('national_id', '6666666666')
-        ->set('position', 'حسابدار')
+        ->set('position', 'accountant_staff')
         ->set('jalaliParts.hire_date.year', 1403)
         ->set('jalaliParts.hire_date.month', 1)
         ->set('jalaliParts.hire_date.day', 1)

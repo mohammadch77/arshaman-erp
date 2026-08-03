@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Core\Models\Company;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -30,6 +31,84 @@ it('rejects an invalid employment_status via the database CHECK constraint, not 
             'contract_type' => 'project_based',
             'contract_start_date' => now()->toDateString(),
             'base_salary' => 1000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    };
+
+    expect($insert)->toThrow(QueryException::class);
+});
+
+// سه تست زیر برای migration 2026_08_04_000001_shrink_column_widths_and_add_more_checks
+// هستند — طبق درخواست کارفرما، سه ستون CHECK-دار از سه ماژول مختلف (HR، CRM، Core).
+// همان محدودیت بالا صدق می‌کند: فقط روی mysql معنا دارند.
+
+it('rejects an invalid employee position via the database CHECK constraint (HR)', function () {
+    if (DB::getDriverName() !== 'mysql') {
+        $this->markTestSkipped('CHECK constraint فقط روی MySQL فعال است؛ این تست روی اتصال sqlite پیش‌فرض skip می‌شود.');
+    }
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+
+    $insert = function () use ($company) {
+        DB::table('employees')->insert([
+            'id' => (string) Str::uuid(),
+            'owner_company_id' => $company->id,
+            'full_name' => 'کارمند نامعتبر',
+            'national_id' => '1234567891',
+            // enum جدید سمت شغلی این مقدار را نمی‌شناسد — نگاه کن
+            // app/Modules/HR/Enums/EmployeePosition.php
+            'position' => 'invalid_position',
+            'hire_date' => now()->toDateString(),
+            'employment_status' => 'active',
+            'contract_type' => 'project_based',
+            'contract_start_date' => now()->toDateString(),
+            'base_salary' => 1000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    };
+
+    expect($insert)->toThrow(QueryException::class);
+});
+
+it('rejects an invalid lead pipeline_stage via the database CHECK constraint (CRM)', function () {
+    if (DB::getDriverName() !== 'mysql') {
+        $this->markTestSkipped('CHECK constraint فقط روی MySQL فعال است؛ این تست روی اتصال sqlite پیش‌فرض skip می‌شود.');
+    }
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+
+    $insert = function () use ($company) {
+        DB::table('leads')->insert([
+            'id' => (string) Str::uuid(),
+            'owner_company_id' => $company->id,
+            'source' => 'website',
+            'pipeline_stage' => 'invalid_stage',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    };
+
+    expect($insert)->toThrow(QueryException::class);
+});
+
+it('rejects an invalid party_type via the database CHECK constraint (Core)', function () {
+    if (DB::getDriverName() !== 'mysql') {
+        $this->markTestSkipped('CHECK constraint فقط روی MySQL فعال است؛ این تست روی اتصال sqlite پیش‌فرض skip می‌شود.');
+    }
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+
+    $insert = function () use ($company) {
+        DB::table('parties')->insert([
+            'id' => (string) Str::uuid(),
+            'owner_company_id' => $company->id,
+            'name' => 'طرف‌حساب نامعتبر',
+            'party_type' => 'invalid_type',
+            // chk_parties_role را هم راضی می‌کند تا فقط علت رد شدن، party_type باشد.
+            'is_customer' => 1,
+            'is_supplier' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);

@@ -11,7 +11,17 @@
             <x-input label="کد ملی" wire:model="national_id" :icon="theme_icon('employee')" required />
             <x-input label="تلفن" wire:model="phone" :icon="theme_icon('phone')" />
             <x-textarea label="آدرس" wire:model="address" :icon="theme_icon('address')" rows="2" />
-            <x-input label="سمت" wire:model="position" :icon="theme_icon('employee')" required />
+            <x-select
+                label="سمت"
+                wire:model="position"
+                :options="$this->positionOptions"
+                option-value="id"
+                option-label="name"
+                placeholder="انتخاب سمت"
+                placeholder-value=""
+                :icon="theme_icon('employee')"
+                required
+            />
 
             <x-jalali-date-select
                 field="hire_date"

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Modules\HR\Enums\ContractType;
+use App\Modules\HR\Enums\EmployeePosition;
 use App\Modules\HR\Enums\EmploymentStatus;
 use App\Modules\HR\Models\Employee;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -27,7 +28,7 @@ class EmployeeFactory extends Factory
             'national_id' => fake()->unique()->numerify('##########'),
             'phone' => fake()->numerify('09#########'),
             'address' => fake()->address(),
-            'position' => fake()->jobTitle(),
+            'position' => fake()->randomElement(EmployeePosition::cases())->value,
             'hire_date' => fake()->dateTimeBetween('-3 years', 'now'),
             'employment_status' => EmploymentStatus::Active,
             'contract_type' => ContractType::Permanent,

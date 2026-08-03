@@ -7,8 +7,10 @@ use App\Modules\HR\Actions\CreateEmployee;
 use App\Modules\HR\Actions\TerminateEmployee;
 use App\Modules\HR\Actions\UpdateEmployee;
 use App\Modules\HR\Enums\ContractType;
+use App\Modules\HR\Enums\EmployeePosition;
 use App\Modules\HR\Models\Employee;
 use App\Support\Jalali;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
@@ -117,6 +119,11 @@ class EmployeeForm extends Component
         return array_map(fn (ContractType $case) => ['id' => $case->value, 'name' => $case->label()], ContractType::cases());
     }
 
+    public function getPositionOptionsProperty(): array
+    {
+        return array_map(fn (EmployeePosition $case) => ['id' => $case->value, 'name' => $case->label()], EmployeePosition::cases());
+    }
+
     public function getIsContractExpiringSoonProperty(): bool
     {
         if ($this->contract_end_date === '') {
@@ -133,11 +140,11 @@ class EmployeeForm extends Component
     protected function rules(): array
     {
         return [
-            'full_name' => ['required', 'string', 'max:200'],
+            'full_name' => ['required', 'string', 'max:80'],
             'national_id' => ['required', 'string', 'max:10'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'address' => ['nullable', 'string'],
-            'position' => ['required', 'string', 'max:150'],
+            'phone' => ['nullable', 'regex:/^09[0-9]{9}$/'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'position' => ['required', Rule::enum(EmployeePosition::class)],
             'hire_date' => ['required', 'date'],
             'contract_type' => ['required', 'string'],
             'contract_start_date' => ['required', 'date'],

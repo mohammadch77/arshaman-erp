@@ -184,3 +184,34 @@ idx_<جدول>_<ستون‌ها>       مثال: idx_activity_company
 - `user_company_roles.created_by` → `created_by_user_id` + قید FK
 - `user_invitations.invited_by` → `invited_by_user_id` (قید FK از قبل وجود داشت، فقط نام عوض شد)
 - هیچ‌کدام از جدول‌های این ماژول هنوز `company_id` به‌معنای BelongsToCompany ندارند (چون `companies`/`users`/`roles` سراسری‌اند) — قانون `owner_company_id` از اولین ماژول عملیاتی بعدی (مثلاً Parties یا Products) اعمال می‌شود.
+
+---
+
+## ۱۳. اصلاحات طول/CHECK اعمال‌شده در migration های اصلاحی
+
+**`2026_08_03_000001_fix_datatypes_and_add_checks`** — اولین دور: `employees.national_id`
+از VARCHAR(10) به CHAR(10)، به‌علاوه CHECK روی `employees.employment_status`/`contract_type`،
+`attendances.recorded_by`، `leaves.leave_type` (شامل `hourly`)/`leave_status`،
+`payroll_runs.payroll_status`/`period_month` (فرمت)، `payslips.expense_posting_status`،
+`companies.business_type`، `monthly_attendance_summaries.period_month` (فرمت).
+
+**`2026_08_04_000001_shrink_column_widths_and_add_more_checks`** — دور دوم، گسترده‌تر
+روی چهار ماژول Auth/HR/CRM/Core:
+- کوچک‌کردن VARCHAR های بیش‌ازحد بزرگ (`companies.name/slug`, `users.full_name`,
+  `roles.name/display_name`, `permissions.name/display_name`, `user_invitations.full_name`,
+  `employees.full_name/address/position`, `holidays.title`, `payslips.expense_posting_status`,
+  `contacts.full_name`, `contact_site_profiles.site_full_name`, `currencies.name`,
+  `fiscal_periods.name`) طبق جدول طول‌های بخش ۳.۱.
+- تبدیل به CHAR برای ستون‌های طول‌ثابت (`companies.base_currency`, `user_invitations.token`,
+  `employees.phone`, `payroll_runs.period_month`, `monthly_attendance_summaries.period_month`,
+  `parties.economic_code`, `currencies.code`) — بعد از تأیید اینکه داده موجود دقیقاً هم‌طول است.
+- CHECK جدید: `employees.position` (enum جدید `App\Modules\HR\Enums\EmployeePosition`،
+  با backfill داده آزاد قبلی به `graphic_designer`)، `employees.phone` (فرمت موبایل ایران)،
+  `interactions.interaction_type`، `leads.source`/`pipeline_stage`، `rfm_segments.segment`،
+  `parties.party_type`.
+- **رد شد (جدول هنوز ساخته نشده):** `campaigns.channel`, `campaign_logs.channel/status`,
+  `tickets.status/priority` — نگاه کن `docs/BACKLOG.md`، بخش «CHECK constraint های
+  campaigns/campaign_logs/tickets».
+- **عمداً دست‌نخورده ماند:** `leaves.leave_type` — CHECK همان migration قبلی
+  (`IN ('annual','sick','unpaid','hourly')`) باقی می‌ماند؛ لیست این دور `hourly` را نداشت
+  ولی تنگ‌ترکردن، رکورد واقعی approved با این نوع را می‌شکست.

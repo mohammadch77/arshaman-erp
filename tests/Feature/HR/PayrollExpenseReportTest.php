@@ -55,7 +55,7 @@ function reportEmployeeData(string $companyId, string $nationalId, string $baseS
         'national_id' => $nationalId,
         'phone' => '09121234567',
         'address' => 'تهران',
-        'position' => 'برنامه‌نویس',
+        'position' => 'developer',
         'hire_date' => '2025-01-01',
         'contract_type' => 'permanent',
         'contract_start_date' => '2025-01-01',
