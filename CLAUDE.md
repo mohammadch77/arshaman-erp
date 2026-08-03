@@ -569,8 +569,90 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
     از قبل در `docs/BACKLOG.md` («اتصال «لید برد شد → قرارداد» برای آرشامان»)
     ثبت بود.
 
-- [ ] RFM
+- [x] RFM
+
+  **چه ساخته شد:** `rfm_segments` (طبق جدول ۵ سند، بدون `created_by_user_id`/
+  `updated_by_user_id` و بدون `created_at`/`updated_at` — این رکورد همیشه از
+  محاسبه خودکار می‌آید، نه ورود دستی؛ تنها مهر زمانی معنادار `calculated_at`
+  است)، مدل `RfmSegment` با `classify()` (آستانه‌ها در `config/crm.php`، نه
+  hardcode — چون طبق هشدار صریح کارفرما موقتی‌اند)، Action
+  `CalculateRfmSegment` (authorize داخل خودِ Action با متد مرکزی
+  `hasRoleInCompany`)، `RfmSegmentPolicy` (همان دو نقش
+  `holding_admin`/`operator` بقیه CRM)، و کامپوننت `RfmSegmentIndex` (مسیر
+  `/rfm-segments`، فهرست شرکت جاری به تفکیک segment + دکمه «محاسبه دوباره»).
+
+  **تصمیم‌های این Session:**
+  - چون `interactions` هیچ ستون مبلغی ندارد، `monetary_amount` از
+    `contact_site_profiles.total_purchase_amount` خوانده می‌شود، نه از جمع
+    تعاملات purchase — تنها منبع مبلغ موجود همان است (طبق طراحی سند، فعلاً
+    صفر تا سفارش واقعی فاز ۳). **مهم:** چون این ستون تا فاز ۳ هیچ‌جا
+    به‌روزرسانی نمی‌شود و همیشه `DEFAULT 0` پایگاه‌داده می‌ماند،
+    `CalculateRfmSegment` وقتی خرید دستی ثبت شده ولی این ستون هنوز صفر است،
+    عمداً `monetary_amount = null` ذخیره می‌کند (نه صفر) — وگرنه یک مشتری با
+    چند خرید دستی‌ثبت‌شده در UI «۰ تومان خرج کرده» نشان داده می‌شود که
+    گمراه‌کننده است، نه فقط ناکامل. بعد از فاز ۳ که این ستون واقعاً پر
+    می‌شود، شرط `> 0` در `CalculateRfmSegment::handle()` دیگر لازم نیست.
+  - قاعده دسته‌بندی ساده‌شده است (۳ آستانه در `config/crm.php`): گذشت
+    `dormant_days` از آخرین خرید → غیرفعال (صرف‌نظر از تعداد خرید)؛ تازگی زیر
+    `at_risk_days` و تعداد خرید >= `vip_min_frequency` → ویژه؛ بقیه (شامل
+    خرید کم اما تازه) → در معرض ریزش. هیچ حالتی به `new` نمی‌رسد مگر پروفایل
+    اصلاً تعامل purchase نداشته باشد.
+  - `RfmSegmentIndex` مثل `LeadBoard` شرکت‌محور است (نه هلدینگ‌محور مثل
+    `ContactProfile`)، چون `rfm_segments` هم `owner_company_id` مستقل دارد.
+  - `CalculateRfmSegment` با `updateOrCreate` + `withoutGlobalScopes()` کار
+    می‌کند (نه `create` ساده مثل `RecordInteraction`) چون UNIQUE
+    `contact_site_profile_id` یعنی هر پروفایل حداکثر یک رکورد دارد و
+    بازمحاسبه باید همان را به‌روزرسانی کند، مستقل از شرکت فعال سوییچر.
+  - ⚠️ هشدار دقت («این بخش‌بندی بر پایه تعاملات دستی‌ثبت‌شده است») مستقیم در
+    UI پنل چاپ می‌شود — طبق الگوی هشدارهای موقتی Payroll (بند Session 6 ماژول HR).
+
 - [ ] کمپین (Campaign)
 - [ ] تیکتینگ (Ticket)
+
+### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
+
+طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون
+یک-ماژول-در-هر-Session)، این اصلاح روی `layouts/app.blade.php` بود، نه یک
+ماژول مشخص.
+
+**باگ:** چند آیتم منوی سایدبار با شرطی شل‌تر از Policy واقعی همان صفحه نمایش
+داده می‌شدند — کاربر آیتم منو را می‌دید ولی با کلیک ۴۰۳ می‌گرفت:
+- منوی «مخاطبین» (مخاطبین/قیف فروش/RFM) با `hasRoleInCompany($id)` بدون فهرست
+  نقش (یعنی «هر نقشی در شرکت») نمایش داده می‌شد، در حالی که
+  `ContactSiteProfilePolicy`/`LeadPolicy`/`RfmSegmentPolicy::viewAny` همه فقط
+  `holding_admin`/`operator` را قبول می‌کنند — یک `viewer` یا `accountant`
+  آیتم را می‌دید و ۴۰۳ می‌گرفت.
+- منوی «منابع انسانی» با `hasRole('holding_admin') || hasRole('accountant')`
+  **سراسری** (نه `hasRoleInCompany` مقید به شرکت فعال) نمایش داده می‌شد — دقیقاً
+  همان الگوی نشتی نقش بند ۹/۱۱ (کاربری که `accountant` شرکت دیگری بود، منو را
+  در این شرکت هم می‌دید). `EmployeePolicy`/`AttendancePolicy`/`LeavePolicy`/
+  `PayrollPolicy::viewAny` همه مقید به شرکت فعال‌اند.
+
+**قانون رعایت‌شده از این پس:** شرط نمایش هر آیتم منو باید **دقیقاً** همان
+Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCompany->id, [...])`
+تکرار کند — نه یک تقریب («هر نقشی در شرکت») و نه `hasRole()` سراسری. اگر این
+دو از هم جدا بیفتند، تشخیصش سخت است چون فقط با کلیک کاربر بدون نقش درست دیده
+می‌شود، نه در تست‌های خودِ آن صفحه.
+
+**بخش‌های ممیزی‌شده که از قبل درست بودند (بدون تغییر):**
+- «مدیریت کاربران»: `is_super_admin || hasRole('holding_admin')` سراسری —
+  عمداً همینطور، چون `UserPolicy::viewAny` هم دقیقاً همین‌ها را holding-wide
+  می‌پذیرد (استثنای مستند بند ۱۱).
+- «طرف‌حساب‌ها»/«سال‌های مالی»: `hasRoleInCompany($activeCompany->id)` بدون
+  فهرست نقش — چون `PartyPolicy`/`FiscalPeriodPolicy::viewAny` هم واقعاً «هر
+  نقشی در شرکت» را قبول می‌کنند.
+- «نرخ ارز»: بدون شرط نقش — چون `ExchangeRatePolicy::viewAny` عمداً `true`
+  است (مشاهده آزاد برای همه، طبق تصمیم سند).
+
+**«پنل من» (self-service):** قبلاً برای *هر* کاربر لاگین‌شده نشان داده
+می‌شد. حالا فقط برای کاربری که یک `Employee` مرتبط دارد
+(`employees.user_id === auth()->id()`, `withoutGlobalScopes` چون کارمند
+ممکن است متعلق به شرکتی غیر از شرکت فعال باشد) — چون self-service طبق طراحی
+سند HR به نقش کسب‌وکاری وابسته نیست، فقط به داشتن پرونده پرسنلی.
+
+**تست:** `tests/Feature/CRM/CrmNavigationTest.php` (جدید) و
+`tests/Feature/HR/HrNavigationTest.php` (به‌روزشده — تست self-service قبلی
+که فرض می‌کرد «هر کاربر لاگین‌شده» را می‌بیند جایگزین شد، به‌علاوه یک تست
+نشتی نقش بین‌شرکتی جدید).
 
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

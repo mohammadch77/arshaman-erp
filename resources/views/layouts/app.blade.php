@@ -59,8 +59,13 @@
                     <x-menu-item title="سال‌های مالی" :icon="theme_icon('calendar')" link="{{ route('fiscal-periods.index') }}" />
                 @endif
 
-                {{-- منابع انسانی — پنل ادمین/حسابدار --}}
-                @if(auth()->check() && (auth()->user()->is_super_admin || auth()->user()->hasRole('holding_admin') || auth()->user()->hasRole('accountant')))
+                {{-- منابع انسانی — پنل ادمین/حسابدار. عمداً hasRoleInCompany($activeCompany->id, [...])
+                     مقید به شرکت فعال است، نه hasRole() سراسری — دقیقاً همان شرطی که
+                     EmployeePolicy/AttendancePolicy/LeavePolicy/PayrollPolicy::viewAny واقعاً
+                     چک می‌کنند. hasRole() سراسری یعنی holding_admin شرکت دیگر هم آیتم منو را
+                     می‌بیند ولی با کلیک ۴۰۳ می‌گیرد — همان الگوی نشتی نقش بند ۹/۱۱ CLAUDE.md،
+                     این‌بار در لایه منو. --}}
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id, ['holding_admin', 'accountant']))
                     <x-menu-sub title="منابع انسانی" :icon="theme_icon('employee')">
                         <x-menu-item title="پرسنل" :icon="theme_icon('employee')" link="{{ route('employees.index') }}" />
                         <x-menu-item title="حضور و غیاب" :icon="theme_icon('attendance')" link="{{ route('attendance.index') }}" />
@@ -71,18 +76,25 @@
                     </x-menu-sub>
                 @endif
 
-                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                {{-- مخاطبین — عمداً hasRoleInCompany($activeCompany->id, ['holding_admin', 'operator'])
+                     است، همان دو نقش دقیق ContactSiteProfilePolicy/LeadPolicy/RfmSegmentPolicy::viewAny —
+                     نه «هر نقشی در شرکت». viewer/accountant با شرط قبلی آیتم منو را می‌دیدند ولی
+                     با کلیک ۴۰۳ می‌گرفتند. --}}
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id, ['holding_admin', 'operator']))
                     <x-menu-sub title="مخاطبین" :icon="theme_icon('crm')">
                         <x-menu-item title="فهرست مخاطبین" :icon="theme_icon('contact')" link="{{ route('contacts.index') }}" />
                         <x-menu-item title="مخاطب جدید" :icon="theme_icon('add')" link="{{ route('contacts.create') }}" />
                         <x-menu-item title="قیف فروش" :icon="theme_icon('lead')" link="{{ route('leads.index') }}" />
+                        <x-menu-item title="بخش‌بندی RFM" :icon="theme_icon('segment')" link="{{ route('rfm-segments.index') }}" />
                     </x-menu-sub>
                 @endif
 
-                {{-- پنل خودِ کارمند — بدون نیاز به نقش؛ هر کاربری که پرونده پرسنلی
-                     مرتبط داشته باشد. خود صفحه‌ها اگر پرونده‌ای نبود، پیام مناسب
-                     نشان می‌دهند (نه خطا) — طبق Session 3 سند HR. --}}
-                @if(auth()->check())
+                {{-- پنل خودِ کارمند — بدون نیاز به نقش کسب‌وکاری؛ فقط برای کاربری که واقعاً
+                     یک پرونده پرسنلی مرتبط دارد (employees.user_id) نشان داده می‌شود، صرف‌نظر
+                     از نقش/شرکت فعال — self-service طبق طراحی سند HR به نقش وابسته نیست.
+                     withoutGlobalScopes چون کارمند لاگین‌شده ممکن است متعلق به شرکتی غیر از
+                     شرکت فعال سوییچر باشد، همان الگوی MyAttendance/MyLeaves/MyPayslips::mount(). --}}
+                @if(auth()->check() && \App\Modules\HR\Models\Employee::withoutGlobalScopes()->where('user_id', auth()->id())->exists())
                     <x-menu-sub title="پنل من" :icon="theme_icon('user')">
                         <x-menu-item title="حضور و غیاب من" :icon="theme_icon('attendance')" link="{{ route('my-attendance') }}" />
                         <x-menu-item title="مرخصی‌های من" :icon="theme_icon('leave')" link="{{ route('my-leaves') }}" />

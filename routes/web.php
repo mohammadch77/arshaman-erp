@@ -1,9 +1,5 @@
 <?php
 
-use App\Livewire\CRM\ContactForm;
-use App\Livewire\CRM\ContactIndex;
-use App\Livewire\CRM\ContactProfile;
-use App\Livewire\CRM\LeadBoard;
 use App\Livewire\Core\Auth\AcceptInvitation;
 use App\Livewire\Core\Auth\Login;
 use App\Livewire\Core\Currencies\ExchangeRateForm;
@@ -15,6 +11,11 @@ use App\Livewire\Core\Users\AssignRole;
 use App\Livewire\Core\Users\InviteUser;
 use App\Livewire\Core\Users\UserCreate;
 use App\Livewire\Core\Users\UserIndex;
+use App\Livewire\CRM\ContactForm;
+use App\Livewire\CRM\ContactIndex;
+use App\Livewire\CRM\ContactProfile;
+use App\Livewire\CRM\LeadBoard;
+use App\Livewire\CRM\RfmSegmentIndex;
 use App\Livewire\HR\AttendanceIndex;
 use App\Livewire\HR\EmployeeForm;
 use App\Livewire\HR\EmployeeIndex;
@@ -77,6 +78,8 @@ Route::livewire('/contacts/create', ContactForm::class)->middleware('auth')->nam
 Route::livewire('/contacts/{contactId}/profile', ContactProfile::class)->middleware('auth')->name('contacts.profile');
 
 Route::livewire('/leads', LeadBoard::class)->middleware('auth')->name('leads.index');
+
+Route::livewire('/rfm-segments', RfmSegmentIndex::class)->middleware('auth')->name('rfm-segments.index');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
 // نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای

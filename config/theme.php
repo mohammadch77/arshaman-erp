@@ -89,6 +89,8 @@ return [
         'timeline' => 'o-queue-list',
         'lead' => 'o-funnel',
         'assign' => 'o-user-plus',
+        'segment' => 'o-chart-pie',
+        'recalculate' => 'o-arrow-path',
     ],
 
 ];
