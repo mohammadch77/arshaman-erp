@@ -117,6 +117,28 @@ it('rejects an invalid party_type via the database CHECK constraint (Core)', fun
     expect($insert)->toThrow(QueryException::class);
 });
 
+it('rejects an invalid product fulfillment_type via the database CHECK constraint (Catalog)', function () {
+    if (DB::getDriverName() !== 'mysql') {
+        $this->markTestSkipped('CHECK constraint فقط روی MySQL فعال است؛ این تست روی اتصال sqlite پیش‌فرض skip می‌شود.');
+    }
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+
+    $insert = function () use ($company) {
+        DB::table('products')->insert([
+            'id' => (string) Str::uuid(),
+            'owner_company_id' => $company->id,
+            'name' => 'محصول نامعتبر',
+            'sale_price' => 1000,
+            'fulfillment_type' => 'invalid_type',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    };
+
+    expect($insert)->toThrow(QueryException::class);
+});
+
 // این تست برای chk_parties_role (migration 2026_08_01_100001_create_parties_table)
 // است. تست مدل موجود در PartyManagementTest فقط نگهبان Eloquent (Party::booted) را
 // چک می‌کند که قبل از رسیدن به دیتابیس صدا می‌زند؛ این‌جا با DB::table (بدون عبور

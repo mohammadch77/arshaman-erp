@@ -91,6 +91,8 @@ return [
         'assign' => 'o-user-plus',
         'segment' => 'o-chart-pie',
         'recalculate' => 'o-arrow-path',
+        'category' => 'o-tag',
+        'woocommerce' => 'o-link',
     ],
 
 ];

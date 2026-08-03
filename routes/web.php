@@ -1,5 +1,7 @@
 <?php
 
+use App\Livewire\Catalog\ProductForm;
+use App\Livewire\Catalog\ProductIndex;
 use App\Livewire\Core\Auth\AcceptInvitation;
 use App\Livewire\Core\Auth\Login;
 use App\Livewire\Core\Currencies\ExchangeRateForm;
@@ -80,6 +82,10 @@ Route::livewire('/contacts/{contactId}/profile', ContactProfile::class)->middlew
 Route::livewire('/leads', LeadBoard::class)->middleware('auth')->name('leads.index');
 
 Route::livewire('/rfm-segments', RfmSegmentIndex::class)->middleware('auth')->name('rfm-segments.index');
+
+Route::livewire('/products', ProductIndex::class)->middleware('auth')->name('products.index');
+Route::livewire('/products/create', ProductForm::class)->middleware('auth')->name('products.create');
+Route::livewire('/products/{product}/edit', ProductForm::class)->middleware('auth')->name('products.edit');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
 // نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای

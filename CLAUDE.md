@@ -612,6 +612,42 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 - [ ] کمپین (Campaign)
 - [ ] تیکتینگ (Ticket)
 
+### ماژول Catalog (Epic 5)
+
+- [x] Session 1: محصولات (Products)
+
+  **چه ساخته شد:** `product_categories` (جدول ساده، `BelongsToCompany`، بدون
+  CRUD/UI این Session — فقط FK واقعی برای آینده) و `products`
+  (`owner_company_id`, `category_id` nullable FK به `product_categories`,
+  `sale_price` DECIMAL(18,2), `cost_price` DECIMAL(18,2) nullable,
+  `currency_id` nullable FK به `currencies` — خالی یعنی تومان، `fulfillment_type`
+  VARCHAR(20) + CHECK دیتابیس (`physical`/`digital`/`service`)،
+  `woocommerce_product_id` nullable، `is_active`)، enum PHP
+  `App\Modules\Catalog\Enums\FulfillmentType`، `ProductPolicy` (مشاهده = هر
+  نقشی در شرکت، ساخت/ویرایش = holding_admin/accountant/operator — دقیقاً الگوی
+  `PartyPolicy`)، Action های `CreateProduct`/`UpdateProduct` (authorize داخل
+  خودِ Action)، و کامپوننت‌های `ProductIndex`/`ProductForm` (مسیر `/products`،
+  فیلتر fulfillment_type + جستجوی نام + badge هشدار «بهای تمام‌شده نامشخص»).
+
+  **تصمیم‌های این Session:**
+  - `fulfillment_type` در سطح محصول است نه شرکت، طبق بند ۵.۳ CLAUDE.md — حتی
+    برای Verifex که هر دو نوع می‌فروشد.
+  - `cost_price` عمداً nullable است و هرگز صفر فرض نمی‌شود: متد
+    `Product::needsCostReview()` هم در فهرست هم در فرم یک badge هشدار صریح
+    نشان می‌دهد، دقیقاً طبق درخواست کارفرما (این عدم‌قطعیت نباید محو شود، باید
+    دیده شود).
+  - `currency_id` nullable طبق الگوی معماری چندارزی موجود (`exchange_rates`):
+    عدم وجود مقدار یعنی ارز پایه هلدینگ (تومان)، نه یک ردیف واقعی در
+    `currencies`.
+  - `product_categories` یک جدول واقعی ساخته شد (نه فقط ستون بی‌FK) تا یکپارچگی
+    مرجع از همین Session تضمین شود؛ CRUD/UI مدیریت دسته‌بندی در `docs/BACKLOG.md`
+    ثبت شد، چون خارج از تعریف این Session بود.
+  - منطق محاسبه سود/تسهیم هزینه به این Session مربوط نیست (فقط ذخیره‌سازی
+    محصول) — مرور کد مالی بند ۲ رویه بستن Session لازم نبود.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): CRUD دسته‌بندی، انبار
+(Inventory)، سفارش‌ها (Sales)، اتصال واقعی ووکامرس.
+
 ### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
 
 طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون

@@ -224,3 +224,11 @@ VARCHAR(255). **عمداً بدون CHECK دیتابیس برای فرمت `econ
 migration می‌شکست؛ کارفرما validation سطح Laravel (`PartyForm::rules()`) را به‌جای
 پاک‌کردن آن داده تأیید کرد. `chk_parties_role` و `chk_parties_party_type` از
 migration های قبلی (`2026_08_01`/`2026_08_04`) بدون تغییر باقی ماندند.
+
+**`2026_08_06_100001_create_product_categories_table` و
+`2026_08_06_100002_create_products_table`** — ماژول Catalog (Epic 5):
+`products.name` از ابتدا VARCHAR(150) طبق قرارداد طول جدید (نه ۲۰۰/۲۵۵ گرد)،
+`sale_price`/`cost_price` هر دو DECIMAL(18,2)، `cost_price` عمداً nullable
+(بند ۵.۳ CLAUDE.md — عدم قطعیت نباید صفر فرض شود)، `currency_id` nullable FK
+به `currencies` (خالی = تومان)، CHECK جدید `chk_products_fulfillment_type`
+(`physical`/`digital`/`service`) با همان guard غیر-sqlite الگوی قبلی.

@@ -80,6 +80,12 @@
                      است، همان دو نقش دقیق ContactSiteProfilePolicy/LeadPolicy/RfmSegmentPolicy::viewAny —
                      نه «هر نقشی در شرکت». viewer/accountant با شرط قبلی آیتم منو را می‌دیدند ولی
                      با کلیک ۴۰۳ می‌گرفتند. --}}
+                {{-- محصولات — عمداً hasRoleInCompany($activeCompany->id) بدون فهرست نقش
+                     است، همان شرط دقیق ProductPolicy::viewAny («هر نقشی در شرکت»). --}}
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-item title="محصولات" :icon="theme_icon('product')" link="{{ route('products.index') }}" />
+                @endif
+
                 @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id, ['holding_admin', 'operator']))
                     <x-menu-sub title="مخاطبین" :icon="theme_icon('crm')">
                         <x-menu-item title="فهرست مخاطبین" :icon="theme_icon('contact')" link="{{ route('contacts.index') }}" />
