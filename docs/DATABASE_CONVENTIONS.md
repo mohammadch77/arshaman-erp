@@ -79,6 +79,29 @@ status          →  order_status         (چون بعداً payment_status هم
 
 ---
 
+## ۳.۱. طول ستون‌های enum-like
+
+| نوع enum | طول پیشنهادی | مثال |
+|---|---|---|
+| دو-حالته کوتاه (self/admin) | VARCHAR(10) | recorded_by |
+| معمول (۳ تا ۶ مقدار) | VARCHAR(20) | employment_status, leave_status, payroll_status |
+| ترکیبی/چندکلمه‌ای (project_based, physical_goods) | VARCHAR(30) | business_type, contract_type |
+
+---
+
+## ۳.۲. محافظت CHECK در سطح دیتابیس
+
+هر ستون enum-like که پایه یک عملیات مالی یا قفل‌شونده است (مثل `payroll_status`،
+`leave_status`، `expense_posting_status`، `employment_status`) باید علاوه بر enum
+سطح PHP، یک **CHECK CONSTRAINT** در دیتابیس هم داشته باشد به‌عنوان لایه دفاعی دوم،
+چون منبع دیگری غیر از Laravel (seeder، import، query دستی) هم می‌تواند به جدول
+بنویسد.
+
+تغییر مقادیر مجاز بعداً فقط نیاز به `ALTER TABLE ... DROP CHECK ... ADD CHECK`
+دارد، نه migration سنگین.
+
+---
+
 ## ۴. مبالغ و ارز
 
 ```
