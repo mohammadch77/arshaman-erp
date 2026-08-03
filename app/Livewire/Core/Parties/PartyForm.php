@@ -61,13 +61,17 @@ class PartyForm extends Component
     protected function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:200'],
+            'name' => ['required', 'string', 'max:150'],
             'party_type' => ['required', 'string'],
             'is_customer' => ['boolean'],
             'is_supplier' => ['boolean'],
             'phone' => ['nullable', 'string', 'max:20'],
-            'email' => ['nullable', 'email', 'max:200'],
-            'economic_code' => ['nullable', 'string', 'max:30'],
+            'email' => ['nullable', 'email', 'max:255'],
+            // اگر پر شد باید دقیقاً کد اقتصادی ۱۲ رقمی ایران باشد. عمداً فقط سطح
+            // Laravel، نه CHECK دیتابیس — داده واقعی فعلی چند رکورد تستی ۴ رقمی
+            // دارد که CHECK را همان لحظه migration می‌شکست؛ کارفرما این مسیر را
+            // به‌جای پاک‌کردن آن داده تأیید کرد.
+            'economic_code' => ['nullable', 'string', 'regex:/^[0-9]{12}$/'],
             'address' => ['nullable', 'string'],
         ];
     }

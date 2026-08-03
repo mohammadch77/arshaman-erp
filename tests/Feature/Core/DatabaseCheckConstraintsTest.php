@@ -116,3 +116,30 @@ it('rejects an invalid party_type via the database CHECK constraint (Core)', fun
 
     expect($insert)->toThrow(QueryException::class);
 });
+
+// این تست برای chk_parties_role (migration 2026_08_01_100001_create_parties_table)
+// است. تست مدل موجود در PartyManagementTest فقط نگهبان Eloquent (Party::booted) را
+// چک می‌کند که قبل از رسیدن به دیتابیس صدا می‌زند؛ این‌جا با DB::table (بدون عبور
+// از مدل) مستقیم خودِ CHECK دیتابیس را امتحان می‌کنیم.
+it('rejects a party with neither is_customer nor is_supplier via the database CHECK constraint, bypassing the Eloquent model guard (Core)', function () {
+    if (DB::getDriverName() !== 'mysql') {
+        $this->markTestSkipped('CHECK constraint فقط روی MySQL فعال است؛ این تست روی اتصال sqlite پیش‌فرض skip می‌شود.');
+    }
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman', 'business_type' => 'project_services']);
+
+    $insert = function () use ($company) {
+        DB::table('parties')->insert([
+            'id' => (string) Str::uuid(),
+            'owner_company_id' => $company->id,
+            'name' => 'بدون نقش خام',
+            'party_type' => 'individual',
+            'is_customer' => 0,
+            'is_supplier' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    };
+
+    expect($insert)->toThrow(QueryException::class);
+});

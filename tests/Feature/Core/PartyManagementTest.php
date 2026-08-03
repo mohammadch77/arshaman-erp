@@ -67,6 +67,36 @@ it('rejects a party form submission with neither role selected at the validation
     expect(Party::withoutGlobalScopes()->where('name', 'بدون نقش')->exists())->toBeFalse();
 });
 
+it('rejects an economic_code that is not exactly 12 digits at the validation layer', function () {
+    [$user, $company] = partyActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    Livewire::test(PartyForm::class)
+        ->set('name', 'کد اقتصادی نامعتبر')
+        ->set('is_customer', true)
+        ->set('economic_code', '1234') // ۴ رقمی، نه ۱۲ رقمی
+        ->call('save')
+        ->assertHasErrors('economic_code');
+
+    expect(Party::withoutGlobalScopes()->where('name', 'کد اقتصادی نامعتبر')->exists())->toBeFalse();
+});
+
+it('accepts an exactly-12-digit economic_code', function () {
+    [$user, $company] = partyActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    Livewire::test(PartyForm::class)
+        ->set('name', 'کد اقتصادی معتبر')
+        ->set('is_customer', true)
+        ->set('economic_code', '123456789012')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Party::where('name', 'کد اقتصادی معتبر')->firstOrFail()->economic_code)->toBe('123456789012');
+});
+
 it('allows an operator to create a customer party and see it in the list', function () {
     [$user, $company] = partyActingAsWithRole('operator');
     $this->actingAs($user);

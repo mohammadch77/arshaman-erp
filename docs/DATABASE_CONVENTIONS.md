@@ -215,3 +215,12 @@ idx_<جدول>_<ستون‌ها>       مثال: idx_activity_company
 - **عمداً دست‌نخورده ماند:** `leaves.leave_type` — CHECK همان migration قبلی
   (`IN ('annual','sick','unpaid','hourly')`) باقی می‌ماند؛ لیست این دور `hourly` را نداشت
   ولی تنگ‌ترکردن، رکورد واقعی approved با این نوع را می‌شکست.
+
+**`2026_08_05_000001_adjust_party_column_widths`** — تکمیل ماژول Core (طرف‌حساب‌ها):
+`parties.name` از VARCHAR(200) به VARCHAR(150) (بلندتر از `employees.full_name`
+چون نام اشخاص حقوقی می‌تواند بلندتر باشد)، `parties.email` از VARCHAR(200) به
+VARCHAR(255). **عمداً بدون CHECK دیتابیس برای فرمت `economic_code`** (دقیقاً ۱۲ رقم):
+دو رکورد واقعی فعلی کد اقتصادی ۴ رقمی تستی دارند که CHECK REGEXP را همان لحظه
+migration می‌شکست؛ کارفرما validation سطح Laravel (`PartyForm::rules()`) را به‌جای
+پاک‌کردن آن داده تأیید کرد. `chk_parties_role` و `chk_parties_party_type` از
+migration های قبلی (`2026_08_01`/`2026_08_04`) بدون تغییر باقی ماندند.
