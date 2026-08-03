@@ -108,8 +108,16 @@
                     </x-menu-sub>
                 @endif
 
-                @if($activeCompany && in_array($activeCompany->business_type->value, ['physical_goods', 'hybrid']))
-                    <x-menu-item title="انبار" :icon="theme_icon('inventory')" link="#" no-wire-navigate />
+                {{-- انبار — طبق بند ۵.۸ CLAUDE.md فقط برای شرکت‌های physical_goods/hybrid فعال است.
+                     دسترسی داخل زیرمنو دقیقاً همان StockPolicy::viewAny («هر نقشی در شرکت»)،
+                     همان الگوی محصولات. --}}
+                @if($activeCompany && in_array($activeCompany->business_type->value, ['physical_goods', 'hybrid']) && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-sub title="انبار" :icon="theme_icon('inventory')">
+                        <x-menu-item title="موجودی" :icon="theme_icon('inventory')" link="{{ route('inventory.stock.index') }}" />
+                        <x-menu-item title="دریافت کالا" :icon="theme_icon('stock-in')" link="{{ route('inventory.receive') }}" />
+                        <x-menu-item title="خروج کالا" :icon="theme_icon('stock-out')" link="{{ route('inventory.issue') }}" />
+                        <x-menu-item title="کالاهای زیر نقطه سفارش" :icon="theme_icon('warning')" link="{{ route('inventory.low-stock-report') }}" />
+                    </x-menu-sub>
                 @endif
 
                 @if($activeCompany && $activeCompany->business_type->value === 'project_services')

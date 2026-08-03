@@ -31,6 +31,8 @@ class ProductForm extends Component
 
     public bool $is_active = true;
 
+    public string $reorder_point = '';
+
     public function mount(?string $product = null): void
     {
         if ($product) {
@@ -44,6 +46,7 @@ class ProductForm extends Component
             $this->fulfillment_type = $this->record->fulfillment_type->value;
             $this->woocommerce_product_id = (string) $this->record->woocommerce_product_id;
             $this->is_active = $this->record->is_active;
+            $this->reorder_point = (string) ($this->record->reorder_point ?? '');
 
             return;
         }
@@ -78,6 +81,7 @@ class ProductForm extends Component
             'fulfillment_type' => ['required', 'string'],
             'woocommerce_product_id' => ['nullable', 'string', 'max:50'],
             'is_active' => ['boolean'],
+            'reorder_point' => ['nullable', 'integer', 'min:0'],
         ];
     }
 
@@ -88,6 +92,7 @@ class ProductForm extends Component
         $data['cost_price'] = $data['cost_price'] !== null && $data['cost_price'] !== '' ? $data['cost_price'] : null;
         $data['currency_id'] = $data['currency_id'] ?: null;
         $data['woocommerce_product_id'] = $data['woocommerce_product_id'] ?: null;
+        $data['reorder_point'] = $data['reorder_point'] !== null && $data['reorder_point'] !== '' ? $data['reorder_point'] : null;
         $data['category_id'] = null;
 
         if ($this->record) {

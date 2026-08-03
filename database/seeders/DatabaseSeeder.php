@@ -19,5 +19,6 @@ class DatabaseSeeder extends Seeder
         $this->call(HolidaySeeder::class);
         $this->call(CurrencySeeder::class);
         $this->call(FiscalPeriodSeeder::class);
+        $this->call(WarehouseSeeder::class);
     }
 }

@@ -125,6 +125,30 @@
 
 ---
 
+### اتصال واقعی انبار به سفارش (خروج خودکار)
+- **از کجا آمد:** Epic 7 (ماژول Inventory، انبار پایه) — کارفرما صریحاً scope این Session
+  را به `ReceiveStock`/`IssueStock` مستقل محدود کرد.
+- **چه چیزی به‌تعویق افتاد:** خروج خودکار موجودی هنگام رسیدن سفارش به وضعیت `preparing`
+  (طبق `IMPLEMENTATION_PLAYBOOK.md` Session 8 — ماشین وضعیت سفارش). ستون‌های
+  `reference_type`/`reference_id` روی `stock_movements` برای همین از قبل رزرو شده‌اند.
+- **وضعیت:** باز.
+
+### Action برای movement_type=adjust
+- **از کجا آمد:** Epic 7 (ماژول Inventory) — مقدار `adjust` در CHECK constraint
+  `stock_movements.movement_type` رزرو شد ولی هیچ Action ای آن را نمی‌سازد.
+- **چه چیزی به‌تعویق افتاد:** یک Action مجزا (مثلاً `AdjustStock`) برای اصلاح دستی موجودی
+  با دلیل مستند، برای زمانی که شمارش فیزیکی با رکورد سیستم فرق دارد.
+- **وضعیت:** باز.
+
+### CRUD کامل Warehouse
+- **از کجا آمد:** Epic 7 (ماژول Inventory) — فقط یک انبار مرکزی هلدینگ با `WarehouseSeeder`
+  ساخته شد؛ `WarehousePolicy` (create/update محدود به `holding_admin`) از قبل آماده است.
+- **چه چیزی به‌تعویق افتاد:** کامپوننت Livewire برای ساخت/ویرایش/غیرفعال‌کردن چند انبار
+  از UI مدیریتی.
+- **وضعیت:** باز.
+
+---
+
 ## قالب افزودن آیتم جدید
 
 ```

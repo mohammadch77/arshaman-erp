@@ -28,6 +28,9 @@ use App\Livewire\HR\PayrollIndex;
 use App\Livewire\HR\SelfService\MyAttendance;
 use App\Livewire\HR\SelfService\MyLeaves;
 use App\Livewire\HR\SelfService\MyPayslips;
+use App\Livewire\Inventory\LowStockReport;
+use App\Livewire\Inventory\StockIndex;
+use App\Livewire\Inventory\StockMovementForm;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -86,6 +89,11 @@ Route::livewire('/rfm-segments', RfmSegmentIndex::class)->middleware('auth')->na
 Route::livewire('/products', ProductIndex::class)->middleware('auth')->name('products.index');
 Route::livewire('/products/create', ProductForm::class)->middleware('auth')->name('products.create');
 Route::livewire('/products/{product}/edit', ProductForm::class)->middleware('auth')->name('products.edit');
+
+Route::livewire('/inventory/stock', StockIndex::class)->middleware('auth')->name('inventory.stock.index');
+Route::livewire('/inventory/receive', StockMovementForm::class)->middleware('auth')->name('inventory.receive')->defaults('type', 'in');
+Route::livewire('/inventory/issue', StockMovementForm::class)->middleware('auth')->name('inventory.issue')->defaults('type', 'out');
+Route::livewire('/inventory/low-stock-report', LowStockReport::class)->middleware('auth')->name('inventory.low-stock-report');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
 // نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای

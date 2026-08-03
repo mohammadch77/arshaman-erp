@@ -93,6 +93,9 @@ return [
         'recalculate' => 'o-arrow-path',
         'category' => 'o-tag',
         'woocommerce' => 'o-link',
+        'warehouse' => 'o-building-storefront',
+        'stock-in' => 'o-arrow-down-tray',
+        'stock-out' => 'o-arrow-up-tray',
     ],
 
 ];

@@ -41,6 +41,8 @@
 
             <x-input label="شناسه محصول ووکامرس" wire:model="woocommerce_product_id" :icon="theme_icon('woocommerce')" />
 
+            <x-input label="نقطه سفارش مجدد (خالی = بدون هشدار موجودی کم)" wire:model="reorder_point" :icon="theme_icon('warehouse')" />
+
             <x-checkbox label="فعال" wire:model="is_active" />
 
             <x-slot:actions>

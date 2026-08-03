@@ -25,6 +25,7 @@ class Product extends Model
         'fulfillment_type',
         'woocommerce_product_id',
         'is_active',
+        'reorder_point',
         'created_by_user_id',
         'updated_by_user_id',
     ];
@@ -36,6 +37,7 @@ class Product extends Model
             'cost_price' => 'decimal:2',
             'fulfillment_type' => FulfillmentType::class,
             'is_active' => 'boolean',
+            'reorder_point' => 'integer',
         ];
     }
 

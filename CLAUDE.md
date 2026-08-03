@@ -648,6 +648,49 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): CRUD دسته‌بندی، انبار
 (Inventory)، سفارش‌ها (Sales)، اتصال واقعی ووکامرس.
 
+### ماژول Inventory (فاز ۱ — Epic 7: انبار پایه)
+
+- [x] Session 1: انبار پایه (Warehouse/Stock/StockMovement)
+
+  **چه ساخته شد:** `app/Modules/Inventory` (ماژول جدا، نه زیر Catalog).
+  `warehouses` (بدون `owner_company_id` — طبق بند ۵.۸ CLAUDE.md انبار فیزیکاً
+  بین شرکت‌ها مشترک است، همان الگوی `contacts`/`holidays`؛ مدل بدون
+  `BelongsToCompany`)، `stocks` (`owner_company_id` + `BelongsToCompany`،
+  UNIQUE روی `product_id`+`warehouse_id`+`owner_company_id`)، `stock_movements`
+  (snapshot `owner_company_id` از stock در لحظه ثبت، `movement_type`
+  VARCHAR(10)+CHECK `in`/`out`/`adjust`)، migration اصلاحی
+  `products.reorder_point` (nullable، مثل الگوی `cost_price` — عدم قطعیت
+  صفر فرض نمی‌شود). Action های `ReceiveStock`/`IssueStock` (تنها مسیر مجاز
+  تغییر `quantity`، هر دو در `DB::transaction` با `lockForUpdate`)،
+  `WarehousePolicy` (مشاهده آزاد، مدیریت فقط `holding_admin` — استثنای
+  مستند بند ۱۱ چون Warehouse اصلاً owner_company ندارد)، `StockPolicy`
+  (مشاهده = هر نقشی در شرکت، مدیریت = holding_admin/accountant/operator،
+  همان الگوی `ProductPolicy`)، کامپوننت‌های `StockIndex`/`StockMovementForm`/
+  `LowStockReport` (مسیرهای `/inventory/stock`, `/inventory/receive`,
+  `/inventory/issue`, `/inventory/low-stock-report`)، `WarehouseSeeder`
+  (یک انبار مرکزی هلدینگ).
+
+  **تصمیم‌های این Session:**
+  - `IssueStock` موجودی منفی را رد می‌کند (`InvalidArgumentException`) —
+    قید کسب‌وکاری منطقی، نه فقط ذخیره خام.
+  - `movement_type=adjust` فقط سطح CHECK رزرو شده؛ هیچ Action ای در این
+    Session آن را نمی‌سازد (طبق scope صریح کارفرما).
+  - منوی «انبار» (placeholder قبلی `link="#"`) با یک زیرمنوی واقعی جایگزین
+    شد، دقیقاً با شرط `hasRoleInCompany` هم‌راستا با `StockPolicy::viewAny`
+    (همان اصلاح سراسری هماهنگی منو با Policy واقعی).
+  - `reorder_point` هم به `ProductForm`/مدل `Product` اضافه شد تا از همان
+    فرم محصول قابل تنظیم باشد (فیلد داده بدون UI تنظیم، بی‌فایده بود).
+  - تست پایگاه‌داده CHECK با `Schema::getConnection()->getDriverName() ===
+    'sqlite'` skip می‌شود (محیط تست sqlite است)؛ روی MySQL واقعی دستی تأیید
+    شد (`php artisan migrate --force` روی `arshaman_erp` بدون خطا).
+  - بازدید بصری با یک کاربر تستی موقت (`inventory-visual-test@example.com`)
+    انجام و در پایان کامل حذف شد — طبق بند ۱۰ CLAUDE.md (هرگز رمز کاربر
+    واقعی تغییر نمی‌کند).
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): اتصال واقعی به
+سفارش (خروج خودکار از انبار)، Action برای `movement_type=adjust`، CRUD
+کامل Warehouse (ساخت/ویرایش چند انبار از UI).
+
 ### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
 
 طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون
