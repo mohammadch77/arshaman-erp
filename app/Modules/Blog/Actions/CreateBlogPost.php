@@ -4,16 +4,16 @@ namespace App\Modules\Blog\Actions;
 
 use App\Modules\Blog\Enums\BlogPostStatus;
 use App\Modules\Blog\Models\BlogPost;
-use App\Modules\Blog\Services\BlockContentRenderer;
 use App\Modules\Core\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
+use Mews\Purifier\Facades\Purifier;
 
 class CreateBlogPost
 {
     /**
-     * @param  array{owner_company_id: string, category_id: ?string, author_user_id: ?string, title: string, slug: string, meta_title: ?string, meta_description: ?string, content_blocks: array, content_html: ?string, featured_image_path: ?string, reading_time_minutes: ?int, post_status: string, published_at: ?string, tag_ids: array<int, string>}  $data
+     * @param  array{owner_company_id: string, category_id: ?string, author_user_id: ?string, title: string, slug: string, meta_title: ?string, meta_description: ?string, content_html: ?string, featured_image_path: ?string, reading_time_minutes: ?int, post_status: string, published_at: ?string, tag_ids: array<int, string>}  $data
      */
     public function handle(array $data, User $actor): BlogPost
     {
@@ -33,7 +33,9 @@ class CreateBlogPost
             throw new InvalidArgumentException('برای وضعیت زمان‌بندی‌شده، تاریخ انتشار الزامی است.');
         }
 
-        $data['content_html'] = app(BlockContentRenderer::class)->render($data['content_blocks']);
+        // Sanitize اینجا انجام می‌شود نه در کامپوننت Livewire — هر caller دیگری غیر از UI
+        // (مثل تست‌های همین فایل که مستقیم Action را صدا می‌زنند) هم باید HTML امن ذخیره کند.
+        $data['content_html'] = Purifier::clean($data['content_html'] ?? '');
 
         return DB::transaction(function () use ($data, $tagIds, $actor) {
             $post = BlogPost::create([

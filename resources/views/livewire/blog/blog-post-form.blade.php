@@ -90,7 +90,7 @@
                 <div
                     wire:ignore
                     x-data
-                    x-init="window.initBlogEditor('{{ $editorId }}', @js($initialBlocks), 'editor-content-input-{{ $editorId }}', '{{ route('blog.editor-image-upload') }}')"
+                    x-init="window.initBlogEditor('{{ $editorId }}', @js($initialContent), 'editor-content-input-{{ $editorId }}', '{{ route('blog.editor-image-upload') }}')"
                     class="rounded-box border border-base-300 bg-base-100 p-4"
                 >
                     <div id="{{ $editorId }}"></div>

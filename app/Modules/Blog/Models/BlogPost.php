@@ -23,7 +23,6 @@ class BlogPost extends Model
         'slug',
         'meta_title',
         'meta_description',
-        'content_blocks',
         'content_html',
         'featured_image_path',
         'reading_time_minutes',
@@ -36,7 +35,6 @@ class BlogPost extends Model
     protected function casts(): array
     {
         return [
-            'content_blocks' => 'array',
             'post_status' => BlogPostStatus::class,
             'published_at' => 'datetime',
             'reading_time_minutes' => 'integer',

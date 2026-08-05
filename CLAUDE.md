@@ -831,4 +831,54 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
 وبلاگ (مصرف‌کننده `content_html`)، زیرلیست‌های تودرتو در رندر، زمان‌بندی
 خودکار انتشار.
 
+- [x] Session 3: جایگزینی Editor.js با Quill (WYSIWYG) + sanitize با mews/purifier
+
+  **چه تغییر کرد:** بازخورد کاربر بعد از استفاده واقعی از Editor.js (Session ۲):
+  تجربه بلوک‌به‌بلوک کند و ضدشهودی بود، کاربر یک ادیتور معمولی مثل Word
+  می‌خواست. Editor.js و همه `@editorjs/*` npm حذف شدند؛ `quill` جایگزین شد
+  (`resources/js/editor.js` بازنویسی کامل — همان نام‌های تابع
+  `window.initBlogEditor`/`saveBlogEditor` حفظ شد تا Blade دست‌نخورده بماند،
+  فقط آرگومان دوم از آرایه بلوک به رشته HTML خام تغییر کرد). ستون
+  `content_blocks` (JSON مخصوص Editor.js) با migration جدید (نه ویرایش
+  migration قدیمی — بند ۹.۷) حذف شد؛ `content_html` تنها منبع محتواست.
+  `BlockContentRenderer` (سرویس Session ۲) کاملاً منسوخ و حذف شد؛ چون خروجی
+  این‌بار HTML خام است نه JSON ساختاریافته، `strip_tags` کافی نبود — به‌جایش
+  `mews/purifier` (روی `ezyang/htmlpurifier`) با whitelist دقیق در
+  `config/purifier.php` (`p,h1-h6,strong,em,u,s,a[href|target|rel],
+  img[src|alt|width|height],blockquote,ul,ol,li[data-list],br` + محدودیت
+  `URI.AllowedSchemes` به `http/https/mailto`).
+
+  **تصمیم‌های این Session:**
+  - **انحراف آگاهانه از محل پیشنهادی کارفرما:** درخواست گفته بود sanitize در
+    `save()` کامپوننت Livewire انجام شود؛ به‌جایش داخل خودِ
+    `CreateBlogPost`/`UpdateBlogPost` گذاشته شد (`Purifier::clean()` قبل از
+    ذخیره) — دقیقاً طبق بند ۹ CLAUDE.md و الگوی همین ماژول در Session ۲.
+    **دلیل عملی:** تست‌های `BlogPostTest.php` مستقیم Action را بدون عبور از
+    کامپوننت صدا می‌زنند؛ اگر sanitize فقط در Livewire بود، این مسیر (و هر
+    caller آینده) HTML خام و ناامن ذخیره می‌کرد.
+  - **کشف حین بازدید بصری واقعی (نه فرض از مستندات):** Quill 2 هر دو نوع
+    لیست را به‌صورت `<ol><li data-list="bullet|ordered">` تولید می‌کند، نه
+    `<ul>`/`<ol>` جدا. whitelist اولیه (دقیقاً طبق متن درخواست کارفرما) این
+    attribute را نداشت، پس بعد از sanitize هر لیستی (بولت یا شماره‌دار) به
+    `<ol><li>` ساده تبدیل می‌شد و تفاوتشان محو می‌شد — کشف شد فقط چون واقعاً
+    یک لیست بولت در مرورگر ساخته و ذخیره شد، نه در تست واحد با HTML دستی.
+    رفع شد با افزودن `li[data-list]` به `HTML.Allowed` + یک
+    `custom_attributes` entry (`Enum#ordered,bullet,checked,unchecked`) —
+    چون `data-list` یک attribute غیراستاندارد است و بدون تعریف صریح در
+    HTMLPurifier، حتی با ذکر در `HTML.Allowed` هم پذیرفته نمی‌شد. **درس
+    تکراری از Session ۲ (فرمت واقعی Editor.js list) دوباره تأیید شد: فرمت
+    خروجی واقعی یک کتابخانه خارجی را هرگز از مستندات/انتظار فرض نکن، حتماً
+    یک‌بار در مرورگر واقعی تولید و ذخیره‌اش کن.**
+  - آپلود تصویر از همان endpoint/کنترلر Session ۲
+    (`EditorImageUploadController`, مسیر `blog.editor-image-upload`) بدون
+    تغییر استفاده شد — فقط handler سمت کلاینت روی دکمه `image` نوار ابزار
+    Quill عوض شد.
+  - بازدید بصری کامل با کاربر تستی موقت (`blog-quill-visual-test@example.com`)
+    شامل تایپ پیوسته، Bold، Header (دراپ‌داون H1-H6)، Link (با tooltip
+    داخلی Quill)، Bullet List، و آپلود واقعی تصویر — ذخیره و بارگذاری مجدد
+    هر دو تأیید شد. کاربر، پست، و فایل‌های آپلودشده در پایان کامل حذف شدند.
+
+نساز این Session (خارج از scope، طبق درخواست صریح): صفحه عمومی نمایش وبلاگ،
+زمان‌بندی خودکار انتشار.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

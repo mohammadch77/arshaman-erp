@@ -44,8 +44,7 @@ function blogBasePostData(string $companyId): array
         'slug' => 'test-post-'.uniqid(),
         'meta_title' => null,
         'meta_description' => null,
-        'content_blocks' => [['type' => 'paragraph', 'text' => 'متن نمونه']],
-        'content_html' => null,
+        'content_html' => '<p>متن نمونه</p>',
         'featured_image_path' => null,
         'reading_time_minutes' => null,
         'post_status' => 'draft',
@@ -203,24 +202,25 @@ it('forbids an operator from editing a post the admin already published', functi
         ->toThrow(AuthorizationException::class);
 });
 
-it('automatically fills content_html from content_blocks on create and refreshes it on update', function () {
+it('sanitizes raw Quill HTML through the action on create and re-sanitizes on update', function () {
     [$admin, $company] = blogActingAsWithRole('holding_admin');
 
     $data = blogBasePostData($company->id);
     $data['author_user_id'] = $admin->id;
-    $data['content_blocks'] = [['type' => 'paragraph', 'data' => ['text' => 'متن اول']]];
+    $data['content_html'] = '<p>متن اول</p><img src=x onerror=alert(1)>';
 
     $post = app(CreateBlogPost::class)->handle($data, $admin);
 
-    expect($post->content_html)->not->toBeNull()
-        ->and($post->content_html)->toContain('متن اول');
+    expect($post->content_html)->toContain('متن اول')
+        ->and($post->content_html)->not->toContain('onerror');
 
     $updateData = blogBasePostData($company->id);
     $updateData['author_user_id'] = $admin->id;
-    $updateData['content_blocks'] = [['type' => 'paragraph', 'data' => ['text' => 'متن دوم']]];
+    $updateData['content_html'] = '<p>متن دوم</p><script>alert(1)</script>';
 
     $updated = app(UpdateBlogPost::class)->handle($post, $updateData, $admin);
 
     expect($updated->content_html)->toContain('متن دوم')
-        ->and($updated->content_html)->not->toContain('متن اول');
+        ->and($updated->content_html)->not->toContain('متن اول')
+        ->and($updated->content_html)->not->toContain('<script');
 });
