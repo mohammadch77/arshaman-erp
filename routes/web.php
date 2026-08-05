@@ -16,7 +16,9 @@ use App\Livewire\Core\Users\UserIndex;
 use App\Livewire\CRM\ContactForm;
 use App\Livewire\CRM\ContactIndex;
 use App\Livewire\CRM\ContactProfile;
+use App\Livewire\CRM\ContactSubmissionIndex;
 use App\Livewire\CRM\LeadBoard;
+use App\Livewire\CRM\Public\ContactForm as PublicContactForm;
 use App\Livewire\CRM\RfmSegmentIndex;
 use App\Livewire\HR\AttendanceIndex;
 use App\Livewire\HR\EmployeeForm;
@@ -85,6 +87,17 @@ Route::livewire('/contacts/{contactId}/profile', ContactProfile::class)->middlew
 Route::livewire('/leads', LeadBoard::class)->middleware('auth')->name('leads.index');
 
 Route::livewire('/rfm-segments', RfmSegmentIndex::class)->middleware('auth')->name('rfm-segments.index');
+
+Route::livewire('/contact-submissions', ContactSubmissionIndex::class)->middleware('auth')->name('contact-submissions.index');
+
+// مسیر عمومی مهمان — بدون middleware auth. owner_company_id صریح از پارامتر
+// companySlug تعیین می‌شود، نه از CompanyContext session. عمداً route-model
+// binding خودکار ({company:slug}) استفاده نشد و پارامتر company نام‌گذاری
+// نشد — الگوی همان مشکل کشف‌شده در ContactProfile (نگاه کن CLAUDE.md، Session
+// ۱ ماژول CRM): وقتی نام پارامتر route با یک public property تایپ‌شده مدل
+// یکی باشد، Livewire پیش از اجرای mount() سعی می‌کند مقدار خام را مستقیم
+// روی آن property بنشاند و با خطای type mismatch شکست می‌خورد.
+Route::livewire('/contact-us/{companySlug}', PublicContactForm::class)->name('contact-us');
 
 Route::livewire('/products', ProductIndex::class)->middleware('auth')->name('products.index');
 Route::livewire('/products/create', ProductForm::class)->middleware('auth')->name('products.create');

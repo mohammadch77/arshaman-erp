@@ -96,6 +96,11 @@ return [
         'warehouse' => 'o-building-storefront',
         'stock-in' => 'o-arrow-down-tray',
         'stock-out' => 'o-arrow-up-tray',
+        'message' => 'o-chat-bubble-left-right',
+        'send' => 'o-paper-airplane',
+        'archive' => 'o-archive-box',
+        'inbox' => 'o-inbox',
+        'history' => 'o-clock',
     ],
 
 ];

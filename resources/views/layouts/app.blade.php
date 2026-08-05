@@ -92,6 +92,7 @@
                         <x-menu-item title="مخاطب جدید" :icon="theme_icon('add')" link="{{ route('contacts.create') }}" />
                         <x-menu-item title="قیف فروش" :icon="theme_icon('lead')" link="{{ route('leads.index') }}" />
                         <x-menu-item title="بخش‌بندی RFM" :icon="theme_icon('segment')" link="{{ route('rfm-segments.index') }}" />
+                        <x-menu-item title="پیام‌های تماس با ما" :icon="theme_icon('inbox')" link="{{ route('contact-submissions.index') }}" />
                     </x-menu-sub>
                 @endif
 
