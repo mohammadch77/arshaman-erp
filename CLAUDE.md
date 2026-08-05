@@ -785,4 +785,50 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
 واقعی، رندر HTML سمت سرور، صفحه عمومی وبلاگ، زمان‌بندی خودکار انتشار
 (cron/job که وقتی `published_at` رسید status را به `published` تغییر دهد).
 
+- [x] Session 2: ادیتور بلوکی واقعی (Editor.js) + رندر امن سمت سرور
+
+  **چه ساخته شد:** نصب `@editorjs/editorjs` + پلاگین‌های `header`/`list`/`quote`/
+  `image` از npm (نه CDN — سازگار با build فعلی Vite)، `resources/js/editor.js`
+  (`window.initBlogEditor`/`window.saveBlogEditor`، پل بین Alpine/Livewire و
+  نمونه Editor.js با `wire:ignore`)، کنترلر جدید (نه Livewire — چون Editor.js
+  Image tool یک درخواست HTTP مستقل multipart می‌زند، نه از طریق `wire:model`)
+  `EditorImageUploadController` (مسیر POST `/blog/editor-image-upload`،
+  authorize با همان `BlogPostPolicy::create`)، و سرویس جدید
+  `App\Modules\Blog\Services\BlockContentRenderer` که `content_blocks` را با
+  whitelist انواع بلوک (`paragraph`/`header`/`list`/`quote`/`image`) به HTML
+  امن تبدیل می‌کند. `CreateBlogPost`/`UpdateBlogPost` حالا خودشان
+  `content_html` را از این سرویس پر می‌کنند (نه فرم) — طبق بند ۹ CLAUDE.md.
+
+  **تصمیم‌های این Session:**
+  - **کشف حین بازدید بصری واقعی (نه فقط تست Unit با داده دستی):** نسخه فعلی
+    `@editorjs/list` هر آیتم را به‌صورت شیء تودرتو `{content, items, meta}`
+    برمی‌گرداند، نه رشته ساده — اگر `BlockContentRenderer::renderList()` فقط
+    `is_string` را می‌پذیرفت (نسخه اول پیاده‌سازی)، **هر لیست واقعی از UI به‌طور
+    خاموش حذف می‌شد**، چون هیچ آیتمی رشته خام نبود. اصلاح شد: هم رشته ساده هم
+    شیء با کلید `content` پذیرفته می‌شود؛ زیرلیست‌های تودرتو (`items` داخلی)
+    عمداً نادیده گرفته می‌شوند (خارج از scope این Session). **درس: تست Unit با
+    فیکسچر دستی کافی نیست وقتی فرمت خروجی واقعی یک کتابخانه خارجی را
+    مفروض می‌گیری — باید حتماً یک‌بار خروجی واقعی کتابخانه را از مرورگر خواند.**
+  - امنیت XSS در دو لایه: (۱) whitelist نوع بلوک (بلوک ناشناخته silent skip)،
+    (۲) `strip_tags()` روی متن با تگ‌های اینلاین مجاز محدود
+    (`<b><strong><i><em><u>`, **بدون `<a>`** — لینک داخل متن عمداً خارج از
+    scope تا نیاز به sanitize کردن `href` نباشد). **نکته حیاتی کشف‌شده:**
+    `strip_tags()` در PHP روی تگ‌های whitelist‌شده attributeها را حذف
+    **نمی‌کند** (یک gotcha شناخته‌شده PHP) — یعنی `<b onclick="evil()">` بدون
+    اصلاح اضافه از همان whitelist رد می‌شد. یک `preg_replace` اضافه شد که
+    attribute هر تگ مجاز را پاک می‌کند. تست Unit این حالت را صریح پوشش می‌دهد.
+  - `url` تصویر با `e()` escape می‌شود (نه `strip_tags`، چون URL است نه متن
+    غنی)؛ کپشن خالی (`''`) دیگر یک `<figcaption></figcaption>` خالی تولید
+    نمی‌کند (چک `trim() !== ''` اضافه شد بعد از مشاهده مستقیم HTML واقعی).
+  - بازدید بصری کامل با کاربر تستی موقت (`blog-editor-visual-test@example.com`،
+    رمز موقت set شد چون کاربر تازه ساخته شده بود نه یک کاربر واقعی — طبق بند ۱۰
+    CLAUDE.md) در فرم واقعی (نه فقط تست خودکار): افزودن بلوک پاراگراف/تیتر/
+    لیست/نقل‌قول، ذخیره، ویرایش مجدد (بارگذاری صحیح `content_blocks` موجود در
+    ادیتور)، و فراخوانی مستقیم endpoint آپلود تصویر — همه با موفقیت. کاربر و
+    پست تستی و فایل آپلودشده در پایان کامل حذف شدند.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): صفحه عمومی نمایش
+وبلاگ (مصرف‌کننده `content_html`)، زیرلیست‌های تودرتو در رندر، زمان‌بندی
+خودکار انتشار.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

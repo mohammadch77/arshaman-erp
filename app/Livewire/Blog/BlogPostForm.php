@@ -41,7 +41,7 @@ class BlogPostForm extends Component
 
     public string $author_user_id = '';
 
-    public string $content = '';
+    public string $content = '[]';
 
     public string $reading_time_minutes = '';
 
@@ -76,7 +76,7 @@ class BlogPostForm extends Component
             $this->category_id = (string) $this->record->category_id;
             $this->tag_ids = $this->record->tags->pluck('id')->all();
             $this->author_user_id = $this->record->author_user_id;
-            $this->content = (string) ($this->record->content_blocks[0]['text'] ?? '');
+            $this->content = json_encode($this->record->content_blocks ?: []);
             $this->reading_time_minutes = (string) ($this->record->reading_time_minutes ?? '');
             $this->post_status = $this->record->post_status->value;
             $this->existingFeaturedImagePath = $this->record->featured_image_path;
@@ -231,8 +231,8 @@ class BlogPostForm extends Component
         $data['meta_description'] = $data['meta_description'] !== '' ? $data['meta_description'] : null;
         $data['category_id'] = $data['category_id'] ?: null;
         $data['reading_time_minutes'] = $data['reading_time_minutes'] !== '' && $data['reading_time_minutes'] !== null ? $data['reading_time_minutes'] : null;
-        $data['content_blocks'] = [['type' => 'paragraph', 'text' => $data['content']]];
-        $data['content_html'] = null;
+        $decodedBlocks = json_decode($data['content'], true);
+        $data['content_blocks'] = is_array($decodedBlocks) ? $decodedBlocks : [];
         unset($data['content']);
 
         $data['author_user_id'] = $this->author_user_id ?: auth()->id();
@@ -270,8 +270,12 @@ class BlogPostForm extends Component
 
     public function render()
     {
+        $decodedBlocks = json_decode($this->content, true);
+
         return view('livewire.blog.blog-post-form', [
             'existingFeaturedImageUrl' => $this->existingFeaturedImagePath ? Storage::url($this->existingFeaturedImagePath) : null,
+            'initialBlocks' => is_array($decodedBlocks) ? $decodedBlocks : [],
+            'editorId' => 'blog-post-editor-'.($this->record?->id ?? 'new'),
         ]);
     }
 }

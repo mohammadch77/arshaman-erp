@@ -39,6 +39,7 @@ use App\Livewire\HR\SelfService\MyPayslips;
 use App\Livewire\Inventory\LowStockReport;
 use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
+use App\Modules\Blog\Http\Controllers\EditorImageUploadController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -123,6 +124,7 @@ Route::livewire('/blog/categories/{category}/edit', BlogCategoryForm::class)->mi
 Route::livewire('/blog/tags', BlogTagIndex::class)->middleware('auth')->name('blog.tags.index');
 Route::livewire('/blog/tags/create', BlogTagForm::class)->middleware('auth')->name('blog.tags.create');
 Route::livewire('/blog/tags/{tag}/edit', BlogTagForm::class)->middleware('auth')->name('blog.tags.edit');
+Route::post('/blog/editor-image-upload', EditorImageUploadController::class)->middleware('auth')->name('blog.editor-image-upload');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
 // نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای

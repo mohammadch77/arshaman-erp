@@ -4,6 +4,7 @@ namespace App\Modules\Blog\Actions;
 
 use App\Modules\Blog\Enums\BlogPostStatus;
 use App\Modules\Blog\Models\BlogPost;
+use App\Modules\Blog\Services\BlockContentRenderer;
 use App\Modules\Core\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -32,6 +33,8 @@ class UpdateBlogPost
         if ($data['post_status'] === BlogPostStatus::Scheduled->value && empty($data['published_at'])) {
             throw new InvalidArgumentException('برای وضعیت زمان‌بندی‌شده، تاریخ انتشار الزامی است.');
         }
+
+        $data['content_html'] = app(BlockContentRenderer::class)->render($data['content_blocks']);
 
         DB::transaction(function () use ($post, $data, $tagIds, $actor) {
             $post->update([

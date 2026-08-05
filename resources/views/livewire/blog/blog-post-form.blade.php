@@ -6,7 +6,7 @@
     />
 
     <x-card shadow class="max-w-3xl">
-        <x-form wire:submit="save" class="gap-5">
+        <x-form @submit.prevent="window.saveBlogEditor('{{ $editorId }}').then(() => $wire.save())" class="gap-5">
             <x-input label="عنوان" wire:model.live="title" :icon="theme_icon('blog')" required />
 
             <x-input label="اسلاگ" wire:model="slug" :icon="theme_icon('link-account')" required hint="در آدرس صفحه استفاده می‌شود، فقط حروف/اعداد انگلیسی و خط تیره" />
@@ -85,7 +85,18 @@
                 </div>
             @endif
 
-            <x-textarea label="محتوا" wire:model="content" rows="8" required hint="جای‌گیر موقت — ادیتور کامل Session بعد اضافه می‌شود" />
+            <div>
+                <div class="fieldset-legend mb-1">محتوا</div>
+                <div
+                    wire:ignore
+                    x-data
+                    x-init="window.initBlogEditor('{{ $editorId }}', @js($initialBlocks), 'editor-content-input-{{ $editorId }}', '{{ route('blog.editor-image-upload') }}')"
+                    class="rounded-box border border-base-300 bg-base-100 p-4"
+                >
+                    <div id="{{ $editorId }}"></div>
+                </div>
+                <input type="hidden" id="editor-content-input-{{ $editorId }}" wire:model="content" />
+            </div>
 
             <x-input label="زمان مطالعه (دقیقه، اختیاری)" wire:model="reading_time_minutes" :icon="theme_icon('history')" />
 

@@ -202,3 +202,25 @@ it('forbids an operator from editing a post the admin already published', functi
     expect(fn () => app(UpdateBlogPost::class)->handle($post, $editData, $author))
         ->toThrow(AuthorizationException::class);
 });
+
+it('automatically fills content_html from content_blocks on create and refreshes it on update', function () {
+    [$admin, $company] = blogActingAsWithRole('holding_admin');
+
+    $data = blogBasePostData($company->id);
+    $data['author_user_id'] = $admin->id;
+    $data['content_blocks'] = [['type' => 'paragraph', 'data' => ['text' => 'متن اول']]];
+
+    $post = app(CreateBlogPost::class)->handle($data, $admin);
+
+    expect($post->content_html)->not->toBeNull()
+        ->and($post->content_html)->toContain('متن اول');
+
+    $updateData = blogBasePostData($company->id);
+    $updateData['author_user_id'] = $admin->id;
+    $updateData['content_blocks'] = [['type' => 'paragraph', 'data' => ['text' => 'متن دوم']]];
+
+    $updated = app(UpdateBlogPost::class)->handle($post, $updateData, $admin);
+
+    expect($updated->content_html)->toContain('متن دوم')
+        ->and($updated->content_html)->not->toContain('متن اول');
+});
