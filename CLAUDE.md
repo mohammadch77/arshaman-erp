@@ -878,7 +878,49 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
     داخلی Quill)، Bullet List، و آپلود واقعی تصویر — ذخیره و بارگذاری مجدد
     هر دو تأیید شد. کاربر، پست، و فایل‌های آپلودشده در پایان کامل حذف شدند.
 
-نساز این Session (خارج از scope، طبق درخواست صریح): صفحه عمومی نمایش وبلاگ،
-زمان‌بندی خودکار انتشار.
+- [x] Session 4: صفحه عمومی وبلاگ (guest) + زمان‌بندی خودکار انتشار
+
+  **چه ساخته شد:** دو route عمومی بدون middleware auth —
+  `GET /blog/{companySlug}` و `GET /blog/{companySlug}/{postSlug}` (عمداً
+  *بعد از* route‌های ثابت ادمین `/blog/posts`, `/blog/categories`, `/blog/tags`
+  ثبت شدند تا این segmentهای ثابت به‌اشتباه `{companySlug}` تفسیر نشوند) —
+  `PublicBlogController` (Controller + Blade ساده، نه Livewire: کنترل کامل
+  روی `<head>` برای متا تگ سئو لازم بود و هیچ تعامل reactive نیاز نبود)،
+  scope جدید `BlogPost::scopePublished()` (`post_status=published AND
+  published_at<=now()`)، accessor `display_reading_time` (fallback تخمین
+  ۲۰۰ کلمه/دقیقه وقتی `reading_time_minutes` خالی است)، layout عمومی جدید
+  `layouts/public.blade.php` (متا تگ‌های سئوی واقعی از طریق `@yield`، نه
+  `layouts/guest.blade.php` موجود که مخصوص فرم تک‌ستونی contact-us است)،
+  `resources/views/public/blog/{index,show}.blade.php`. برای زمان‌بندی خودکار:
+  Action جدید `PublishScheduledPost` (بدون actor/Gate — پایین توضیح داده شده)،
+  Artisan command `blog:publish-scheduled`، و اولین ثبت `Schedule::` پروژه در
+  `routes/console.php` (`->everyMinute()`).
+
+  **تصمیم‌های این Session:**
+  - ایزولاسیون شرکت برای مهمان با `withoutGlobalScopes()` + فیلتر صریح
+    `owner_company_id` انجام می‌شود (نه تکیه بر `BelongsToCompany`/`CompanyContext`
+    که برای مهمان بی‌معناست) — همان الگوی `ContactProfile`/`RfmSegmentIndex`.
+    روی `show()`، `published()` و فیلتر شرکت هر دو **قبل از** `firstOrFail()`
+    اعمال می‌شوند، نه به‌عنوان یک چک جدا بعد از یافتن رکورد — یعنی پست
+    scheduled/draft/archived یا متعلق به شرکت دیگر مستقیماً ۴۰۴ می‌دهد، بدون
+    فاصله‌ای که نشتی داده در آن ممکن باشد.
+  - **`PublishScheduledPost` عمداً بدون پارامتر `actor` و بدون
+    `Gate::authorize` ساخته شد** — برخلاف بقیه Action های ماژول Blog. تنها
+    caller این Action یک فرآیند سیستمی زمان‌بندی‌شده است، نه یک کاربر؛ الگویش
+    دقیقاً `CreateFiscalPeriod::buildAttributes()`/`CompanySeeder` (بند
+    «تکمیل هسته Session ۳») است: وقتی کاربری برای authorize کردن وجود ندارد،
+    از مسیر Gate/Policy عبور نمی‌کنیم، نه اینکه یک actor جعلی (مثلاً اولین
+    holding_admin) بسازیم — آن کار در activity_log به‌اشتباه به نام یک کاربر
+    واقعی ثبت می‌شد.
+  - **اولین استفاده `causedBy(null)` در کل پروژه.** `PublishScheduledPost`
+    فعالیت را با causer خالی (`null`) ثبت می‌کند — الگوی جدید «system-caused
+    activity» برای هر فرآیند زمان‌بندی‌شده آینده (مثل انتقال مانده حقوق فاز
+    ۶). تست مستقیم چک می‌کند `Activity::causer` برابر `null` است، نه یک User.
+  - `content_html` مستقیم و بدون escape اضافه چاپ می‌شود (`{!! !!}`) — از قبل
+    در `CreateBlogPost`/`UpdateBlogPost` با `Purifier::clean()` پاک‌سازی شده
+    (Session ۳)؛ این Session escape دومی اضافه نکرد چون تکراری/بی‌فایده بود.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): RSS feed، سیستم
+کامنت، لایک/امتیاز.
 
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

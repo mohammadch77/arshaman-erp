@@ -5,6 +5,7 @@ namespace App\Modules\Blog\Models;
 use App\Modules\Blog\Enums\BlogPostStatus;
 use App\Modules\Core\Concerns\BelongsToCompany;
 use App\Modules\Core\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -64,5 +65,27 @@ class BlogPost extends Model
     public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by_user_id');
+    }
+
+    /**
+     * پستی که برای بازدیدکننده مهمان قابل نمایش است: منتشرشده و زمان انتشارش
+     * فرارسیده. پست scheduled با published_at آینده عمداً حذف می‌شود تا با
+     * URL مستقیم هم دیده نشود.
+     */
+    public function scopePublished(Builder $query): Builder
+    {
+        return $query->where('post_status', BlogPostStatus::Published)
+            ->where('published_at', '<=', now());
+    }
+
+    /**
+     * reading_time_minutes معمولاً دستی و اغلب خالی است؛ اگر ثبت نشده باشد،
+     * یک تخمین ساده بر پایه تعداد کلمه (۲۰۰ کلمه در دقیقه) جایگزین می‌شود تا
+     * صفحه عمومی همیشه یک عدد معنادار نشان دهد.
+     */
+    public function getDisplayReadingTimeAttribute(): int
+    {
+        return $this->reading_time_minutes
+            ?? max(1, (int) ceil(str_word_count(strip_tags($this->content_html ?? '')) / 200));
     }
 }

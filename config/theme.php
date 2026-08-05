@@ -104,6 +104,8 @@ return [
         'blog' => 'o-newspaper',
         'blog-tag' => 'o-bookmark',
         'image' => 'o-photo',
+        'reading-time' => 'o-clock',
+        'back' => 'o-arrow-right',
     ],
 
 ];

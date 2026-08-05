@@ -40,6 +40,7 @@ use App\Livewire\Inventory\LowStockReport;
 use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
 use App\Modules\Blog\Http\Controllers\EditorImageUploadController;
+use App\Modules\Blog\Http\Controllers\PublicBlogController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -125,6 +126,14 @@ Route::livewire('/blog/tags', BlogTagIndex::class)->middleware('auth')->name('bl
 Route::livewire('/blog/tags/create', BlogTagForm::class)->middleware('auth')->name('blog.tags.create');
 Route::livewire('/blog/tags/{tag}/edit', BlogTagForm::class)->middleware('auth')->name('blog.tags.edit');
 Route::post('/blog/editor-image-upload', EditorImageUploadController::class)->middleware('auth')->name('blog.editor-image-upload');
+
+// مسیرهای عمومی وبلاگ — بدون middleware auth. عمداً بعد از route‌های ثابت
+// /blog/posts, /blog/categories, /blog/tags تعریف شده‌اند تا آن segmentهای
+// ثابت به‌اشتباه {companySlug} تفسیر نشوند (Laravel به ترتیب ثبت match می‌کند).
+// همان الگوی ایزولاسیون contact-us: owner_company_id از companySlug مسیر
+// گرفته می‌شود، نه از CompanyContext session.
+Route::get('/blog/{companySlug}', [PublicBlogController::class, 'index'])->name('public-blog.index');
+Route::get('/blog/{companySlug}/{postSlug}', [PublicBlogController::class, 'show'])->name('public-blog.show');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
 // نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای
