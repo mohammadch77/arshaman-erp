@@ -125,6 +125,17 @@
                     <x-menu-item title="پروژه‌ها" :icon="theme_icon('project')" link="#" no-wire-navigate />
                 @endif
 
+                {{-- وبلاگ — عمداً hasRoleInCompany($activeCompany->id) بدون فهرست نقش است،
+                     همان شرط دقیق BlogPostPolicy::viewAny («هر نقشی در شرکت»). بدون محدودیت
+                     business_type چون محتوای وبلاگ برای هر پنج مجموعه معنا دارد. --}}
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-sub title="وبلاگ" :icon="theme_icon('blog')">
+                        <x-menu-item title="پست‌ها" :icon="theme_icon('blog')" link="{{ route('blog.posts.index') }}" />
+                        <x-menu-item title="دسته‌بندی‌ها" :icon="theme_icon('category')" link="{{ route('blog.categories.index') }}" />
+                        <x-menu-item title="برچسب‌ها" :icon="theme_icon('blog-tag')" link="{{ route('blog.tags.index') }}" />
+                    </x-menu-sub>
+                @endif
+
                 {{-- User --}}
                 @if($user = auth()->user())
                     <x-menu-separator />

@@ -737,4 +737,52 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
 که فرض می‌کرد «هر کاربر لاگین‌شده» را می‌بیند جایگزین شد، به‌علاوه یک تست
 نشتی نقش بین‌شرکتی جدید).
 
+### ماژول Blog (جدید — طبق درخواست صریح کارفرما)
+
+- [x] Session 1: دسته‌بندی، برچسب، پست با گردش کار انتشار محدود به نقش
+
+  **چه ساخته شد:** `app/Modules/Blog` (`BlogCategory`/`BlogTag`/`BlogPost`،
+  همه `BelongsToCompany`، پیوت `blog_post_tag` بدون audit مستقل)، enum PHP
+  `BlogPostStatus` (draft/scheduled/published/archived)، `post_status` عمداً
+  نه `status` خام (بند ۳ `DATABASE_CONVENTIONS.md`)، CHECK دوگانه دیتابیس
+  (`chk_blog_posts_status` + `chk_blog_posts_scheduled_needs_date`: scheduled
+  بدون `published_at` رد می‌شود). `BlogPostPolicy::canPublish()` متد جدا از
+  `update()` — فقط `holding_admin`. Action های `CreateBlogPost`/`UpdateBlogPost`
+  عمداً silent coercion دارند نه Exception: برای operator، `author_user_id`
+  و `post_status` هرچه در ورودی باشد نادیده گرفته می‌شود (خودکار خودش/draft) —
+  چون Policy از قبل تضمین کرده این مسیر فقط برای پست‌های از قبل draft خودِ
+  operator باز است. کامپوننت‌های `BlogCategoryIndex`/`Form`،
+  `BlogTagIndex`/`Form`، `BlogPostIndex`/`Form` (مسیر `/blog/posts`,
+  `/blog/categories`, `/blog/tags`).
+
+  **تصمیم‌های این Session:**
+  - **اولین الگوی آپلود فایل پروژه:** `WithFileUploads` لایوایر (نه
+    medialibrary که در CLAUDE.md مجاز است ولی تا امروز هیچ‌جا واقعاً وصل
+    نشده بود) — ذخیره در دیسک `public` مسیر `blog/featured-images/`،
+    `storage:link` این Session اجرا شد (قبلاً وجود نداشت).
+  - **اولین الگوی اسلاگ پروژه:** `Str::slug()` با fallback به
+    `Str::slug(Str::random(8))` اگر عنوان کاملاً غیرلاتین بود و رشته خالی
+    برگرداند؛ در عمل `Str::slug()` عناوین فارسی را هم ترجمه آوایی می‌کند
+    (نه همیشه خوانا)، پس فیلد همیشه قابل ویرایش دستی ماند. یکتایی در سطح
+    شرکت با `Rule::unique(...)->where('owner_company_id', ...)->ignore(...)`
+    روی هر سه فرم (دسته‌بندی/برچسب/پست).
+  - `BlogCategoryPolicy`/`BlogTagPolicy::canManage` عمداً بدون `accountant`
+    (برخلاف `ProductPolicy`) — مدیریت taxonomy محتوایی است نه مالی؛ تصمیم
+    این Session، نه دستور صریح کارفرما.
+  - زمان‌بندی انتشار از `x-jalali-date-select` + یک `x-input type="time"`
+    جدا ترکیب می‌شود، با `Jalali::fromLocal()` به UTC تبدیل می‌شود — الگوی
+    دقیق `ExchangeRateForm`، به‌علاوه ساعت که آنجا لازم نبود.
+  - `content_blocks` این Session فقط یک آرایه یک‌آیتمی `[{type: paragraph,
+    text}]` از یک textarea ساده است؛ `content_html` همیشه `null` می‌ماند —
+    عمداً جای‌گیر تا Session بعد با Editor.js واقعی.
+  - منوی «وبلاگ» بدون محدودیت `business_type` (برخلاف انبار) — محتوای
+    وبلاگ برای هر پنج مجموعه معنا دارد؛ شرط دقیقاً `BlogPostPolicy::viewAny`.
+  - بازدید بصری کامل (دسته‌بندی → برچسب → پست با انتخاب برچسب چندتایی +
+    زمان‌بندی شمسی) با کاربر تستی موقت `blog-visual-test@example.com` انجام
+    و در پایان کامل حذف شد (بند ۱۰ CLAUDE.md).
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): ادیتور Editor.js
+واقعی، رندر HTML سمت سرور، صفحه عمومی وبلاگ، زمان‌بندی خودکار انتشار
+(cron/job که وقتی `published_at` رسید status را به `published` تغییر دهد).
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

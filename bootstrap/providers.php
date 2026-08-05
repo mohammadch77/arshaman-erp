@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Blog\Providers\BlogServiceProvider;
 use App\Modules\Catalog\Providers\CatalogServiceProvider;
 use App\Modules\Core\Providers\CoreServiceProvider;
 use App\Modules\CRM\Providers\CrmServiceProvider;
@@ -14,4 +15,5 @@ return [
     CrmServiceProvider::class,
     CatalogServiceProvider::class,
     InventoryServiceProvider::class,
+    BlogServiceProvider::class,
 ];

@@ -101,6 +101,9 @@ return [
         'archive' => 'o-archive-box',
         'inbox' => 'o-inbox',
         'history' => 'o-clock',
+        'blog' => 'o-newspaper',
+        'blog-tag' => 'o-bookmark',
+        'image' => 'o-photo',
     ],
 
 ];

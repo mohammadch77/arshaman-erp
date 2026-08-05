@@ -1,5 +1,11 @@
 <?php
 
+use App\Livewire\Blog\BlogCategoryForm;
+use App\Livewire\Blog\BlogCategoryIndex;
+use App\Livewire\Blog\BlogPostForm;
+use App\Livewire\Blog\BlogPostIndex;
+use App\Livewire\Blog\BlogTagForm;
+use App\Livewire\Blog\BlogTagIndex;
 use App\Livewire\Catalog\ProductForm;
 use App\Livewire\Catalog\ProductIndex;
 use App\Livewire\Core\Auth\AcceptInvitation;
@@ -107,6 +113,16 @@ Route::livewire('/inventory/stock', StockIndex::class)->middleware('auth')->name
 Route::livewire('/inventory/receive', StockMovementForm::class)->middleware('auth')->name('inventory.receive')->defaults('type', 'in');
 Route::livewire('/inventory/issue', StockMovementForm::class)->middleware('auth')->name('inventory.issue')->defaults('type', 'out');
 Route::livewire('/inventory/low-stock-report', LowStockReport::class)->middleware('auth')->name('inventory.low-stock-report');
+
+Route::livewire('/blog/posts', BlogPostIndex::class)->middleware('auth')->name('blog.posts.index');
+Route::livewire('/blog/posts/create', BlogPostForm::class)->middleware('auth')->name('blog.posts.create');
+Route::livewire('/blog/posts/{post}/edit', BlogPostForm::class)->middleware('auth')->name('blog.posts.edit');
+Route::livewire('/blog/categories', BlogCategoryIndex::class)->middleware('auth')->name('blog.categories.index');
+Route::livewire('/blog/categories/create', BlogCategoryForm::class)->middleware('auth')->name('blog.categories.create');
+Route::livewire('/blog/categories/{category}/edit', BlogCategoryForm::class)->middleware('auth')->name('blog.categories.edit');
+Route::livewire('/blog/tags', BlogTagIndex::class)->middleware('auth')->name('blog.tags.index');
+Route::livewire('/blog/tags/create', BlogTagForm::class)->middleware('auth')->name('blog.tags.create');
+Route::livewire('/blog/tags/{tag}/edit', BlogTagForm::class)->middleware('auth')->name('blog.tags.edit');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
 // نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای
