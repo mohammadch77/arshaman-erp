@@ -923,4 +923,93 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): RSS feed، سیستم
 کامنت، لایک/امتیاز.
 
+- [x] Session 5: Autosave پیش‌نویس، حذف بایگانی، حذف پست، برچسب آزاد، پیش‌نمایش
+
+  **چه ساخته شد:**
+  - **Autosave:** Action جدید `AutosaveBlogPostDraft` (authorize داخل خودش،
+    Purifier، تولید اسلاگ یکتا با پسوند عددی به‌جای رد‌کردن با خطا) که فقط
+    `title`/`slug`/`content_html` می‌نویسد — عمداً بسیار محدودتر از
+    `CreateBlogPost`/`UpdateBlogPost` چون با هر ضربه کلید (بعد از
+    debounce ۲ ثانیه‌ای `wire:model.live.debounce.2000ms`) صدا زده می‌شود و
+    نباید اعتبارسنجی کامل (متا، تصویر، وضعیت) اجرا کند. `BlogPostForm` در
+    `updatedTitle`/`updatedContent` آن را صدا می‌زند؛ فقط وقتی رکورد نداریم
+    یا رکورد `draft` است اجرا می‌شود؛ خطاها (`try/catch(Throwable)`) بی‌صدا
+    نادیده گرفته می‌شوند تا تایپ کاربر قطع نشود — ذخیره نهایی همچنان
+    اعتبارسنجی کامل خودش را دارد.
+  - **باگ واقعی کشف‌شده حین نوشتن تست:** اگر autosave همیشه
+    `$this->slug` نمایشی را با اسلاگ واقعاً ذخیره‌شده همگام می‌کرد، وقتی
+    کاربر خودش دستی یک اسلاگ تکراری تایپ می‌کرد، autosave به‌خاطر تصادم یک
+    نسخه یکتای دیگر می‌ساخت و بی‌صدا مقدار تایپ‌شده کاربر را در UI بازنویسی
+    می‌کرد — نتیجه: خطای «اسلاگ تکراری» که باید در ذخیره نهایی نشان داده
+    شود، هرگز دیده نمی‌شد. اصلاح شد: `$this->slug` فقط وقتی
+    `! $this->slugManuallyEdited` است از رکورد همگام می‌شود.
+  - **حذف کامل «بایگانی‌شده»:** `BlogPostStatus` به سه حالت
+    (`Draft`/`Scheduled`/`Published`) کاهش یافت؛ migration اصلاحی
+    `2026_08_13_100001` هر رکورد `archived` قدیمی را به `draft` برمی‌گرداند
+    و بعد CHECK را با `DROP CHECK`/`ADD CONSTRAINT` به سه مقدار تنگ می‌کند
+    (طبق بند ۳.۲ `DATABASE_CONVENTIONS.md`).
+  - **حذف پست:** `BlogPostPolicy::delete()` دقیقاً همان `update()` را صدا
+    می‌زند (holding_admin هر پستی، operator فقط پیش‌نویس خودش). Action
+    `DeleteBlogPost` (authorize داخل خودش، soft-delete واقعی). دکمه در
+    `BlogPostIndex` با `wire:confirm` — همان الگوی تأییدیه غیرقابل‌بازگشت
+    `FiscalPeriodIndex::close`، نه یک مودال اختصاصی جدا.
+  - **برچسب آزاد:** select چندتایی قبلی (`x-choices` روی `tag_ids`) با یک
+    ورودی متنی Alpine جایگزین شد (`$wire.entangle('tagNames')`، همان الگوی
+    `time-picker.blade.php`؛ Enter/کاما یک chip قابل‌حذف اضافه می‌کند). موقع
+    ذخیره، `BlogPostForm::resolveTagIds()` هر نام را با
+    `BlogTag::firstOrCreate` به id واقعی تبدیل می‌کند — محدود به برچسب‌های
+    از‌پیش‌ساخته در پنل تگ‌ها نیست. **نکته:** تطبیق بر پایه اسلاگ است نه نام
+    خام، و چون `Str::slug()` روی نام کاملاً فارسی رشته خالی برمی‌گرداند
+    (همان مشکل قبلاً مستندشده در Session ۱ برای اسلاگ پست)، اینجا برخلاف
+    `generateSlug` فرم (که یک fallback تصادفی کافی بود چون کاربر بعداً
+    دستی ویرایش می‌کند) fallback باید decisive باشد — از `sha1(name)` کوتاه
+    استفاده شد، وگرنه تایپ دوباره‌ی همان نام فارسی هر بار یک تگ تکراری جدید
+    می‌ساخت.
+  - **پیش‌نمایش:** بخش `<article>` صفحه عمومی پست
+    (`public/blog/show.blade.php`) به `resources/views/blog/partials/post-content.blade.php`
+    استخراج شد (فقط به `$post` نیاز دارد). کنترلر+روت جدید
+    `blog.posts.preview` (`GET /blog/posts/{post}/preview`، پشت `auth` +
+    `BlogPostPolicy::view` — نه `published()`؛ یعنی صرف‌نظر از
+    `post_status` قابل مشاهده است) همان partial را در یک بنر هشدار زرد
+    نشان می‌دهد. `findOrFail` عمداً global scope مدل (`BelongsToCompany`)
+    را حفظ می‌کند — دقیقاً مثل `BlogPostForm::mount`، فقط پست شرکت فعال
+    سوییچر قابل پیش‌نمایش است، نه هر شرکتی.
+
+  **محدودیت این Session:** بازدید بصری واقعی در مرورگر ممکن نشد (sandbox
+  دسترسی به دامنه/پورت لوکال arshaman-erp.test را رد کرد)؛ تأیید فقط از
+  طریق ۴۰ تست خودکار جدید/به‌روزشده (`BlogPostManagementTest` + اصلاح
+  `PublicBlogPageTest`) و کل سوییت پروژه (۳۶۸ سبز، ۱۰ skip — همان
+  CHECKهای mysql-only) انجام شد؛ تأیید بصری chip‌های برچسب و دکمه‌های
+  پیش‌نمایش/حذف در UI واقعی هنوز روی کاربر باقی است.
+
+  **باگ ۵۰۰ کشف‌شده بعد از این Session (توسط کاربر، در استفاده واقعی):**
+  دقیقاً همین محدودیت («بازدید بصری ممکن نشد») واقعیت پیدا کرد.
+  `/blog/posts` با `Undefined variable $activeCompanySlug` خطای ۵۰۰
+  می‌داد. **علت:** دایرکتیو `@scope('actions', $post)` بسته mary UI
+  (`Table.php`/`MaryServiceProvider::registerScopeDirective`) هیچ
+  متغیری از scope بیرونی view را خودکار capture نمی‌کند — فقط همان‌هایی
+  که صریحاً به‌عنوان آرگومان اضافه به خودِ `@scope` داده شوند وارد
+  `use()` کلوژر می‌شوند. چون `render()` در `BlogPostIndex.php`
+  `activeCompanySlug` را به view پاس می‌داد ولی `@scope('actions', $post)`
+  آن را در آرگومان‌هایش نداشت، هر جدولی که واقعاً حداقل یک ردیف رندر
+  می‌کرد (نه Livewire::test بدون رکورد) با این خطا مواجه می‌شد. رفع شد با
+  `@scope('actions', $post, $activeCompanySlug)`.
+  **درسِ تکراری (سومین‌بار در تاریخچه این ماژول، بعد از Editor.js list و
+  Quill data-list در Session‌های قبلی):** رفتار دقیق یک کتابخانه/بسته
+  خارجی (اینجا: دایرکتیو سفارشی Blade یک پکیج) را هرگز از روی نام یا
+  شهود فرض نکن — کد واقعی پکیج را بخوان، مخصوصاً وقتی متغیرهای «بدیهاً
+  در دسترس» ناگهان undefined می‌شوند.
+  **تست اضافه‌شده برای جلوگیری از تکرار:** تست‌های قبلی این Session یک
+  خلأ داشتند — همه از `Livewire::test(BlogPostForm::class)` یا
+  `$this->get()` روی `blog.posts.preview` استفاده می‌کردند، هیچ‌کدام
+  `BlogPostIndex` را با حداقل یک ردیف واقعی و از طریق یک درخواست HTTP
+  کامل (نه Livewire::test) رندر نمی‌کردند — دقیقاً شرطی که این باگ را آشکار
+  می‌کند. تست جدید در `BlogPostManagementTest` (`renders the real
+  /blog/posts index page over HTTP...`) این خلأ را می‌بندد: سه پست با هر
+  سه وضعیت می‌سازد و `/blog/posts` را با `$this->get()` واقعی باز می‌کند.
+  **قاعده‌ای که از این پس رعایت می‌شود:** هر صفحه Livewire ای که از
+  `@scope`/کامپوننت‌های مشابه mary UI استفاده می‌کند، حداقل یک تست باید
+  آن را با یک درخواست HTTP واقعی و حداقل یک ردیف داده رندر کند — نه فقط
+  از طریق `Livewire::test` روی خودِ کامپوننت فرم.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

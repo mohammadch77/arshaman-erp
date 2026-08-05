@@ -39,6 +39,7 @@ use App\Livewire\HR\SelfService\MyPayslips;
 use App\Livewire\Inventory\LowStockReport;
 use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
+use App\Modules\Blog\Http\Controllers\BlogPostPreviewController;
 use App\Modules\Blog\Http\Controllers\EditorImageUploadController;
 use App\Modules\Blog\Http\Controllers\PublicBlogController;
 use Illuminate\Support\Facades\Auth;
@@ -119,6 +120,7 @@ Route::livewire('/inventory/low-stock-report', LowStockReport::class)->middlewar
 Route::livewire('/blog/posts', BlogPostIndex::class)->middleware('auth')->name('blog.posts.index');
 Route::livewire('/blog/posts/create', BlogPostForm::class)->middleware('auth')->name('blog.posts.create');
 Route::livewire('/blog/posts/{post}/edit', BlogPostForm::class)->middleware('auth')->name('blog.posts.edit');
+Route::get('/blog/posts/{post}/preview', BlogPostPreviewController::class)->middleware('auth')->name('blog.posts.preview');
 Route::livewire('/blog/categories', BlogCategoryIndex::class)->middleware('auth')->name('blog.categories.index');
 Route::livewire('/blog/categories/create', BlogCategoryForm::class)->middleware('auth')->name('blog.categories.create');
 Route::livewire('/blog/categories/{category}/edit', BlogCategoryForm::class)->middleware('auth')->name('blog.categories.edit');

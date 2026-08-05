@@ -106,6 +106,7 @@ return [
         'image' => 'o-photo',
         'reading-time' => 'o-clock',
         'back' => 'o-arrow-right',
+        'preview' => 'o-eye',
     ],
 
 ];

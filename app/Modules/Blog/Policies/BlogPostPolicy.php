@@ -53,6 +53,14 @@ class BlogPostPolicy
     }
 
     /**
+     * دقیقاً همان قانون update — holding_admin هر پستی، operator فقط پیش‌نویس خودش.
+     */
+    public function delete(User $user, BlogPost $post): bool
+    {
+        return $this->update($user, $post);
+    }
+
+    /**
      * تنها holding_admin مجاز است status را به scheduled/published تغییر دهد.
      * متد جدا (نه بخشی از update) چون هم در فرم (فعال/غیرفعال‌کردن فیلد) و هم در Action لازم است.
      */

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Blog;
 
+use App\Modules\Blog\Actions\DeleteBlogPost;
 use App\Modules\Blog\Enums\BlogPostStatus;
 use App\Modules\Blog\Models\BlogCategory;
 use App\Modules\Blog\Models\BlogPost;
@@ -9,10 +10,11 @@ use App\Modules\Core\Models\User;
 use App\Modules\Core\Services\CompanyContext;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Mary\Traits\Toast;
 
 class BlogPostIndex extends Component
 {
-    use WithPagination;
+    use Toast, WithPagination;
 
     public string $search = '';
 
@@ -25,6 +27,17 @@ class BlogPostIndex extends Component
     public function mount(): void
     {
         $this->authorize('viewAny', BlogPost::class);
+    }
+
+    public function delete(string $postId, DeleteBlogPost $action): void
+    {
+        $post = BlogPost::findOrFail($postId);
+
+        $this->authorize('delete', $post);
+
+        $action->handle($post, auth()->user());
+
+        $this->success('پست حذف شد.');
     }
 
     public function updatedSearch(): void
@@ -90,6 +103,7 @@ class BlogPostIndex extends Component
     {
         return view('livewire.blog.blog-post-index', [
             'posts' => $this->posts,
+            'activeCompanySlug' => app(CompanyContext::class)->activeCompany()?->slug,
         ]);
     }
 }

@@ -7,7 +7,7 @@
 
     <x-card shadow class="max-w-3xl">
         <x-form @submit.prevent="window.saveBlogEditor('{{ $editorId }}').then(() => $wire.save())" class="gap-5">
-            <x-input label="عنوان" wire:model.live="title" :icon="theme_icon('blog')" required />
+            <x-input label="عنوان" wire:model.live.debounce.2000ms="title" :icon="theme_icon('blog')" required />
 
             <x-input label="اسلاگ" wire:model="slug" :icon="theme_icon('link-account')" required hint="در آدرس صفحه استفاده می‌شود، فقط حروف/اعداد انگلیسی و خط تیره" />
 
@@ -35,15 +35,46 @@
                 placeholder-value=""
             />
 
-            <x-choices
-                label="برچسب‌ها"
-                wire:model="tag_ids"
-                :options="$this->tagOptions"
-                option-value="id"
-                option-label="name"
-                searchable
-                :icon="theme_icon('blog-tag')"
-            />
+            <div
+                x-data="{
+                    tagInput: '',
+                    tags: $wire.entangle('tagNames'),
+                    addTag() {
+                        const value = this.tagInput.trim();
+
+                        if (value !== '' && ! this.tags.includes(value)) {
+                            this.tags.push(value);
+                        }
+
+                        this.tagInput = '';
+                    },
+                }"
+            >
+                <div class="fieldset-legend mb-1">
+                    <x-icon :name="theme_icon('blog-tag')" class="h-4 w-4 inline-block align-text-top" />
+                    برچسب‌ها
+                </div>
+
+                <div class="flex flex-wrap gap-2 mb-2" x-show="tags.length > 0">
+                    <template x-for="(tag, index) in tags" :key="index">
+                        <span class="badge badge-outline gap-1 py-3">
+                            <span x-text="tag"></span>
+                            <button type="button" @click="tags.splice(index, 1)" class="cursor-pointer">
+                                <x-icon :name="theme_icon('clear')" class="h-3 w-3" />
+                            </button>
+                        </span>
+                    </template>
+                </div>
+
+                <input
+                    type="text"
+                    x-model="tagInput"
+                    @keydown.enter.prevent="addTag()"
+                    @keydown.comma.prevent="addTag()"
+                    class="input w-full"
+                    placeholder="تایپ کنید و Enter یا کاما بزنید"
+                />
+            </div>
 
             <x-select
                 label="نویسنده"
@@ -95,7 +126,7 @@
                 >
                     <div id="{{ $editorId }}"></div>
                 </div>
-                <input type="hidden" id="editor-content-input-{{ $editorId }}" wire:model="content" />
+                <input type="hidden" id="editor-content-input-{{ $editorId }}" wire:model.live.debounce.2000ms="content" />
             </div>
 
             <x-input label="زمان مطالعه (دقیقه، اختیاری)" wire:model="reading_time_minutes" :icon="theme_icon('history')" />

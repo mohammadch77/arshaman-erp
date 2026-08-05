@@ -60,14 +60,14 @@ it('returns 404 for a scheduled post whose published_at is in the future even vi
         ->assertDontSee($post->title);
 });
 
-it('returns 404 for draft and archived posts', function () {
+it('returns 404 for draft and future-scheduled posts', function () {
     $company = publicBlogCompany('three');
 
     $draft = publicBlogPost($company, ['post_status' => 'draft', 'published_at' => null]);
-    $archived = publicBlogPost($company, ['post_status' => 'archived', 'published_at' => now()->subWeek()]);
+    $scheduled = publicBlogPost($company, ['post_status' => 'scheduled', 'published_at' => now()->addWeek()]);
 
     $this->get(route('public-blog.show', [$company->slug, $draft->slug]))->assertNotFound();
-    $this->get(route('public-blog.show', [$company->slug, $archived->slug]))->assertNotFound();
+    $this->get(route('public-blog.show', [$company->slug, $scheduled->slug]))->assertNotFound();
 });
 
 it('isolates published posts by company on both the index and show pages', function () {

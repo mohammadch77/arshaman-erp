@@ -59,7 +59,6 @@
                         \App\Modules\Blog\Enums\BlogPostStatus::Draft => 'badge-ghost',
                         \App\Modules\Blog\Enums\BlogPostStatus::Scheduled => 'badge-warning',
                         \App\Modules\Blog\Enums\BlogPostStatus::Published => 'badge-success',
-                        \App\Modules\Blog\Enums\BlogPostStatus::Archived => 'badge-neutral',
                     } }}"
                 />
             @endscope
@@ -68,13 +67,39 @@
                 {{ \App\Support\Jalali::toDisplayDateTime($post->published_at) ?? '—' }}
             @endscope
 
-            @scope('actions', $post)
+            {{--
+                @scope فقط متغیرهایی را که صریحاً به‌عنوان آرگومان اضافه پاس داده
+                شوند capture می‌کند (نه کل scope بیرونی view را) — پس $activeCompanySlug
+                باید همین‌جا صریح اضافه شود، وگرنه داخل closure این بلوک تعریف‌نشده است.
+            --}}
+            @scope('actions', $post, $activeCompanySlug)
+                @can('view', $post)
+                    <x-button
+                        :icon="theme_icon('preview')"
+                        tooltip-left="پیش‌نمایش"
+                        class="btn-circle btn-ghost btn-sm"
+                        link="{{ $post->post_status === \App\Modules\Blog\Enums\BlogPostStatus::Published && $activeCompanySlug ? route('public-blog.show', [$activeCompanySlug, $post->slug]) : route('blog.posts.preview', $post->id) }}"
+                        target="_blank"
+                    />
+                @endcan
+
                 @can('update', $post)
                     <x-button
                         :icon="theme_icon('edit')"
                         tooltip-left="ویرایش"
                         class="btn-circle btn-ghost btn-sm"
                         link="{{ route('blog.posts.edit', $post->id) }}"
+                    />
+                @endcan
+
+                @can('delete', $post)
+                    <x-button
+                        :icon="theme_icon('delete')"
+                        tooltip-left="حذف"
+                        class="btn-circle btn-ghost btn-sm text-error"
+                        wire:click="delete('{{ $post->id }}')"
+                        wire:confirm="این پست حذف می‌شود. ادامه می‌دهید؟"
+                        spinner="delete('{{ $post->id }}')"
                     />
                 @endcan
             @endscope

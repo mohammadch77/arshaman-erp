@@ -7,7 +7,6 @@ enum BlogPostStatus: string
     case Draft = 'draft';
     case Scheduled = 'scheduled';
     case Published = 'published';
-    case Archived = 'archived';
 
     public function label(): string
     {
@@ -15,7 +14,6 @@ enum BlogPostStatus: string
             self::Draft => 'پیش‌نویس',
             self::Scheduled => 'زمان‌بندی‌شده',
             self::Published => 'منتشرشده',
-            self::Archived => 'بایگانی‌شده',
         };
     }
 }

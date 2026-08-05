@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Blog;
 
+use App\Modules\Blog\Actions\AutosaveBlogPostDraft;
 use App\Modules\Blog\Actions\CreateBlogPost;
 use App\Modules\Blog\Actions\UpdateBlogPost;
 use App\Modules\Blog\Enums\BlogPostStatus;
@@ -18,6 +19,7 @@ use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Mary\Traits\Toast;
+use Throwable;
 
 class BlogPostForm extends Component
 {
@@ -37,7 +39,11 @@ class BlogPostForm extends Component
 
     public string $category_id = '';
 
-    public array $tag_ids = [];
+    /**
+     * برچسب آزاد: نام‌های تایپ‌شده توسط کاربر (نه id). موقع ذخیره با
+     * BlogTag::firstOrCreate به رکورد واقعی تبدیل می‌شوند.
+     */
+    public array $tagNames = [];
 
     public string $author_user_id = '';
 
@@ -74,7 +80,7 @@ class BlogPostForm extends Component
             $this->meta_title = (string) $this->record->meta_title;
             $this->meta_description = (string) $this->record->meta_description;
             $this->category_id = (string) $this->record->category_id;
-            $this->tag_ids = $this->record->tags->pluck('id')->all();
+            $this->tagNames = $this->record->tags->pluck('name')->all();
             $this->author_user_id = $this->record->author_user_id;
             $this->content = (string) ($this->record->content_html ?? '');
             $this->reading_time_minutes = (string) ($this->record->reading_time_minutes ?? '');
@@ -99,6 +105,13 @@ class BlogPostForm extends Component
         if (! $this->slugManuallyEdited) {
             $this->slug = $this->generateSlug($this->title);
         }
+
+        $this->autosaveDraft();
+    }
+
+    public function updatedContent(): void
+    {
+        $this->autosaveDraft();
     }
 
     public function updatedSlug(): void
@@ -111,6 +124,54 @@ class BlogPostForm extends Component
         $slug = Str::slug($source);
 
         return $slug !== '' ? $slug : Str::slug(Str::random(8));
+    }
+
+    /**
+     * حالت ساخت: به‌محض عنوان غیرخالی یک draft ساخته می‌شود و id آن در
+     * $this->record می‌ماند تا فراخوانی‌های بعدی همان رکورد را update کنند.
+     * حالت ویرایش: فقط تا وقتی پست خودش draft است فعال می‌ماند — روی
+     * scheduled/published هیچ نوشتنی رخ نمی‌دهد، فقط دکمه «ذخیره تغییرات»
+     * صریح کار می‌کند. خطاها بی‌صدا نادیده گرفته می‌شوند (بند ۱، مشخصات
+     * کارفرما) چون کاربر هنوز در حال تایپ است؛ ذخیره نهایی همچنان
+     * اعتبارسنجی کامل خودش را دارد.
+     */
+    public function autosaveDraft(): void
+    {
+        if (trim($this->title) === '') {
+            return;
+        }
+
+        if ($this->record && $this->record->post_status !== BlogPostStatus::Draft) {
+            return;
+        }
+
+        $companyContext = app(CompanyContext::class);
+        $companyId = $this->record?->owner_company_id ?? $companyContext->id();
+
+        if ($companyId === null) {
+            return;
+        }
+
+        $slug = $this->slug !== '' ? $this->slug : $this->generateSlug($this->title);
+
+        try {
+            $this->record = app(AutosaveBlogPostDraft::class)->handle($this->record, [
+                'owner_company_id' => $companyId,
+                'title' => $this->title,
+                'slug' => $slug,
+                'content_html' => $this->content,
+            ], auth()->user());
+
+            // اگر کاربر خودش دستی اسلاگ را ویرایش کرده، مقدار تایپ‌شده‌اش دست‌نخورده
+            // می‌ماند — حتی اگر autosave به‌خاطر تصادم مجبور شده باشد یک نسخه یکتای
+            // دیگر را در دیتابیس ذخیره کند. وگرنه اعتبارسنجی نهایی save() هرگز تصادم
+            // واقعی را به کاربر نشان نمی‌دهد (autosave بی‌صدا آن را دور می‌زند).
+            if (! $this->slugManuallyEdited) {
+                $this->slug = $this->record->slug;
+            }
+        } catch (Throwable) {
+            // ذخیره خودکار تلاش بی‌صداست؛ شکست آن نباید تایپ کاربر را مزاحم شود.
+        }
     }
 
     public function updatedJalaliParts($value, $key): void
@@ -164,13 +225,6 @@ class BlogPostForm extends Component
             ->all();
     }
 
-    public function getTagOptionsProperty(): array
-    {
-        return BlogTag::query()->orderBy('name')->get()
-            ->map(fn (BlogTag $tag) => ['id' => $tag->id, 'name' => $tag->name])
-            ->all();
-    }
-
     public function getAuthorOptionsProperty(): array
     {
         $companyId = app(CompanyContext::class)->id();
@@ -212,8 +266,8 @@ class BlogPostForm extends Component
             'meta_title' => ['nullable', 'string', 'max:70'],
             'meta_description' => ['nullable', 'string', 'max:160'],
             'category_id' => ['nullable', 'uuid', 'exists:blog_categories,id'],
-            'tag_ids' => ['array'],
-            'tag_ids.*' => ['uuid', 'exists:blog_tags,id'],
+            'tagNames' => ['array'],
+            'tagNames.*' => ['string', 'max:60'],
             'content' => ['required', 'string'],
             'reading_time_minutes' => ['nullable', 'integer', 'min:0'],
             'post_status' => ['required', Rule::in(array_map(fn ($case) => $case->value, BlogPostStatus::cases()))],
@@ -221,6 +275,50 @@ class BlogPostForm extends Component
             'scheduled_date' => [$this->canPublish && $this->post_status === BlogPostStatus::Scheduled->value ? 'required' : 'nullable', 'date'],
             'scheduled_time' => [$this->canPublish && $this->post_status === BlogPostStatus::Scheduled->value ? 'required' : 'nullable', 'date_format:H:i'],
         ];
+    }
+
+    /**
+     * برچسب آزاد: هر نام تایپ‌شده یا به رکورد موجود همان شرکت وصل می‌شود
+     * (تطبیق بر اسلاگ) یا خودکار ساخته می‌شود — محدود به برچسب‌های
+     * از‌پیش‌ساخته در ماژول تگ‌ها نیست.
+     *
+     * @param  array<int, string>  $names
+     * @return array<int, string>
+     */
+    protected function resolveTagIds(?string $companyId, array $names): array
+    {
+        if ($companyId === null) {
+            return [];
+        }
+
+        return collect($names)
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique(fn ($name) => $this->tagSlug($name))
+            ->map(function (string $name) use ($companyId) {
+                $tag = BlogTag::withoutGlobalScopes()->firstOrCreate(
+                    ['owner_company_id' => $companyId, 'slug' => $this->tagSlug($name)],
+                    ['name' => $name, 'created_by_user_id' => auth()->id(), 'updated_by_user_id' => auth()->id()],
+                );
+
+                return $tag->id;
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Str::slug روی نام کاملاً فارسی رشته خالی برمی‌گرداند (همان مشکل مستند‌شده
+     * در generateSlug پست/BlogTagForm). آنجا چون کاربر بعداً دستی ویرایش می‌کند
+     * یک fallback تصادفی کافی بود؛ اینجا چون هیچ فرم دستی‌ای در کار نیست و باید
+     * تایپ دوباره‌ی همان نام دقیقاً به همان تگ برسد (نه یک تگ تکراری جدید)،
+     * fallback باید decisive و برای یک نام ثابت همیشه یکسان باشد.
+     */
+    protected function tagSlug(string $name): string
+    {
+        $slug = Str::slug($name);
+
+        return $slug !== '' ? $slug : 'tag-'.substr(sha1($name), 0, 8);
     }
 
     public function save(CreateBlogPost $createAction, UpdateBlogPost $updateAction, CompanyContext $companyContext): void
@@ -235,6 +333,10 @@ class BlogPostForm extends Component
         unset($data['content']);
 
         $data['author_user_id'] = $this->author_user_id ?: auth()->id();
+
+        $ownerCompanyId = $this->record?->owner_company_id ?? $companyContext->id();
+        $data['tag_ids'] = $this->resolveTagIds($ownerCompanyId, $data['tagNames']);
+        unset($data['tagNames']);
 
         if ($data['post_status'] === BlogPostStatus::Scheduled->value) {
             $data['published_at'] = Jalali::fromLocal("{$data['scheduled_date']} {$data['scheduled_time']}");
