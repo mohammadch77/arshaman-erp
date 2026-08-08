@@ -46,7 +46,8 @@ it('autosaves a new draft post as soon as the title is set, without an explicit 
     session(['active_company_id' => $company->id]);
 
     Livewire::test(BlogPostForm::class)
-        ->set('title', 'پست خودکار ذخیره‌شده');
+        ->set('title', 'پست خودکار ذخیره‌شده')
+        ->call('runAutosave');
 
     $post = BlogPost::where('title', 'پست خودکار ذخیره‌شده')->first();
 
@@ -62,8 +63,11 @@ it('reuses the same autosaved record for subsequent content autosaves instead of
 
     Livewire::test(BlogPostForm::class)
         ->set('title', 'پست تکرارنشونده')
+        ->call('runAutosave')
         ->set('content', '<p>محتوای اول</p>')
-        ->set('content', '<p>محتوای دوم</p>');
+        ->call('runAutosave')
+        ->set('content', '<p>محتوای دوم</p>')
+        ->call('runAutosave');
 
     expect(BlogPost::where('title', 'پست تکرارنشونده')->count())->toBe(1);
 
@@ -89,9 +93,80 @@ it('does not autosave changes to an already scheduled or published post', functi
     ]);
 
     Livewire::test(BlogPostForm::class, ['post' => $post->id])
-        ->set('title', 'تلاش برای ویرایش بی‌صدا');
+        ->set('title', 'تلاش برای ویرایش بی‌صدا')
+        ->call('runAutosave');
 
     expect($post->fresh()->title)->toBe('پست منتشرشده');
+});
+
+// ————— بخش ۱.۵: ذخیره نهایی نباید به autosave وابسته باشد (باگ واقعی) —————
+//
+// در استفاده واقعی، کاربر می‌تواند بلافاصله بعد از تایپ عنوان روی «ثبت» کلیک
+// کند — سریع‌تر از چیزی که autosave سمت مرورگر (debounce دوثانیه‌ای) فرصت
+// اجرا پیدا کند. save() باید مستقل از اینکه runAutosave قبلش اجرا شده یا نه،
+// همیشه با محتوای تازه‌ترین کاربر کار کند و اسلاگ را خودش تولید کند — نه اینکه
+// به یک اسلاگ خالی (چون فقط autosave آن را پر می‌کرد) با خطای اعتبارسنجی
+// خاموش شکست بخورد.
+it('creates a post via a real submit even when autosave never ran first', function () {
+    [$admin, $company] = mgmtActingAsWithRole('holding_admin');
+    $this->actingAs($admin);
+    session(['active_company_id' => $company->id]);
+
+    Livewire::test(BlogPostForm::class)
+        ->set('title', 'پست بدون autosave قبلی')
+        ->set('content', '<p>این محتوا باید دقیقاً ذخیره شود.</p>')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $post = BlogPost::where('title', 'پست بدون autosave قبلی')->first();
+
+    expect($post)->not->toBeNull()
+        ->and($post->slug)->not->toBe('')
+        ->and($post->content_html)->toContain('این محتوا باید دقیقاً ذخیره شود.');
+});
+
+// ————— بخش ۱.۶: ویرایش نباید محتوای موجود را پاک کند (باگ واقعی) —————
+//
+// باگ واقعی: چون Blade، هم div ادیتور Quill را با wire:ignore منجمد می‌کرد و
+// هم id ورودی مخفی content را از رکورد ($this->record?->id ?? 'new') مشتق
+// می‌کرد، هر رندر مجددی که این id را عوض می‌کرد باعث می‌شد Quill به یک id
+// دیگر بنویسد و محتوا هرگز واقعاً ذخیره نشود. این تست با یک درخواست HTTP
+// واقعی (نه فقط Livewire::test) صفحه ویرایش را باز می‌کند تا مطمئن شود محتوای
+// از‌پیش‌موجود در HTML رندرشده واقعاً حاضر است — دقیقاً همان درسی که از باگ
+// @scope گرفتیم: باگ‌های رندر فقط با یک درخواست HTTP کامل دیده می‌شوند.
+it('renders a real edit page over HTTP with the existing content intact, and a real save preserves it', function () {
+    [$admin, $company] = mgmtActingAsWithRole('holding_admin');
+    $this->actingAs($admin);
+    session(['active_company_id' => $company->id]);
+
+    $post = BlogPost::create([
+        'owner_company_id' => $company->id,
+        'author_user_id' => $admin->id,
+        'title' => 'پست ویرایش با محتوای واقعی',
+        'slug' => 'real-edit-content-'.uniqid(),
+        'content_html' => '<p>این محتوای اولیه است که نباید در ویرایش گم شود.</p>',
+        'post_status' => BlogPostStatus::Draft->value,
+        'created_by_user_id' => $admin->id,
+        'updated_by_user_id' => $admin->id,
+    ]);
+
+    // محتوای اولیه از طریق x-init="window.initBlogEditor(..., @js($initialContent), ...)"
+    // به Quill پاس داده می‌شود — @js() آن را JSON-escape می‌کند (از جمله یونیکد
+    // فارسی و علائم <>)، پس متن فارسی خام در HTML رندرشده به‌صورت لفظی دیده
+    // نمی‌شود. برای بررسی واقعی باید همان encoding را با Js::from() بازتولید
+    // کرد، نه substring خام فارسی را جست‌وجو کرد.
+    $this->get(route('blog.posts.edit', $post->id))
+        ->assertOk()
+        ->assertSee(\Illuminate\Support\Js::from($post->content_html)->toHtml(), false);
+
+    Livewire::test(BlogPostForm::class, ['post' => $post->id])
+        ->set('content', '<p>این محتوای اولیه است که نباید در ویرایش گم شود. -- افزوده‌شده در ویرایش.</p>')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($post->fresh()->content_html)
+        ->toContain('این محتوای اولیه است که نباید در ویرایش گم شود.')
+        ->toContain('افزوده‌شده در ویرایش.');
 });
 
 // ————— بخش ۲: حذف کامل بایگانی —————

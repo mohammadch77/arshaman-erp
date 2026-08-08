@@ -68,8 +68,23 @@ class BlogPostForm extends Component
 
     public string $scheduled_date = '';
 
+    /**
+     * شناسه ثابت ادیتور Quill برای کل عمر این کامپوننت (یک‌بار در mount ساخته
+     * می‌شود). عمداً از id رکورد مشتق نمی‌شود: در حالت ساخت، اولین autosave
+     * یک رکورد جدید می‌سازد و $this->record->id از null به یک UUID واقعی
+     * تغییر می‌کند؛ چون خودِ div ادیتور wire:ignore دارد، x-init آن فقط یک‌بار
+     * با اولین مقدار اجرا می‌شود و دیگر عوض نمی‌شود، ولی input مخفی content
+     * (که wire:ignore ندارد) با هر render دوباره با id جدید ساخته می‌شد —
+     * یعنی بعد از اولین autosave، Quill داشت به یک id غیرموجود می‌نوشت و
+     * محتوا هرگز به سرور نمی‌رسید. یک id ثابت مستقل از رکورد این عدم‌تطابق
+     * را کاملاً حذف می‌کند.
+     */
+    public string $editorInstanceId = '';
+
     public function mount(?string $post = null): void
     {
+        $this->editorInstanceId = (string) \Illuminate\Support\Str::uuid();
+
         if ($post) {
             $this->record = BlogPost::with('tags')->findOrFail($post);
             $this->authorize('update', $this->record);
@@ -100,17 +115,22 @@ class BlogPostForm extends Component
         $this->author_user_id = auth()->id();
     }
 
-    public function updatedTitle(): void
+    /**
+     * تنها نقطه ورود autosave — از سمت JS با یک debounce واحد و قابل‌لغو در
+     * Alpine صدا زده می‌شود (نه wire:model.live جدا روی title و content).
+     * دلیل: دو trigger مستقل (title.live.debounce + content.live.debounce)
+     * دو درخواست Livewire کاملاً جدا و بی‌هماهنگی می‌ساختند که می‌توانستند با
+     * $wire.save() نهایی race کنند — پاسخ یک درخواست قدیمی‌تر که دیرتر
+     * می‌رسید، state تازه‌تر را با مقدار قدیمی (حتی title خالی) بازنویسی
+     * می‌کرد. حالا submitForm در Alpine قبل از save() صریحاً منتظر تکمیل
+     * همین یک مسیر autosave می‌ماند، پس هرگز با آن race نمی‌کند.
+     */
+    public function runAutosave(): void
     {
         if (! $this->slugManuallyEdited) {
             $this->slug = $this->generateSlug($this->title);
         }
 
-        $this->autosaveDraft();
-    }
-
-    public function updatedContent(): void
-    {
         $this->autosaveDraft();
     }
 
@@ -323,6 +343,15 @@ class BlogPostForm extends Component
 
     public function save(CreateBlogPost $createAction, UpdateBlogPost $updateAction, CompanyContext $companyContext): void
     {
+        // اسلاگ نباید منتظر رسیدن autosave (debounce دوثانیه‌ای سمت JS) بماند —
+        // اگر کاربر بلافاصله بعد از تایپ عنوان روی «ثبت» کلیک کند (سریع‌تر از
+        // دوثانیه)، هنوز هیچ runAutosave ای اجرا نشده و $this->slug می‌تواند
+        // خالی بماند. همان تولید خودکار اینجا هم تکرار می‌شود تا ذخیره نهایی
+        // هرگز به چرخه autosave وابسته نباشد.
+        if (! $this->slugManuallyEdited) {
+            $this->slug = $this->generateSlug($this->title);
+        }
+
         $data = $this->validate();
 
         $data['meta_title'] = $data['meta_title'] !== '' ? $data['meta_title'] : null;
@@ -374,7 +403,7 @@ class BlogPostForm extends Component
         return view('livewire.blog.blog-post-form', [
             'existingFeaturedImageUrl' => $this->existingFeaturedImagePath ? Storage::url($this->existingFeaturedImagePath) : null,
             'initialContent' => $this->content,
-            'editorId' => 'blog-post-editor-'.($this->record?->id ?? 'new'),
+            'editorId' => 'blog-post-editor-'.$this->editorInstanceId,
         ]);
     }
 }

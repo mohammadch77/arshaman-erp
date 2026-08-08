@@ -6,8 +6,50 @@
     />
 
     <x-card shadow class="max-w-3xl">
-        <x-form @submit.prevent="window.saveBlogEditor('{{ $editorId }}').then(() => $wire.save())" class="gap-5">
-            <x-input label="عنوان" wire:model.live.debounce.2000ms="title" :icon="theme_icon('blog')" required />
+        <x-form
+            x-data="{
+                autosaveTimer: null,
+                autosaveInFlight: null,
+                isSubmitting: false,
+                scheduleAutosave() {
+                    // window.saveBlogEditor() (فراخوانی‌شده از submitForm) هم برای
+                    // sync کردن محتوای نهایی، یک 'input' مصنوعی روی همین فیلد
+                    // dispatch می‌کند — بدون این گارد، همان sync نهایی دوباره یک
+                    // تایمر autosave تازه دوثانیه‌ای می‌ساخت که ممکن بود بعد از
+                    // ریدایرکت موفق save() (کامپوننت از بین رفته) شلیک شود.
+                    if (this.isSubmitting) {
+                        return;
+                    }
+
+                    clearTimeout(this.autosaveTimer);
+                    this.autosaveTimer = setTimeout(() => {
+                        this.autosaveInFlight = $wire.runAutosave().finally(() => { this.autosaveInFlight = null; });
+                    }, 2000);
+                },
+                async submitForm() {
+                    this.isSubmitting = true;
+                    clearTimeout(this.autosaveTimer);
+
+                    if (this.autosaveInFlight) {
+                        await this.autosaveInFlight;
+                    }
+
+                    await window.saveBlogEditor('{{ $editorId }}');
+
+                    try {
+                        await $wire.save();
+                    } finally {
+                        // اگر save() به خطای اعتبارسنجی برخورد (بدون ریدایرکت)، کاربر
+                        // همچنان روی همین فرم می‌ماند و باید بتواند دوباره تایپ کند؛
+                        // autosave نباید برای بقیه عمر صفحه غیرفعال بماند.
+                        this.isSubmitting = false;
+                    }
+                },
+            }"
+            @submit.prevent="submitForm()"
+            class="gap-5"
+        >
+            <x-input label="عنوان" wire:model="title" x-on:input="scheduleAutosave()" :icon="theme_icon('blog')" required />
 
             <x-input label="اسلاگ" wire:model="slug" :icon="theme_icon('link-account')" required hint="در آدرس صفحه استفاده می‌شود، فقط حروف/اعداد انگلیسی و خط تیره" />
 
@@ -126,7 +168,7 @@
                 >
                     <div id="{{ $editorId }}"></div>
                 </div>
-                <input type="hidden" id="editor-content-input-{{ $editorId }}" wire:model.live.debounce.2000ms="content" />
+                <input type="hidden" id="editor-content-input-{{ $editorId }}" wire:model="content" x-on:input="scheduleAutosave()" />
             </div>
 
             <x-input label="زمان مطالعه (دقیقه، اختیاری)" wire:model="reading_time_minutes" :icon="theme_icon('history')" />
