@@ -27,6 +27,14 @@ class BlogPostForm extends Component
 
     public ?BlogPost $record = null;
 
+    /**
+     * فقط وقتی صفحه از مسیر ویرایش باز شده true می‌شود.
+     * با $record فرق دارد: بعد از autosave در حالت ساخت، $record پر می‌شود
+     * ولی $isEditing همچنان false می‌ماند تا متن دکمه عوض نشود.
+     */
+    public bool $isEditing = false;
+
+
     public string $title = '';
 
     public string $slug = '';
@@ -86,6 +94,7 @@ class BlogPostForm extends Component
         $this->editorInstanceId = (string) \Illuminate\Support\Str::uuid();
 
         if ($post) {
+            $this->isEditing = true;
             $this->record = BlogPost::with('tags')->findOrFail($post);
             $this->authorize('update', $this->record);
 
@@ -105,7 +114,7 @@ class BlogPostForm extends Component
             if ($this->record->published_at) {
                 $this->scheduled_date = Jalali::localDateString($this->record->published_at) ?? '';
                 $this->jalaliParts['scheduled_date'] = Jalali::toJalaliParts($this->record->published_at);
-                $this->scheduled_time = Jalali::toDisplayTime($this->record->published_at) ?? '';
+                $this->scheduled_time = $this->record->published_at?->timezone(config('app.display_timezone', config('app.timezone')))->format('H:i') ?? '';
             }
 
             return;
@@ -285,15 +294,27 @@ class BlogPostForm extends Component
             ],
             'meta_title' => ['nullable', 'string', 'max:70'],
             'meta_description' => ['nullable', 'string', 'max:160'],
-            'category_id' => ['nullable', 'uuid', 'exists:blog_categories,id'],
+            'category_id' => [
+                'nullable',
+                Rule::when(filled($this->category_id), ['uuid', 'exists:blog_categories,id']),
+            ],
             'tagNames' => ['array'],
             'tagNames.*' => ['string', 'max:60'],
             'content' => ['required', 'string'],
-            'reading_time_minutes' => ['nullable', 'integer', 'min:0'],
+            'reading_time_minutes' => [
+                'nullable',
+                Rule::when(filled($this->reading_time_minutes), ['integer', 'min:0']),
+            ],
             'post_status' => ['required', Rule::in(array_map(fn ($case) => $case->value, BlogPostStatus::cases()))],
             'featuredImage' => ['nullable', 'image', 'max:2048'],
-            'scheduled_date' => [$this->canPublish && $this->post_status === BlogPostStatus::Scheduled->value ? 'required' : 'nullable', 'date'],
-            'scheduled_time' => [$this->canPublish && $this->post_status === BlogPostStatus::Scheduled->value ? 'required' : 'nullable', 'date_format:H:i'],
+            'scheduled_date' => [
+                Rule::requiredIf($this->canPublish && $this->post_status === BlogPostStatus::Scheduled->value),
+                Rule::when(filled($this->scheduled_date), ['date']),
+            ],
+            'scheduled_time' => [
+                Rule::requiredIf($this->canPublish && $this->post_status === BlogPostStatus::Scheduled->value),
+                Rule::when(filled($this->scheduled_time), ['date_format:H:i']),
+            ],
         ];
     }
 
@@ -341,6 +362,30 @@ class BlogPostForm extends Component
         return $slug !== '' ? $slug : 'tag-'.substr(sha1($name), 0, 8);
     }
 
+    /**
+     * به‌محض انتخاب عکس، فوراً روی دیسک public ذخیره می‌شود.
+     * اگر تا save صبر کنیم، autosaveهای میانی TemporaryUploadedFile را از بین
+     * می‌برند و مسیر در دیتابیس خالی می‌ماند.
+     */
+    public function updatedFeaturedImage(): void
+    {
+        if (! $this->featuredImage) {
+            return;
+        }
+
+        $this->validateOnly('featuredImage');
+
+        $path = $this->featuredImage->store('blog/featured-images', 'public');
+
+        if ($this->existingFeaturedImagePath && $this->existingFeaturedImagePath !== $path) {
+            Storage::disk('public')->delete($this->existingFeaturedImagePath);
+        }
+
+        $this->existingFeaturedImagePath = $path;
+        $this->featuredImage = null;
+    }
+
+
     public function save(CreateBlogPost $createAction, UpdateBlogPost $updateAction, CompanyContext $companyContext): void
     {
         // اسلاگ نباید منتظر رسیدن autosave (debounce دوثانیه‌ای سمت JS) بماند —
@@ -352,7 +397,12 @@ class BlogPostForm extends Component
             $this->slug = $this->generateSlug($this->title);
         }
 
-        $data = $this->validate();
+        try {
+            $data = $this->validate();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->error('ذخیره انجام نشد. خطاهای فرم را بررسی کنید.');
+            throw $e;
+        }
 
         $data['meta_title'] = $data['meta_title'] !== '' ? $data['meta_title'] : null;
         $data['meta_description'] = $data['meta_description'] !== '' ? $data['meta_description'] : null;
@@ -376,18 +426,29 @@ class BlogPostForm extends Component
         }
         unset($data['scheduled_date'], $data['scheduled_time']);
 
-        $featuredImage = $data['featuredImage'] ?? null;
+        // عکس شاخص در updatedFeaturedImage() هنگام انتخاب فایل ذخیره شده؛
+        // اینجا فقط مسیر نهایی را می‌نویسیم. اگر به‌هر دلیل هنوز TemporaryUpload
+        // روی property مانده باشد (مثلاً autosave خاموش بوده)، همین‌جا ذخیره می‌کنیم.
         unset($data['featuredImage']);
 
-        if ($featuredImage) {
-            $data['featured_image_path'] = $featuredImage->store('blog/featured-images', 'public');
-        } else {
-            $data['featured_image_path'] = $this->existingFeaturedImagePath;
+        if ($this->featuredImage) {
+            $path = $this->featuredImage->store('blog/featured-images', 'public');
+            if ($this->existingFeaturedImagePath && $this->existingFeaturedImagePath !== $path) {
+                Storage::disk('public')->delete($this->existingFeaturedImagePath);
+            }
+            $this->existingFeaturedImagePath = $path;
+            $this->featuredImage = null;
         }
+
+        $data['featured_image_path'] = $this->existingFeaturedImagePath;
 
         if ($this->record) {
             $updateAction->handle($this->record, $data, auth()->user());
-            $this->success('پست به‌روزرسانی شد.', redirectTo: route('blog.posts.index'));
+            $message = $this->isEditing
+                ? 'تغییرات با موفقیت ذخیره شد.'
+                : 'پست با موفقیت ایجاد شد.';
+
+            $this->success($message, redirectTo: route('blog.posts.index'));
 
             return;
         }
@@ -395,7 +456,7 @@ class BlogPostForm extends Component
         $data['owner_company_id'] = $companyContext->id();
 
         $createAction->handle($data, auth()->user());
-        $this->success('پست جدید ساخته شد.', redirectTo: route('blog.posts.index'));
+        $this->success('پست با موفقیت ایجاد شد.', redirectTo: route('blog.posts.index'));
     }
 
     public function render()
