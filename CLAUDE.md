@@ -1091,9 +1091,81 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
     پروژه (۳۸۰ سبز) انجام شد. تأیید بصری واقعی فرم پرکردن فیلد، آپلود
     تصویر، و انتخاب رادیویی هدر/فوتر هنوز روی کاربر باقی است.
 
+- [x] Session 2: گسترش کاتالوگ ویجت — از سه به سیزده ویجت
+
+  **چه ساخته شد:** ده ویجت جدید (`button`, `gallery`, `testimonial`,
+  `pricing_table`, `faq_accordion`, `map`, `video`, `spacer`, `header_nav`,
+  `footer`) با ده مقدار جدید در `WidgetKey` enum و متد رندر امن مختص خودشان
+  در `WidgetContentRenderer`. Seeder جدید و جدا
+  `database/seeders/SiteBuilderWidgetsExpansionSeeder.php` (نه ویرایش
+  `SiteBuilderSeeder.php` قبلی — append، طبق درخواست صریح کارفرما)، ثبت‌شده
+  در `DatabaseSeeder` بعد از seeder قبلی.
+
+  **چهار نوع فیلد جدید در `editable_fields`/`PageContentEditor`/Blade، علاوه
+  بر `text`/`image` قبلی:**
+  - `select` — dropdown با `options` ثابت در `default_config` (مثل سبک دکمه).
+  - `textarea` — متن چندخطی تک‌مقداری (مثل متن نظر مشتری).
+  - `lines` — textarea که مقدار ذخیره‌شده‌اش آرایه‌ای از رشته‌هاست (هر خط یک
+    آیتم، برای فهرست ویژگی‌های `pricing_table`). چون textarea نمی‌تواند
+    مستقیم به آرایه bind شود، یک property جدا `linesRaw` (رشته‌ای، join شده
+    با `\n`) staging می‌کند و فقط در `save()` split و trim می‌شود.
+  - `repeater` — آرایه‌ای از ردیف‌ها با `item_fields` خودشان (زیرفیلد می‌تواند
+    `text`/`textarea`/`image` باشد؛ برای `gallery`, `faq_accordion`,
+    `header_nav`, `footer.social_links`). `addRepeaterRow`/`removeRepeaterRow`
+    در `PageContentEditor` روی خودِ `fieldValues` کار می‌کنند (نه
+    `$record->widget_tree` که immutable و فقط برای مقدار اولیه mount استفاده
+    می‌شود) — در Blade هم iterate روی `fieldValues` انجام می‌شود، نه
+    `node['values']` ثابت، وگرنه ردیف تازه‌اضافه‌شده هرگز رندر نمی‌شد.
+
+  **امنیت map/video (دستور صریح کارفرما):** `WidgetContentRenderer` فقط
+  `<iframe>` با `src` از دامنه‌های صراحتاً مجاز رندر می‌کند — نقشه فقط
+  `www.google.com`/`google.com` با مسیر `/maps/embed`، ویدیو فقط
+  یوتیوب (`youtube.com`/`youtu.be`، لینک watch/short را خودش به فرمت embed
+  تبدیل می‌کند) یا آپارات (`aparat.com/v/...` به فرمت embed تبدیل می‌شود).
+  هر دامنه دیگر رد و لاگ می‌شود، نه پذیرفته با یک escape ساده — چون اینجا
+  خطر واقعی XSS/clickjacking از طریق `src` دلخواه است، نه فقط متن.
+
+  **باگ واقعی کشف‌شده حین بازدید بصری واقعی در مرورگر (نه فقط تست PHP):**
+  کامپوننت `<x-file>` در Mary UI همیشه `wire:model`اش را با
+  `@entangle` (سمت Alpine) باز می‌کند. اگر یک فیلد تصویر اختیاری در دمو
+  اصلاً مقداردهی نشده باشد (مثلاً `testimonial.customer_photo` وقتی دمو فقط
+  `quote_text`/`customer_name` را ست کرده)، مسیر آن در `imageUploads` هرگز
+  ساخته نمی‌شد و Alpine در کنسول مرورگر خطای «Livewire property ... cannot be
+  found» می‌داد — این خطا فقط در مرورگر واقعی دیده می‌شود، هیچ تست PHP feature
+  (که فقط HTML خروجی را چک می‌کند، نه اجرای JS) آن را نشان نمی‌دهد. رفع شد:
+  `mount()` حالا برای هر فیلد تعریف‌شده در `editable_fields` (نه فقط
+  کلیدهایی که دمو واقعاً داشت) هم `fieldValues` و هم `imageUploads` را
+  صریحاً پیش‌فرض می‌زند (`null` برای اسکالر/تصویر، `[]` برای repeater)؛
+  `addRepeaterRow` هم برای زیرفیلدهای تصویر همان مقداردهی پیش‌فرض
+  `imageUploads` را برای ردیف تازه انجام می‌دهد. تست PHP جدید
+  (`it defaults fieldValues and imageUploads for a declared field the demo
+  never set`) این را در سطح property کامپوننت اثبات می‌کند، هرچند خودِ خطای
+  کنسول را نمی‌تواند شبیه‌سازی کند — **درسِ تکرارشونده این ماژول (چهارمین‌بار،
+  بعد از Editor.js list/Quill data-list/باگ `@scope` بلاگ): بعضی کلاس باگ‌ها
+  (رفتار واقعی یک پکیج خارجی، این‌بار Alpine entangle) فقط با بازدید بصری
+  واقعی در مرورگر دیده می‌شوند، نه با تست HTML-محور.**
+
+  **تصمیم‌های دیگر این Session:**
+  - `PageContentEditor::save()` برای merge کردن فایل‌های آپلودی از یک حلقه
+    flat دولایه (`imageUploads[nodeId][fieldKey]`) به یک تابع بازگشتی عمومی
+    `mergeUploadedFiles()` تغییر کرد تا هم فیلد تصویر top-level هم زیرفیلد
+    تصویر داخل هر عمقی از repeater را با همان منطق واحد پوشش دهد.
+  - آیکون‌های ویجت جدید (`icon` ستون `widgets`) مستقیماً نام blade-icon
+    heroicons هستند (`o-cursor-arrow-rays` و مشابه) — همان الگوی سه ویجت
+    قبلی (`o-squares-2x2` و ...)؛ این نقض قانون «آیکون فقط از `theme_icon()`»
+    بخش ۳.۵ نیست چون این‌ها داده‌ی سطح دیتابیس هستند (مثل آیکون محصول)، نه
+    نام آیکون hardcode‌شده در یک Blade view — دکمه‌های افزودن/حذف ردیف در
+    خودِ `page-content-editor.blade.php` هم از `theme_icon('add')`/
+    `theme_icon('delete')` موجود استفاده کردند، کلید جدیدی به `config/theme.php`
+    اضافه نشد.
+  - بازدید بصری کامل با کاربر تستی موقت (`sitebuilder-visual-test@example.com`)
+    شامل هر ده ویجت جدید در یک صفحه واحد: افزودن/حذف ردیف gallery و FAQ،
+    تغییر select سبک دکمه، ذخیره واقعی، و تأیید مستقیم از دیتابیس (`widget_tree`
+    و `content_html`) که مقادیر درست پایدار شدند. کاربر، صفحه، و دموی تستی
+    در پایان کامل حذف شدند (بند ۱۰ CLAUDE.md).
+
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): دموهای واقعی و
-متعدد برای شش دسته صفحه (Session 2)، ویجت‌های یکپارچه وبلاگ/تماس
-(Session 3)، رندر عمومی نهایی صفحات با استفاده از دموی هدر/فوتر فعال
-(Session 4).
+متعدد برای شش دسته صفحه با این ۱۳ ویجت (Session بعدی)، ویجت‌های یکپارچه
+وبلاگ/تماس، رندر عمومی نهایی صفحات با استفاده از دموی هدر/فوتر فعال.
 
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

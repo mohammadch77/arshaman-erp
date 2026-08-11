@@ -28,9 +28,23 @@ class PageContentEditor extends Component
     public array $fieldValues = [];
 
     /**
-     * @var array<string, array<string, TemporaryUploadedFile>>
+     * درخت تودرتوی فایل‌های آپلودی، دقیقاً هم‌ساختار با fieldValues (هم برای
+     * فیلد تصویر ساده [nodeId][fieldKey] هم برای زیرفیلد تصویر داخل یک
+     * repeater [nodeId][fieldKey][rowIndex][subKey]).
+     *
+     * @var array<string, mixed>
      */
     public array $imageUploads = [];
+
+    /**
+     * نسخه نمایشی (چندخطی، رشته‌ای) فیلدهای نوع 'lines' برای بایند به
+     * textarea — چون fieldValues واقعی برای این نوع آرایه‌ای از رشته‌هاست و
+     * textarea نمی‌تواند مستقیم به آرایه بایند شود. فقط موقع save() به آرایه
+     * تبدیل و در fieldValues نوشته می‌شود.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public array $linesRaw = [];
 
     public string $extra_css = '';
 
@@ -49,6 +63,67 @@ class PageContentEditor extends Component
 
         foreach ($this->editableNodes() as $node) {
             $this->fieldValues[$node['id']] = $node['values'];
+
+            foreach ($node['fields'] as $field) {
+                if ($field['type'] === 'lines') {
+                    $lines = $node['values'][$field['key']] ?? [];
+                    $this->linesRaw[$node['id']][$field['key']] = is_array($lines) ? implode("\n", $lines) : '';
+
+                    continue;
+                }
+
+                // اگر دمو کلید این فیلد را اصلاً نداشته باشد (مثلاً یک فیلد
+                // تصویر اختیاری مثل customer_photo)، مسیرش هرگز در fieldValues
+                // ساخته نمی‌شود و @entangle داخل <x-file> کامپوننت Mary UI با
+                // خطا مواجه می‌شود چون هیچ property ای در آن مسیر پیدا نمی‌کند.
+                // پس هر فیلد تعریف‌شده صریحاً یک مقدار پیش‌فرض می‌گیرد.
+                if (! array_key_exists($field['key'], $this->fieldValues[$node['id']])) {
+                    $this->fieldValues[$node['id']][$field['key']] = $field['type'] === 'repeater' ? [] : null;
+                }
+
+                // <x-file> همیشه wire:model را روی imageUploads (نه fieldValues)
+                // می‌بندد — همان مشکل بالا، برای مسیر دیگری.
+                if ($field['type'] === 'image' && ! array_key_exists($field['key'], $this->imageUploads[$node['id']] ?? [])) {
+                    $this->imageUploads[$node['id']][$field['key']] = null;
+                }
+            }
+        }
+    }
+
+    /**
+     * یک ردیف خالی به انتهای یک فیلد repeater اضافه می‌کند — کلیدهای ردیف از
+     * روی item_fields همان فیلد ساخته می‌شوند. زیرفیلدهای نوع image علاوه بر
+     * fieldValues، مسیر imageUploads خودشان را هم از پیش می‌سازند — دقیقاً
+     * همان دلیل مقداردهی پیش‌فرض در mount() برای فیلد تصویر top-level: بدون
+     * آن، @entangle داخل <x-file> بلافاصله بعد از رندر ردیف جدید خطا می‌دهد.
+     *
+     * @param  array<int, array{key: string, type: string}>  $itemFields
+     */
+    public function addRepeaterRow(string $nodeId, string $fieldKey, array $itemFields): void
+    {
+        $emptyRow = [];
+
+        foreach ($itemFields as $itemField) {
+            $emptyRow[$itemField['key']] = '';
+
+            if (($itemField['type'] ?? null) === 'image') {
+                $rowIndex = count($this->fieldValues[$nodeId][$fieldKey] ?? []);
+                $this->imageUploads[$nodeId][$fieldKey][$rowIndex][$itemField['key']] = null;
+            }
+        }
+
+        $this->fieldValues[$nodeId][$fieldKey][] = $emptyRow;
+    }
+
+    public function removeRepeaterRow(string $nodeId, string $fieldKey, int $index): void
+    {
+        unset($this->fieldValues[$nodeId][$fieldKey][$index]);
+        $this->fieldValues[$nodeId][$fieldKey] = array_values($this->fieldValues[$nodeId][$fieldKey] ?? []);
+
+        unset($this->imageUploads[$nodeId][$fieldKey][$index]);
+
+        if (isset($this->imageUploads[$nodeId][$fieldKey])) {
+            $this->imageUploads[$nodeId][$fieldKey] = array_values($this->imageUploads[$nodeId][$fieldKey]);
         }
     }
 
@@ -129,13 +204,17 @@ class PageContentEditor extends Component
         $fieldValues = $this->canEditWidgetValues ? $this->fieldValues : [];
 
         if ($this->canEditWidgetValues) {
-            foreach ($this->imageUploads as $nodeId => $fields) {
-                foreach ($fields as $fieldKey => $file) {
-                    if ($file) {
-                        $fieldValues[$nodeId][$fieldKey] = $file->store('sitebuilder/images', 'public');
+            foreach ($this->editableNodes() as $node) {
+                foreach ($node['fields'] as $field) {
+                    if ($field['type'] === 'lines') {
+                        $raw = (string) ($this->linesRaw[$node['id']][$field['key']] ?? '');
+                        $lines = array_values(array_filter(array_map('trim', explode("\n", $raw)), fn ($line) => $line !== ''));
+                        $fieldValues[$node['id']][$field['key']] = $lines;
                     }
                 }
             }
+
+            $this->mergeUploadedFiles($this->imageUploads, $fieldValues);
         }
 
         $action->handle(
@@ -148,6 +227,33 @@ class PageContentEditor extends Component
         );
 
         $this->success('محتوای صفحه ذخیره شد.', redirectTo: route('sitebuilder.pages.index'));
+    }
+
+    /**
+     * درخت uploads را (هر عمقی — تصویر تک یا تصویر داخل یک ردیف repeater)
+     * پیمایش می‌کند و هر فایل واقعی آپلودشده را ذخیره و مسیرش را در همان
+     * مسیر (path) داخل $target می‌نویسد؛ non-file/null نادیده گرفته می‌شود.
+     *
+     * @param  array<array-key, mixed>  $uploads
+     * @param  array<array-key, mixed>  $target
+     */
+    private function mergeUploadedFiles(array $uploads, array &$target): void
+    {
+        foreach ($uploads as $key => $value) {
+            if ($value instanceof TemporaryUploadedFile) {
+                $target[$key] = $value->store('sitebuilder/images', 'public');
+
+                continue;
+            }
+
+            if (is_array($value)) {
+                if (! isset($target[$key]) || ! is_array($target[$key])) {
+                    $target[$key] = [];
+                }
+
+                $this->mergeUploadedFiles($value, $target[$key]);
+            }
+        }
     }
 
     public function render()

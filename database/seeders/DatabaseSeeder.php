@@ -21,5 +21,6 @@ class DatabaseSeeder extends Seeder
         $this->call(FiscalPeriodSeeder::class);
         $this->call(WarehouseSeeder::class);
         $this->call(SiteBuilderSeeder::class);
+        $this->call(SiteBuilderWidgetsExpansionSeeder::class);
     }
 }

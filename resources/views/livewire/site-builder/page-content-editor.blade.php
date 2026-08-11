@@ -37,6 +37,93 @@
                                         :disabled="! $this->canEditWidgetValues"
                                     />
                                 @endif
+                            @elseif($field['type'] === 'select')
+                                <x-select
+                                    label="{{ $field['label'] }}"
+                                    wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}"
+                                    :options="$field['options']"
+                                    option-value="value"
+                                    option-label="label"
+                                    :disabled="! $this->canEditWidgetValues"
+                                />
+                            @elseif($field['type'] === 'textarea')
+                                <x-textarea
+                                    label="{{ $field['label'] }}"
+                                    wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}"
+                                    rows="3"
+                                    :disabled="! $this->canEditWidgetValues"
+                                />
+                            @elseif($field['type'] === 'lines')
+                                <x-textarea
+                                    label="{{ $field['label'] }}"
+                                    wire:model="linesRaw.{{ $node['id'] }}.{{ $field['key'] }}"
+                                    rows="4"
+                                    :disabled="! $this->canEditWidgetValues"
+                                />
+                            @elseif($field['type'] === 'repeater')
+                                <div class="rounded-box border border-base-300 p-3">
+                                    <p class="mb-2 text-sm font-medium text-base-content/70">{{ $field['label'] }}</p>
+
+                                    <div class="flex flex-col gap-3">
+                                        @foreach(($this->fieldValues[$node['id']][$field['key']] ?? []) as $rowIndex => $row)
+                                            <div class="flex flex-col gap-2 rounded-box bg-base-200/50 p-3">
+                                                <div class="flex items-start justify-between gap-2">
+                                                    <div class="grid flex-1 gap-2">
+                                                        @foreach($field['item_fields'] as $itemField)
+                                                            @if($itemField['type'] === 'image')
+                                                                @if(! empty($row[$itemField['key']]))
+                                                                    <x-file
+                                                                        label="{{ $itemField['label'] }}"
+                                                                        wire:model="imageUploads.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
+                                                                        accept="image/*"
+                                                                        :disabled="! $this->canEditWidgetValues"
+                                                                    ><img src="{{ \Illuminate\Support\Facades\Storage::url($row[$itemField['key']]) }}" class="mt-2 h-16 rounded object-cover" /></x-file>
+                                                                @else
+                                                                    <x-file
+                                                                        label="{{ $itemField['label'] }}"
+                                                                        wire:model="imageUploads.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
+                                                                        accept="image/*"
+                                                                        :disabled="! $this->canEditWidgetValues"
+                                                                    />
+                                                                @endif
+                                                            @elseif($itemField['type'] === 'textarea')
+                                                                <x-textarea
+                                                                    label="{{ $itemField['label'] }}"
+                                                                    wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
+                                                                    rows="2"
+                                                                    :disabled="! $this->canEditWidgetValues"
+                                                                />
+                                                            @else
+                                                                <x-input
+                                                                    label="{{ $itemField['label'] }}"
+                                                                    wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
+                                                                    :disabled="! $this->canEditWidgetValues"
+                                                                />
+                                                            @endif
+                                                        @endforeach
+                                                    </div>
+
+                                                    @if($this->canEditWidgetValues)
+                                                        <x-button
+                                                            :icon="theme_icon('delete')"
+                                                            wire:click="removeRepeaterRow('{{ $node['id'] }}', '{{ $field['key'] }}', {{ $rowIndex }})"
+                                                            class="btn-circle btn-ghost btn-sm"
+                                                        />
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+
+                                    @if($this->canEditWidgetValues)
+                                        <x-button
+                                            label="افزودن ردیف"
+                                            :icon="theme_icon('add')"
+                                            wire:click="addRepeaterRow('{{ $node['id'] }}', '{{ $field['key'] }}', {{ json_encode($field['item_fields']) }})"
+                                            class="btn-ghost btn-sm mt-3"
+                                        />
+                                    @endif
+                                </div>
                             @else
                                 <x-input
                                     label="{{ $field['label'] }}"
