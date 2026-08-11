@@ -85,10 +85,10 @@ window.saveBlogEditor = function (elementId) {
     const instance = editorInstances[elementId];
 
     if (! instance) {
-        return Promise.resolve();
+        return Promise.resolve(null);
     }
 
     instance.syncToInput();
 
-    return Promise.resolve();
+    return Promise.resolve(instance.quill.root.innerHTML);
 };

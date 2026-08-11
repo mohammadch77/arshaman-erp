@@ -1,11 +1,15 @@
 <div>
     <x-header
-        title="{{ $record ? 'ویرایش پست' : 'پست جدید' }}"
+        title="{{ $isEditing ? 'ویرایش پست' : 'پست جدید' }}"
         subtitle="اطلاعات پست وبلاگ"
         separator
     />
 
     <x-card shadow class="max-w-3xl">
+    @if ($errors->any())
+        <x-alert title="خطا در ذخیره" description="{{ $errors->first() }}" class="alert-error mb-4" icon="o-exclamation-triangle" />
+    @endif
+
         <x-form
             x-data="{
                 autosaveTimer: null,
@@ -35,6 +39,12 @@
                     }
 
                     await window.saveBlogEditor('{{ $editorId }}');
+
+                    // تضمین sync محتوا قبل از save — جلوگیری از race با wire:model
+                    const input = document.getElementById('editor-content-input-{{ $editorId }}');
+                    if (input) {
+                        await $wire.set('content', input.value);
+                    }
 
                     try {
                         await $wire.save();
@@ -130,8 +140,9 @@
             />
 
             <div>
-                <x-file label="عکس شاخص" wire:model="featuredImage" accept="image/*" hint="حداکثر ۲ مگابایت" />
-                @if($existingFeaturedImagePath && ! $featuredImage)
+                <x-file label="عکس شاخص" wire:model="featuredImage" accept="image/*" hint="حداکثر ۲ مگابایت — بلافاصله بعد از انتخاب ذخیره می‌شود" />
+                <div wire:loading wire:target="featuredImage" class="text-sm text-base-content/60 mt-1">در حال آپلود عکس...</div>
+                @if($existingFeaturedImagePath)
                     <img src="{{ $existingFeaturedImageUrl }}" class="mt-2 h-24 rounded-lg object-cover" alt="عکس شاخص فعلی" />
                 @endif
             </div>
@@ -176,7 +187,7 @@
             <x-slot:actions>
                 <x-button label="انصراف" link="{{ route('blog.posts.index') }}" class="btn-ghost" />
                 <x-button
-                    label="{{ $record ? 'ذخیره تغییرات' : 'ساخت پست' }}"
+                    label="{{ $isEditing ? 'ذخیره تغییرات' : 'ایجاد پست' }}"
                     type="submit"
                     class="btn-primary"
                     :icon="theme_icon('save')"
