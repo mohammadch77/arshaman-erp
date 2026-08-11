@@ -20,5 +20,6 @@ class DatabaseSeeder extends Seeder
         $this->call(CurrencySeeder::class);
         $this->call(FiscalPeriodSeeder::class);
         $this->call(WarehouseSeeder::class);
+        $this->call(SiteBuilderSeeder::class);
     }
 }

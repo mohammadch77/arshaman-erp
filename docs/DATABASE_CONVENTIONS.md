@@ -232,3 +232,36 @@ migration های قبلی (`2026_08_01`/`2026_08_04`) بدون تغییر باق
 (بند ۵.۳ CLAUDE.md — عدم قطعیت نباید صفر فرض شود)، `currency_id` nullable FK
 به `currencies` (خالی = تومان)، CHECK جدید `chk_products_fulfillment_type`
 (`physical`/`digital`/`service`) با همان guard غیر-sqlite الگوی قبلی.
+
+---
+
+## ۱۴. استثنا: ENUM نیتیو MySQL به‌جای VARCHAR+CHECK (ماژول SiteBuilder)
+
+طبق بخش ۳.۲ این سند، قرارداد استاندارد پروژه برای ستون‌های enum-like همیشه
+`VARCHAR` سطح دیتابیس + enum PHP سطح اپ + CHECK constraint دستی (با
+`DB::statement`، skip‌شده روی sqlite) است — **نه** نوع `ENUM` نیتیو MySQL.
+
+**استثنا:** `page_categories.category_key` و `pages.page_status` (ماژول
+SiteBuilder، Session ۱) با تصمیم صریح کارفرما از نوع `ENUM` نیتیو MySQL
+ساخته شدند (`$table->enum(...)` در Laravel، نه `string`+`DB::statement`).
+Laravel خودش این را به‌ازای هر درایور درست ترجمه می‌کند: روی MySQL واقعاً
+`ENUM(...)` می‌سازد، روی SQLite (محیط تست پروژه) به `VARCHAR` + `CHECK`
+تبدیل می‌کند — پس برخلاف بقیه CHECK های دستی پروژه، اینجا نیازی به گارد
+`Schema::getConnection()->getDriverName() !== 'sqlite'` نیست؛ خودِ Laravel
+هر دو محیط را پوشش می‌دهد.
+
+**چرا اینجا فرق دارد:** تصمیم مستقیم کارفرما برای این دو ستون خاص، نه یک
+تغییر قرارداد کلی پروژه. بقیه ستون‌های enum-like ماژول‌های دیگر (و حتی بقیه
+ستون‌های همین ماژول در Session‌های بعدی) همچنان از الگوی VARCHAR+CHECK
+استاندارد پیروی می‌کنند مگر خلاف آن صریحاً مستند شود.
+
+**هزینه‌اش:** افزودن مقدار جدید به یک ENUM نیتیو MySQL در آینده (مثلاً یک
+`category_key` یا `page_status` جدید) نیاز به `ALTER TABLE ... MODIFY COLUMN
+... ENUM(...)` دارد — یک migration که کل تعریف ستون را بازنویسی می‌کند، نه
+فقط `DROP CHECK`/`ADD CHECK` سبک الگوی استاندارد بخش ۳.۲. روی جدول‌های بزرگ
+این `ALTER` می‌تواند از CHECK-swap سنگین‌تر باشد (بسته به نسخه/موتور
+MySQL، گاهی rebuild کامل جدول). همچنین چون این ستون‌ها نوع native‌شان
+مستقیم در schema دیده می‌شود، هر ابزار خارجی که مستقیم به دیتابیس وصل
+می‌شود (نه از طریق Laravel) لیست مقادیر مجاز را از metadata ستون می‌بیند —
+که هم مزیت (خوداسنادی) هم محدودیت (وابستگی بیشتر schema به لیست دقیق
+مقادیر) دارد.

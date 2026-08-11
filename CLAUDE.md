@@ -1012,4 +1012,88 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
   آن را با یک درخواست HTTP واقعی و حداقل یک ردیف داده رندر کند — نه فقط
   از طریق `Livewire::test` روی خودِ کامپوننت فرم.
 
+### ماژول SiteBuilder (جدید — طبق درخواست صریح کارفرما)
+
+- [x] Session 1: شش جدول پایه، کاتالوگ سه ویجت، جریان «انتخاب دمو + فرم مقدار»
+
+  **پیشینه:** اولین تلاش این ماژول بر پایه GrapesJS (بوم drag-and-drop) بود.
+  کارفرما بعد از استفاده واقعی، تجربه GrapesJS را نپسندید (نه شبیه المنتور)
+  و چون آن Session هرگز commit نشده بود، کل رویکرد از صفر با معماری زیر
+  بازنویسی شد — نه patch، یک طراحی کاملاً متفاوت.
+
+  **معماری جدید (بدون drag-and-drop):** مثل انتخاب تم آماده در وردپرس/Astra
+  — کاربر یک دمو از پیش‌طراحی‌شده انتخاب می‌کند، بعد فقط مقادیر داخل فیلدهای
+  همان دمو را پر می‌کند. ساختار/تعداد/ترتیب ویجت هرگز از UI قابل تغییر نیست.
+
+  **چه ساخته شد:** `app/Modules/SiteBuilder` با شش جدول: `widgets`،
+  `page_categories`، `page_demos` (جدید — کاتالوگ دموی آماده هر دسته)،
+  `layout_demos` (جدید — دموی هدر/فوتر سراسری سایت، جدا از صفحات)، `pages`
+  (حالا با `page_demo_id` به‌جای `page_category_id` مستقیم)، `site_settings`
+  (حالا با `active_header_demo_id`/`active_footer_demo_id`). چهار جدول اول
+  سراسری‌اند (بدون `owner_company_id`، کاتالوگ مشترک هلدینگ مثل
+  `contacts`/`holidays`)؛ `pages`/`site_settings` با `BelongsToCompany`.
+  enum های PHP `PageCategoryKey`/`LayoutType`/`PageStatus`/`WidgetKey`.
+  `page_categories.category_key` و `pages.page_status` همچنان **استثنای
+  مستند** ENUM نیتیو MySQL (`docs/DATABASE_CONVENTIONS.md` بخش ۱۴)؛
+  `layout_demos.layout_type` عمداً VARCHAR+CHECK استاندارد است، نه ENUM —
+  آن استثنا فقط برای همان دو ستون مستند شده، نه کل ماژول.
+
+  `PagePolicy` (مشاهده = هر نقشی در شرکت؛ ساخت = holding_admin/operator؛
+  ویرایش = holding_admin هر صفحه، operator فقط draft؛ `canPublish` فقط
+  holding_admin؛ `canEditExtraCode` جدید = holding_admin/operator بدون قید
+  draft، طبق `docs/DECISIONS.md`). `SiteSettingPolicy` جدید (همان دو نقش
+  مدیریتی). `WidgetContentRenderer` (بدون تغییر مفهومی: whitelist بر پایه
+  `WidgetKey`، نوع ناشناخته لاگ+حذف؛ خروجی خالی هرگز رشته خالی نمی‌ماند —
+  یک `<div class="sb-page-empty">` جایگزین می‌شود، چون این‌بار طبق مشخصات
+  صریح کارفرما «content_html هرگز خالی/NULL نباشد»، نه فقط «هرگز NULL»
+  مثل تصمیم Session قبلی).
+
+  فقط دو Action اصلی: `CreatePageFromDemo` (widget_tree دمو را عیناً کپی
+  می‌کند، `content_html` را همان‌جا می‌سازد) و `UpdatePageWidgetValues`
+  (نگاشت widget-instance-id → مقادیر را می‌گیرد، فقط `values` همان نودهای
+  موجود را جایگزین می‌کند — هرگز تعداد/ترتیب/فرزندان را دست نمی‌زند؛
+  کلیدهای فیلد خارج از `editable_fields` تعریف‌شده در `widgets.default_config`
+  بی‌صدا نادیده گرفته می‌شوند). یک Action کمکی سوم، `UpdateSiteSettings`
+  (خارج از فهرست اصلی کارفرما ولی طبق بند ۹ لازم بود — نوشتن تنظیمات سایت
+  هم باید authorize مستقل خودش را داشته باشد، نه فقط از طریق کامپوننت).
+
+  کامپوننت‌ها: `PageDemoGallery` (`/sitebuilder/pages/create` — کارت دموها
+  به تفکیک دسته، بعد فرم عنوان/نشانی)، `PageContentEditor`
+  (`/sitebuilder/pages/{id}/edit` — جایگزین کامل `PageForm`/بوم قبلی؛ فرم
+  تخت از فیلدهای قابل‌ویرایش هر نود، بدون هیچ canvas)، `LayoutDemoSelector`
+  (`/sitebuilder/settings` — لوگو/فاوآیکون/عنوان سایت + انتخاب رادیویی دموی
+  هدر/فوتر فعال)، `PageIndex` (بدون تغییر مفهومی). منوی «سایت‌ساز» یک زیرمنوی
+  «تنظیمات سایت» گرفت.
+
+  **تصمیم‌های این Session:**
+  - `UpdatePageWidgetValues` مقادیر ویجت را از extra_css/extra_js **جدا**
+    authorize می‌کند: تغییر مقادیر/انتشار همان قید معمول `update()` (operator
+    فقط draft) را دارد، ولی `canEditExtraCode` همیشه مستقل بررسی می‌شود —
+    چون طبق `docs/DECISIONS.md` operator باید بتواند حتی روی صفحه‌ی
+    published هم extra_css/extra_js را ویرایش کند. اگر همه در یک Gate واحد
+    بسته می‌شدند، آن تصمیم قبلی نقض می‌شد.
+  - `PageContentEditor` یک computed property `canEditWidgetValues` دارد که
+    مستقیماً `PagePolicy::update()` را صدا می‌زند تا فیلدهای ویجت را در UI
+    غیرفعال کند وقتی operator روی صفحه‌ی published است — ولی حتی اگر UI را
+    کسی دور بزند، خودِ Action دوباره authorize می‌کند (بند ۹).
+  - GrapesJS و همه `@editorjs/*`/وابستگی‌های بوم قبلی کامل حذف شدند
+    (`package.json`، `resources/js/sitebuilder.js`، کامپوننت‌های قبلی).
+    مهاجرت‌های Session قبلی روی دیتابیس توسعه هرگز commit نشده بودند، پس
+    با `migrate:rollback --path=...` تک‌تک (نه batch کامل، چون همان batch
+    یک migration نامرتبط بلاگ هم داشت) پاک‌سازی و از صفر با شش جدول جدید
+    دوباره migrate شدند — بدون هیچ `migrate:fresh`.
+  - `page_demos`/`layout_demos` این Session فقط یک دموی نمونه (`about`) و
+    یک هدر/فوتر نمونه دارند؛ دموهای واقعی و متعدد برای بقیه شش دسته در
+    Session بعدی طراحی می‌شوند (`docs/BACKLOG.md`).
+  - بازدید بصری واقعی این Session **ممکن نشد** (sandbox دسترسی به دامنه
+    لوکال `arshaman-erp.test` را رد کرد) — تأیید فقط از طریق ۹ تست Feature
+    جدید (`tests/Feature/SiteBuilder/PageManagementTest.php`) و کل سوییت
+    پروژه (۳۸۰ سبز) انجام شد. تأیید بصری واقعی فرم پرکردن فیلد، آپلود
+    تصویر، و انتخاب رادیویی هدر/فوتر هنوز روی کاربر باقی است.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): دموهای واقعی و
+متعدد برای شش دسته صفحه (Session 2)، ویجت‌های یکپارچه وبلاگ/تماس
+(Session 3)، رندر عمومی نهایی صفحات با استفاده از دموی هدر/فوتر فعال
+(Session 4).
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

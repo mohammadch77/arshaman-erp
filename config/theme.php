@@ -107,6 +107,11 @@ return [
         'reading-time' => 'o-clock',
         'back' => 'o-arrow-right',
         'preview' => 'o-eye',
+        'site-builder' => 'o-window',
+        'page' => 'o-document',
+        'template' => 'o-rectangle-group',
+        'header' => 'o-view-columns',
+        'footer' => 'o-bars-3-bottom-left',
     ],
 
 ];

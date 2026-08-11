@@ -136,6 +136,16 @@
                     </x-menu-sub>
                 @endif
 
+                {{-- سایت‌ساز — عمداً hasRoleInCompany($activeCompany->id) بدون فهرست نقش،
+                     همان شرط دقیق PagePolicy::viewAny («هر نقشی در شرکت»). بدون محدودیت
+                     business_type، مثل وبلاگ. --}}
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-sub title="سایت‌ساز" :icon="theme_icon('site-builder')">
+                        <x-menu-item title="صفحات" :icon="theme_icon('page')" link="{{ route('sitebuilder.pages.index') }}" />
+                        <x-menu-item title="تنظیمات سایت" :icon="theme_icon('settings')" link="{{ route('sitebuilder.settings') }}" />
+                    </x-menu-sub>
+                @endif
+
                 {{-- User --}}
                 @if($user = auth()->user())
                     <x-menu-separator />

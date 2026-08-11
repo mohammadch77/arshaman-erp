@@ -60,7 +60,7 @@ return new class extends Migration
         // دوباره اضافه نمی‌شوند؛ نگاه کن گزارش نقشه). تیکتینگ/کمپین چون هنوز ساخته
         // نشده‌اند، در BACKLOG.md یادداشت شدند. ---
 
-        $positionValues = "'" . implode("','", array_map(fn (EmployeePosition $p) => $p->value, EmployeePosition::cases())) . "'";
+        $positionValues = "'".implode("','", array_map(fn (EmployeePosition $p) => $p->value, EmployeePosition::cases()))."'";
         DB::statement("ALTER TABLE employees ADD CONSTRAINT chk_employees_position CHECK (position IN ({$positionValues}))");
         DB::statement("ALTER TABLE employees ADD CONSTRAINT chk_employees_phone CHECK (phone IS NULL OR phone REGEXP '^09[0-9]{9}$')");
 
