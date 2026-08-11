@@ -41,7 +41,7 @@ use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
 use App\Livewire\SiteBuilder\LayoutDemoSelector;
 use App\Livewire\SiteBuilder\PageContentEditor;
-use App\Livewire\SiteBuilder\PageDemoGallery;
+use App\Livewire\SiteBuilder\PageCreateFlow;
 use App\Livewire\SiteBuilder\PageIndex;
 use App\Modules\Blog\Http\Controllers\BlogPostPreviewController;
 use App\Modules\Blog\Http\Controllers\EditorImageUploadController;
@@ -142,7 +142,7 @@ Route::get('/blog/{companySlug}', [PublicBlogController::class, 'index'])->name(
 Route::get('/blog/{companySlug}/{postSlug}', [PublicBlogController::class, 'show'])->name('public-blog.show');
 
 Route::livewire('/sitebuilder/pages', PageIndex::class)->middleware('auth')->name('sitebuilder.pages.index');
-Route::livewire('/sitebuilder/pages/create', PageDemoGallery::class)->middleware('auth')->name('sitebuilder.pages.create');
+Route::livewire('/sitebuilder/pages/create', PageCreateFlow::class)->middleware('auth')->name('sitebuilder.pages.create');
 Route::livewire('/sitebuilder/pages/{page}/edit', PageContentEditor::class)->middleware('auth')->name('sitebuilder.pages.edit');
 Route::livewire('/sitebuilder/settings', LayoutDemoSelector::class)->middleware('auth')->name('sitebuilder.settings');
 

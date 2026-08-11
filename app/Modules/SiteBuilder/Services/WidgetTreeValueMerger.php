@@ -1,0 +1,61 @@
+<?php
+
+namespace App\Modules\SiteBuilder\Services;
+
+use App\Modules\SiteBuilder\Models\Widget;
+
+/**
+ * جایگزینی مقادیر داخل widget_tree — منبع مشترک بین ذخیره واقعی
+ * (UpdatePageWidgetValues) و پیش‌نمایش زنده (PageContentEditor::refreshPreview)
+ * تا هر دو مسیر دقیقاً همان قانون whitelist فیلد را رعایت کنند و هرگز از هم
+ * جدا نیفتند.
+ */
+class WidgetTreeValueMerger
+{
+    /**
+     * @param  array<int, array<string, mixed>>  $nodes
+     * @param  array<string, array<string, mixed>>  $fieldValues  نگاشت widget instance id → [field key => مقدار]
+     * @return array<int, array<string, mixed>>
+     *
+     * نکته: $nodes ممکن است یک کلید رشته‌ای اضافه 'theme' هم داشته باشد (رنگ/فونت
+     * سطح صفحه — نگاه کن WidgetContentRenderer::render). چون آن مقدار نه 'id' دارد
+     * نه 'children'، applyValues() بی‌هیچ تغییری از کنارش رد می‌شود و همان‌طور
+     * دست‌نخورده در خروجی باقی می‌ماند — نیازی به کد اضافه برای عبور آن نیست.
+     */
+    public function apply(array $nodes, array $fieldValues): array
+    {
+        $editableFieldsByWidgetKey = Widget::query()->pluck('default_config', 'widget_key')
+            ->map(fn (?array $config) => $config['editable_fields'] ?? [])
+            ->all();
+
+        return $this->applyValues($nodes, $fieldValues, $editableFieldsByWidgetKey);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $nodes
+     * @param  array<string, array<string, mixed>>  $fieldValues
+     * @param  array<string, array<int, array<string, string>>>  $editableFieldsByWidgetKey
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyValues(array $nodes, array $fieldValues, array $editableFieldsByWidgetKey): array
+    {
+        foreach ($nodes as &$node) {
+            $nodeId = $node['id'] ?? null;
+            $allowedKeys = array_column($editableFieldsByWidgetKey[$node['widget_key'] ?? ''] ?? [], 'key');
+
+            if ($nodeId !== null && isset($fieldValues[$nodeId])) {
+                foreach ($fieldValues[$nodeId] as $fieldKey => $fieldValue) {
+                    if (in_array($fieldKey, $allowedKeys, true)) {
+                        $node['values'][$fieldKey] = $fieldValue;
+                    }
+                }
+            }
+
+            if (! empty($node['children'])) {
+                $node['children'] = $this->applyValues($node['children'], $fieldValues, $editableFieldsByWidgetKey);
+            }
+        }
+
+        return $nodes;
+    }
+}

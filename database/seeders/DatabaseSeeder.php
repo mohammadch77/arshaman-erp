@@ -22,5 +22,6 @@ class DatabaseSeeder extends Seeder
         $this->call(WarehouseSeeder::class);
         $this->call(SiteBuilderSeeder::class);
         $this->call(SiteBuilderWidgetsExpansionSeeder::class);
+        $this->call(SiteBuilderDemosExpansionSeeder::class);
     }
 }

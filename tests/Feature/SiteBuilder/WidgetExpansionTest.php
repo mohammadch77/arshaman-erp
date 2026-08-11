@@ -259,7 +259,7 @@ it('clamps spacer height and renders nothing for zero height', function () {
         ['id' => 'sp2', 'widget_key' => WidgetKey::Spacer->value, 'values' => ['height_px' => '0'], 'children' => []],
     ]);
 
-    expect($empty)->toBe('<div class="sb-page-empty"></div>');
+    expect($empty)->toContain('<div class="sb-page-empty"></div>');
 });
 
 it('adds and removes repeater rows in the live editor and persists them to widget_tree', function () {
@@ -476,4 +476,80 @@ it('uploads a real image into a gallery repeater row and stores its path', funct
     expect($storedImages)->toHaveCount(1);
     expect($storedImages[0]['caption'])->toBe('عکس اول');
     Storage::disk('public')->assertExists($storedImages[0]['image_path']);
+});
+
+it('wraps rendered output in the sb-page shell with the shared design CSS for every widget type', function () {
+    $renderer = app(WidgetContentRenderer::class);
+
+    $tree = [
+        ['id' => 't1', 'widget_key' => WidgetKey::Title->value, 'values' => ['text' => 'عنوان', 'level' => 1], 'children' => []],
+        ['id' => 'b1', 'widget_key' => WidgetKey::Button->value, 'values' => ['label' => 'دکمه', 'url' => '#', 'style' => 'primary'], 'children' => []],
+        ['id' => 'g1', 'widget_key' => WidgetKey::Gallery->value, 'values' => ['images' => [['image_path' => 'a.jpg', 'caption' => 'ک']]], 'children' => []],
+        ['id' => 'tm1', 'widget_key' => WidgetKey::Testimonial->value, 'values' => ['quote_text' => 'نقل قول', 'customer_name' => 'ع'], 'children' => []],
+        ['id' => 'pt1', 'widget_key' => WidgetKey::PricingTable->value, 'values' => ['plan_name' => 'پ', 'price' => '۱', 'features' => ['ویژگی']], 'children' => []],
+        ['id' => 'faq1', 'widget_key' => WidgetKey::FaqAccordion->value, 'values' => ['items' => [['question' => 'س', 'answer' => 'ج']]], 'children' => []],
+        ['id' => 'm1', 'widget_key' => WidgetKey::Map->value, 'values' => ['embed_url' => 'https://www.google.com/maps/embed?pb=1'], 'children' => []],
+        ['id' => 'v1', 'widget_key' => WidgetKey::Video->value, 'values' => ['video_url' => 'https://youtu.be/abcDEF123'], 'children' => []],
+        ['id' => 'sp1', 'widget_key' => WidgetKey::Spacer->value, 'values' => ['height_px' => 40], 'children' => []],
+        ['id' => 'hn1', 'widget_key' => WidgetKey::HeaderNav->value, 'values' => ['nav_links' => [['label' => 'خانه', 'url' => '/']]], 'children' => []],
+        ['id' => 'ft1', 'widget_key' => WidgetKey::Footer->value, 'values' => ['copyright_text' => '©'], 'children' => []],
+        ['id' => 'im1', 'widget_key' => WidgetKey::Image->value, 'values' => ['image_path' => 'x.jpg', 'alt' => 'a'], 'children' => []],
+        ['id' => 'c1', 'widget_key' => WidgetKey::Container->value, 'values' => [], 'children' => []],
+    ];
+
+    $html = $renderer->render($tree);
+
+    expect($html)->toContain('class="sb-page"');
+    expect($html)->toContain('--sb-primary-color');
+    expect($html)->toContain('--sb-font-family');
+    expect($html)->toContain('.sb-widget-button{');
+    expect($html)->toContain('.sb-widget-gallery{');
+    expect($html)->toContain('.sb-widget-testimonial{');
+    expect($html)->toContain('.sb-widget-pricing-table{');
+    expect($html)->toContain('.sb-widget-faq-accordion{');
+    expect($html)->toContain('.sb-widget-map,.sb-widget-video{');
+    expect($html)->toContain('.sb-widget-header-nav{');
+    expect($html)->toContain('.sb-widget-footer{');
+});
+
+it('resolves a relative stored image path to a full storage url in the rendered output', function () {
+    Storage::fake('public');
+    $renderer = app(WidgetContentRenderer::class);
+
+    $html = $renderer->render([
+        ['id' => 'im1', 'widget_key' => WidgetKey::Image->value, 'values' => ['image_path' => 'sitebuilder/images/pic.jpg', 'alt' => 'a'], 'children' => []],
+    ]);
+
+    expect($html)->toContain('src="'.Storage::disk('public')->url('sitebuilder/images/pic.jpg').'"');
+    expect($html)->not->toContain('src="sitebuilder/images/pic.jpg"');
+});
+
+it('leaves an already-absolute or root-relative image url untouched', function () {
+    $renderer = app(WidgetContentRenderer::class);
+
+    $html = $renderer->render([
+        ['id' => 'im1', 'widget_key' => WidgetKey::Image->value, 'values' => ['image_path' => 'https://cdn.example.com/pic.jpg', 'alt' => 'a'], 'children' => []],
+    ]);
+
+    expect($html)->toContain('src="https://cdn.example.com/pic.jpg"');
+});
+
+it('applies a valid theme from the widget_tree root and falls back to defaults for an invalid one', function () {
+    $renderer = app(WidgetContentRenderer::class);
+
+    $withTheme = $renderer->render([
+        'theme' => ['primary_color' => '#123ABC', 'font_family' => "'Test Font', sans-serif"],
+        ['id' => 't1', 'widget_key' => WidgetKey::Title->value, 'values' => ['text' => 'س', 'level' => 1], 'children' => []],
+    ]);
+
+    expect($withTheme)->toContain('--sb-primary-color:#123ABC;');
+    expect($withTheme)->toContain("--sb-font-family:&#039;Test Font&#039;, sans-serif;");
+
+    $maliciousTheme = $renderer->render([
+        'theme' => ['primary_color' => 'red;}</style><script>alert(1)</script>', 'font_family' => 'x</style><script>alert(1)</script>'],
+        ['id' => 't1', 'widget_key' => WidgetKey::Title->value, 'values' => ['text' => 'س', 'level' => 1], 'children' => []],
+    ]);
+
+    expect($maliciousTheme)->not->toContain('<script>');
+    expect($maliciousTheme)->toContain('--sb-primary-color:#2563EB;');
 });

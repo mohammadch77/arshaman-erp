@@ -4,12 +4,19 @@ namespace App\Modules\SiteBuilder\Services;
 
 use App\Modules\SiteBuilder\Enums\WidgetKey;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * ساختار هر نود widget_tree:
  * ['id' => uuid, 'widget_key' => 'container'|'title'|..., 'values' => [...], 'children' => [...نود...]]
  * فقط widget_key های تعریف‌شده در WidgetKey رندر می‌شوند؛ هر کلید ناشناخته
  * لاگ و از خروجی حذف می‌شود (نه throw، نه silent skip بی‌اثر).
+ *
+ * widget_tree می‌تواند یک کلید ریشه اختیاری 'theme' هم داشته باشد (بدون نیاز
+ * به ستون/جدول جدید — فقط یک کلید دیگر در همان JSON):
+ * ['theme' => ['primary_color' => '#2563EB', 'font_family' => "'Vazirmatn', sans-serif"], 0 => [...node...], ...]
+ * این کلید هرگز به‌عنوان یک نود رندر نمی‌شود؛ render() آن را قبل از پیمایش
+ * جدا می‌کند و به‌صورت CSS custom property روی wrapper بیرونی صفحه می‌گذارد.
  */
 class WidgetContentRenderer
 {
@@ -20,12 +27,109 @@ class WidgetContentRenderer
 
     private const MAP_ALLOWED_PATH_PREFIX = '/maps/embed';
 
+    private const DEFAULT_PRIMARY_COLOR = '#2563EB';
+
+    private const DEFAULT_FONT_FAMILY = "'Vazirmatn', sans-serif";
+
     public function render(array $widgetTree): string
     {
+        $theme = $this->extractTheme($widgetTree);
+        unset($widgetTree['theme']);
+
         $html = $this->renderNodes($widgetTree);
 
         // content_html هرگز خالی/NULL نباشد، حتی برای دموی بدون هیچ ویجتی.
-        return $html !== '' ? $html : '<div class="sb-page-empty"></div>';
+        if ($html === '') {
+            $html = '<div class="sb-page-empty"></div>';
+        }
+
+        return '<div class="sb-page" style="'.e($theme).'">'
+            .'<style>'.$this->baseStyles().'</style>'
+            .$html
+            .'</div>';
+    }
+
+    /**
+     * مقادیر theme را از ریشه widget_tree می‌خواند و به یک رشته inline style
+     * امن تبدیل می‌کند. رنگ باید دقیقاً هگز ۶ یا ۳ رقمی باشد، فونت فقط از
+     * حروف/فاصله/کاما/آپاستروف/خط تیره تشکیل شده باشد — وگرنه پیش‌فرض
+     * جایگزین می‌شود. دلیل: این مقدار مستقیم داخل یک HTML attribute می‌رود،
+     * پس تزریق دلخواه اینجا دقیقاً همان کلاس خطر XSS ویجت map/video است.
+     */
+    private function extractTheme(array $widgetTree): string
+    {
+        $theme = is_array($widgetTree['theme'] ?? null) ? $widgetTree['theme'] : [];
+
+        $primaryColor = (string) ($theme['primary_color'] ?? '');
+        if (! preg_match('/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/', $primaryColor)) {
+            $primaryColor = self::DEFAULT_PRIMARY_COLOR;
+        }
+
+        $fontFamily = (string) ($theme['font_family'] ?? '');
+        if (! preg_match('/^[a-zA-Z0-9 ,\'\-]+$/', $fontFamily)) {
+            $fontFamily = self::DEFAULT_FONT_FAMILY;
+        }
+
+        return '--sb-primary-color:'.$primaryColor.';--sb-font-family:'.$fontFamily.';';
+    }
+
+    /**
+     * پوسته CSS مشترک هر ۱۳ ویجت — هم در iframe پیش‌نمایش ادمین (ذخیره‌شده
+     * یا هنوز ذخیره‌نشده) هم در content_html نهایی صفحه عمومی استفاده می‌شود.
+     * فقط از دو متغیر سطح صفحه (--sb-primary-color/--sb-font-family) رنگ و
+     * فونت می‌گیرد — هیچ رنگ دیگری اینجا هاردکد نیست تا هر دمو با یک پالت
+     * کاملاً متفاوت هم از همین یک فایل CSS درست دیده شود.
+     */
+    public function baseStyles(): string
+    {
+        return <<<'CSS'
+        .sb-page{font-family:var(--sb-font-family);color:#1f2430;line-height:1.8;}
+        .sb-page *{box-sizing:border-box;}
+        .sb-widget{display:block;}
+        .sb-widget-container{margin:0 auto;padding:1.5rem 1rem;max-width:72rem;}
+        .sb-widget-title{margin:0 0 .75rem;font-weight:700;letter-spacing:-.01em;}
+        .sb-widget-title:is(h1){font-size:2.25rem;line-height:1.25;}
+        .sb-widget-title:is(h2){font-size:1.75rem;line-height:1.3;}
+        .sb-widget-title:is(h3){font-size:1.375rem;}
+        .sb-widget-title:is(h4){font-size:1.125rem;font-weight:600;color:#4b5261;}
+        .sb-widget-title:is(h5,h6){font-size:.95rem;font-weight:600;color:#6b7280;}
+        .sb-widget-image{display:block;max-width:100%;height:auto;border-radius:.75rem;}
+        .sb-widget-button{display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.4rem;border-radius:.6rem;font-weight:600;text-decoration:none;transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease;}
+        .sb-btn-primary{background:var(--sb-primary-color);color:#fff;box-shadow:0 6px 16px -6px color-mix(in srgb, var(--sb-primary-color) 60%, transparent);}
+        .sb-btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 20px -6px color-mix(in srgb, var(--sb-primary-color) 65%, transparent);}
+        .sb-btn-outline{background:transparent;color:var(--sb-primary-color);border:1.5px solid var(--sb-primary-color);}
+        .sb-btn-outline:hover{background:color-mix(in srgb, var(--sb-primary-color) 10%, transparent);}
+        .sb-widget-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin:1rem 0;}
+        .sb-gallery-item{margin:0;background:#f4f5f7;border-radius:.75rem;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.08);}
+        .sb-gallery-item img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;}
+        .sb-gallery-item figcaption{padding:.6rem .75rem;font-size:.85rem;color:#4b5261;}
+        .sb-widget-testimonial{margin:1rem 0;padding:1.5rem;background:#f8f9fb;border-radius:1rem;border-inline-start:4px solid var(--sb-primary-color);}
+        .sb-widget-testimonial blockquote{margin:0 0 1rem;font-size:1.1rem;color:#1f2430;}
+        .sb-testimonial-photo{width:2.75rem;height:2.75rem;border-radius:9999px;object-fit:cover;float:inline-end;margin-inline-start:.75rem;}
+        .sb-widget-testimonial footer{display:flex;gap:.5rem;align-items:baseline;font-size:.9rem;}
+        .sb-testimonial-name{font-weight:700;}
+        .sb-testimonial-title{color:#6b7280;}
+        .sb-widget-pricing-table{margin:1rem 0;padding:1.75rem;border-radius:1rem;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.06);text-align:center;}
+        .sb-pricing-plan-name{margin:0 0 .5rem;font-size:1.15rem;}
+        .sb-pricing-price{font-size:1.6rem;font-weight:800;color:var(--sb-primary-color);margin-bottom:1rem;}
+        .sb-pricing-features{list-style:none;margin:0 0 1.25rem;padding:0;display:flex;flex-direction:column;gap:.5rem;color:#4b5261;}
+        .sb-pricing-features li{padding-inline-start:1.4rem;position:relative;}
+        .sb-pricing-features li::before{content:'✓';position:absolute;inset-inline-start:0;color:var(--sb-primary-color);font-weight:700;}
+        .sb-pricing-cta{display:inline-block;padding:.6rem 1.5rem;border-radius:.6rem;background:var(--sb-primary-color);color:#fff;text-decoration:none;font-weight:600;}
+        .sb-widget-faq-accordion{margin:1rem 0;display:flex;flex-direction:column;gap:.6rem;}
+        .sb-faq-item{padding:1rem 1.25rem;background:#f8f9fb;border-radius:.75rem;border:1px solid #edeef1;}
+        .sb-faq-item summary{cursor:pointer;font-weight:600;}
+        .sb-faq-item div{margin-top:.6rem;color:#4b5261;}
+        .sb-widget-map,.sb-widget-video{position:relative;width:100%;aspect-ratio:16/9;margin:1rem 0;border-radius:1rem;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,.08);}
+        .sb-widget-map iframe,.sb-widget-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+        .sb-widget-header-nav{display:flex;flex-wrap:wrap;gap:1.5rem;padding:1rem 1.5rem;align-items:center;}
+        .sb-widget-header-nav a{color:#1f2430;text-decoration:none;font-weight:600;}
+        .sb-widget-header-nav a:hover{color:var(--sb-primary-color);}
+        .sb-widget-footer{margin-top:2rem;padding:2rem 1.5rem;background:#f4f5f7;display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;font-size:.9rem;color:#4b5261;}
+        .sb-footer-social{display:flex;gap:1rem;}
+        .sb-footer-social a{color:var(--sb-primary-color);text-decoration:none;font-weight:600;}
+        .sb-page-empty{padding:3rem;text-align:center;color:#9ca3af;}
+        CSS;
     }
 
     private function renderNodes(array $nodes): string
@@ -89,7 +193,7 @@ class WidgetContentRenderer
 
     private function renderImage(array $values): string
     {
-        $src = (string) ($values['image_path'] ?? $values['src'] ?? '');
+        $src = $this->resolveImageUrl((string) ($values['image_path'] ?? $values['src'] ?? ''));
 
         if ($src === '') {
             return '';
@@ -98,6 +202,29 @@ class WidgetContentRenderer
         $alt = (string) ($values['alt'] ?? '');
 
         return '<img class="sb-widget sb-widget-image" src="'.e($src).'" alt="'.e($alt).'">';
+    }
+
+    /**
+     * مقدار ذخیره‌شده در widget_tree برای یک فیلد تصویر می‌تواند سه شکل داشته
+     * باشد: (۱) مسیر نسبی روی دیسک public (مثلاً 'sitebuilder/images/x.jpg' —
+     * از PageContentEditor::mergeUploadedFiles ذخیره واقعی)، (۲) یک URL کامل
+     * یا root-relative از قبل حل‌شده (مثلاً temporaryUrl() یک آپلود هنوز
+     * ذخیره‌نشده در پیش‌نمایش زنده)، یا (۳) خالی. فقط حالت اول نیاز به
+     * Storage::url() دارد — بدون این تفکیک، هر src خام مستقیم رندر می‌شد و
+     * نسبت به آدرس صفحه‌ی جاری (نه ریشه سایت) حل می‌شد، هم در iframe
+     * پیش‌نمایش هم در content_html نهایی صفحه عمومی.
+     */
+    private function resolveImageUrl(string $path): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        if (preg_match('#^(https?://|//|/)#i', $path) === 1) {
+            return $path;
+        }
+
+        return Storage::disk('public')->url($path);
     }
 
     private function renderButton(array $values): string
@@ -125,7 +252,7 @@ class WidgetContentRenderer
         $items = '';
 
         foreach ($images as $image) {
-            $src = (string) ($image['image_path'] ?? '');
+            $src = $this->resolveImageUrl((string) ($image['image_path'] ?? ''));
 
             if ($src === '') {
                 continue;
@@ -154,7 +281,7 @@ class WidgetContentRenderer
 
         $name = (string) ($values['customer_name'] ?? '');
         $title = (string) ($values['customer_title'] ?? '');
-        $photo = (string) ($values['customer_photo'] ?? '');
+        $photo = $this->resolveImageUrl((string) ($values['customer_photo'] ?? ''));
 
         $photoHtml = $photo !== '' ? '<img class="sb-testimonial-photo" src="'.e($photo).'" alt="'.e($name).'">' : '';
         $titleHtml = $title !== '' ? '<span class="sb-testimonial-title">'.e($title).'</span>' : '';

@@ -20,12 +20,14 @@
         </x-card>
 
         <x-card shadow title="هدر فعال">
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2.5">
                 @forelse($this->headerDemos as $demo)
-                    <label class="flex cursor-pointer items-center gap-3 rounded border border-base-300 p-3 {{ $active_header_demo_id === $demo->id ? 'ring-2 ring-primary' : '' }}">
+                    <label class="flex cursor-pointer items-center gap-3 rounded-box border p-3.5 transition hover:border-primary/50 {{ $active_header_demo_id === $demo->id ? 'border-primary ring-2 ring-primary bg-primary/5' : 'border-base-300' }}">
                         <input type="radio" class="radio radio-primary" wire:model="active_header_demo_id" value="{{ $demo->id }}" />
-                        <x-icon :name="theme_icon('header')" class="text-primary" />
-                        <span>{{ $demo->name }}</span>
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-box bg-primary/10 text-primary">
+                            <x-icon :name="theme_icon('header')" class="w-4 h-4" />
+                        </span>
+                        <span class="font-medium">{{ $demo->name }}</span>
                     </label>
                 @empty
                     <x-alert title="هیچ دموی هدری ساخته نشده است." :icon="theme_icon('warning')" class="alert-warning" />
@@ -34,12 +36,14 @@
         </x-card>
 
         <x-card shadow title="فوتر فعال">
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2.5">
                 @forelse($this->footerDemos as $demo)
-                    <label class="flex cursor-pointer items-center gap-3 rounded border border-base-300 p-3 {{ $active_footer_demo_id === $demo->id ? 'ring-2 ring-primary' : '' }}">
+                    <label class="flex cursor-pointer items-center gap-3 rounded-box border p-3.5 transition hover:border-primary/50 {{ $active_footer_demo_id === $demo->id ? 'border-primary ring-2 ring-primary bg-primary/5' : 'border-base-300' }}">
                         <input type="radio" class="radio radio-primary" wire:model="active_footer_demo_id" value="{{ $demo->id }}" />
-                        <x-icon :name="theme_icon('footer')" class="text-primary" />
-                        <span>{{ $demo->name }}</span>
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-box bg-primary/10 text-primary">
+                            <x-icon :name="theme_icon('footer')" class="w-4 h-4" />
+                        </span>
+                        <span class="font-medium">{{ $demo->name }}</span>
                     </label>
                 @empty
                     <x-alert title="هیچ دموی فوتری ساخته نشده است." :icon="theme_icon('warning')" class="alert-warning" />

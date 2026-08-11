@@ -9,7 +9,23 @@
         <x-alert title="این صفحه منتشرشده است — فقط holding_admin می‌تواند محتوای ویجت‌ها را ویرایش کند." :icon="theme_icon('warning')" class="alert-warning mb-4" />
     @endif
 
-    <x-form wire:submit="save" class="gap-6">
+    <x-form
+        wire:submit="save"
+        x-data="{
+            previewTimer: null,
+            previewInFlight: null,
+            schedulePreview() {
+                clearTimeout(this.previewTimer);
+                this.previewTimer = setTimeout(() => {
+                    this.previewInFlight = $wire.refreshPreview().finally(() => { this.previewInFlight = null; });
+                }, 500);
+            },
+        }"
+        x-on:livewire-upload-finish.window="schedulePreview()"
+        class="gap-6"
+    >
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div class="flex flex-col gap-6">
         <x-card shadow title="محتوای ویجت‌ها">
             <div class="flex flex-col gap-5">
                 @forelse($this->editableNodes as $node)
@@ -41,6 +57,7 @@
                                 <x-select
                                     label="{{ $field['label'] }}"
                                     wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}"
+                                    x-on:change="schedulePreview()"
                                     :options="$field['options']"
                                     option-value="value"
                                     option-label="label"
@@ -50,6 +67,7 @@
                                 <x-textarea
                                     label="{{ $field['label'] }}"
                                     wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}"
+                                    x-on:input="schedulePreview()"
                                     rows="3"
                                     :disabled="! $this->canEditWidgetValues"
                                 />
@@ -57,6 +75,7 @@
                                 <x-textarea
                                     label="{{ $field['label'] }}"
                                     wire:model="linesRaw.{{ $node['id'] }}.{{ $field['key'] }}"
+                                    x-on:input="schedulePreview()"
                                     rows="4"
                                     :disabled="! $this->canEditWidgetValues"
                                 />
@@ -90,6 +109,7 @@
                                                                 <x-textarea
                                                                     label="{{ $itemField['label'] }}"
                                                                     wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
+                                                                    x-on:input="schedulePreview()"
                                                                     rows="2"
                                                                     :disabled="! $this->canEditWidgetValues"
                                                                 />
@@ -97,6 +117,7 @@
                                                                 <x-input
                                                                     label="{{ $itemField['label'] }}"
                                                                     wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
+                                                                    x-on:input="schedulePreview()"
                                                                     :disabled="! $this->canEditWidgetValues"
                                                                 />
                                                             @endif
@@ -128,6 +149,7 @@
                                 <x-input
                                     label="{{ $field['label'] }}"
                                     wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}"
+                                    x-on:input="schedulePreview()"
                                     :disabled="! $this->canEditWidgetValues"
                                 />
                             @endif
@@ -140,7 +162,7 @@
         </x-card>
 
         <x-card shadow title="کد اختصاصی صفحه">
-            <x-textarea label="CSS اختصاصی" wire:model="extra_css" rows="4" />
+            <x-textarea label="CSS اختصاصی" wire:model="extra_css" x-on:input="schedulePreview()" rows="4" />
             <x-textarea label="JS اختصاصی" wire:model="extra_js" rows="4" />
         </x-card>
 
@@ -154,6 +176,24 @@
                 :disabled="! $this->canPublish"
             />
         </x-card>
+        </div>
+
+        <div class="lg:sticky lg:top-4">
+            <x-card shadow title="پیش‌نمایش زنده">
+                <x-slot:menu>
+                    <x-badge value="{{ $this->canEditWidgetValues ? 'بدون ذخیره' : 'فقط‌خواندنی' }}" class="badge-ghost" />
+                </x-slot:menu>
+
+                <iframe
+                    srcdoc="{{ $this->previewDocument }}"
+                    sandbox="allow-same-origin"
+                    title="پیش‌نمایش صفحه"
+                    class="w-full rounded-box border border-base-300"
+                    style="height: 75vh;"
+                ></iframe>
+            </x-card>
+        </div>
+      </div>
 
         <x-slot:actions>
             <x-button label="انصراف" link="{{ route('sitebuilder.pages.index') }}" class="btn-ghost" />

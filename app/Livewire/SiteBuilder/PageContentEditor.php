@@ -7,6 +7,8 @@ use App\Modules\SiteBuilder\Enums\PageStatus;
 use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\Widget;
 use App\Modules\SiteBuilder\Policies\PagePolicy;
+use App\Modules\SiteBuilder\Services\WidgetContentRenderer;
+use App\Modules\SiteBuilder\Services\WidgetTreeValueMerger;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -52,6 +54,15 @@ class PageContentEditor extends Component
 
     public string $page_status = '';
 
+    /**
+     * HTML/CSS پیش‌نمایش زنده — همیشه از روی fieldValues فعلی فرم (نه رکورد
+     * ذخیره‌شده در دیتابیس) با refreshPreview() ساخته می‌شود. ذخیره واقعی
+     * صفحه هرگز از این دو property نمی‌آید.
+     */
+    public string $previewHtml = '';
+
+    public string $previewCss = '';
+
     public function mount(string $page): void
     {
         $this->record = Page::with('demo.category')->findOrFail($page);
@@ -88,6 +99,8 @@ class PageContentEditor extends Component
                 }
             }
         }
+
+        $this->refreshPreview();
     }
 
     /**
@@ -113,6 +126,8 @@ class PageContentEditor extends Component
         }
 
         $this->fieldValues[$nodeId][$fieldKey][] = $emptyRow;
+
+        $this->refreshPreview();
     }
 
     public function removeRepeaterRow(string $nodeId, string $fieldKey, int $index): void
@@ -125,6 +140,110 @@ class PageContentEditor extends Component
         if (isset($this->imageUploads[$nodeId][$fieldKey])) {
             $this->imageUploads[$nodeId][$fieldKey] = array_values($this->imageUploads[$nodeId][$fieldKey]);
         }
+
+        $this->refreshPreview();
+    }
+
+    /**
+     * پیش‌نمایش زنده را از روی fieldValues *فعلی* فرم بازمی‌سازد — رکورد
+     * صفحه در دیتابیس دست‌نخورده می‌ماند. از همان WidgetTreeValueMerger و
+     * WidgetContentRenderer سمت سرور استفاده می‌کند که مسیر ذخیره واقعی
+     * (UpdatePageWidgetValues) استفاده می‌کند؛ یک منبع واحد یعنی پیش‌نمایش
+     * هرگز از رندر نهایی امن (whitelist ویجت + escape) جدا نمی‌افتد.
+     *
+     * از سمت کلاینت با یک تایمر debounce واحد صدا زده می‌شود (نه چند
+     * wire:model.live مستقل روی هر فیلد) — دقیقاً همان الگوی
+     * scheduleAutosave در BlogPostForm که جلوی race چند تایمر همزمان را
+     * می‌گیرد.
+     */
+    public function refreshPreview(): void
+    {
+        $merger = app(WidgetTreeValueMerger::class);
+        $renderer = app(WidgetContentRenderer::class);
+
+        $previewTree = $merger->apply($this->record->widget_tree, $this->fieldValuesForPreview());
+
+        $this->previewHtml = $renderer->render($previewTree);
+        $this->previewCss = $this->extra_css;
+    }
+
+    /**
+     * مثل fieldValuesWithLinesResolved()، به‌علاوه جایگزینی هر آپلود تازه‌ (که
+     * هنوز روی دیسک ذخیره نشده) با temporaryUrl() آن — فقط برای پیش‌نمایش.
+     * بدون این، تصویری که همین الان انتخاب شده ولی هنوز save() نشده هرگز در
+     * iframe دیده نمی‌شد، چون refreshPreview() فقط widget_tree ذخیره‌شده را
+     * می‌خواند، نه imageUploads.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function fieldValuesForPreview(): array
+    {
+        $fieldValues = $this->fieldValuesWithLinesResolved();
+        $this->mergeTemporaryImageUrls($this->imageUploads, $fieldValues);
+
+        return $fieldValues;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $uploads
+     * @param  array<array-key, mixed>  $target
+     */
+    private function mergeTemporaryImageUrls(array $uploads, array &$target): void
+    {
+        foreach ($uploads as $key => $value) {
+            if ($value instanceof TemporaryUploadedFile) {
+                $target[$key] = $value->temporaryUrl();
+
+                continue;
+            }
+
+            if (is_array($value)) {
+                if (! isset($target[$key]) || ! is_array($target[$key])) {
+                    $target[$key] = [];
+                }
+
+                $this->mergeTemporaryImageUrls($value, $target[$key]);
+            }
+        }
+    }
+
+    /**
+     * سند HTML کامل پیش‌نمایش برای srcdoc یک iframe مجزا — تا استایل‌های
+     * extra_css صفحه با استایل خودِ پنل ادمین تداخل نکند. </style> داخل
+     * extra_css خنثی می‌شود تا محتوای CSS نتواند زودتر از انتظار از تگ
+     * <style> خارج شود.
+     */
+    public function getPreviewDocumentProperty(): string
+    {
+        $safeCss = str_ireplace('</style', '<\\/style', $this->previewCss);
+
+        return '<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">'
+            .'<style>body{margin:0;padding:1rem;font-family:inherit;}'.$safeCss.'</style>'
+            .'</head><body>'.$this->previewHtml.'</body></html>';
+    }
+
+    /**
+     * fieldValues فعلی فرم به‌علاوه تبدیل نوع 'lines' (linesRaw چندخطی →
+     * آرایه) — هم save() هم refreshPreview() از همین متد استفاده می‌کنند تا
+     * قانون تبدیل هرگز بین ذخیره و پیش‌نمایش جدا نیفتد.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function fieldValuesWithLinesResolved(): array
+    {
+        $fieldValues = $this->fieldValues;
+
+        foreach ($this->editableNodes() as $node) {
+            foreach ($node['fields'] as $field) {
+                if ($field['type'] === 'lines') {
+                    $raw = (string) ($this->linesRaw[$node['id']][$field['key']] ?? '');
+                    $lines = array_values(array_filter(array_map('trim', explode("\n", $raw)), fn ($line) => $line !== ''));
+                    $fieldValues[$node['id']][$field['key']] = $lines;
+                }
+            }
+        }
+
+        return $fieldValues;
     }
 
     /**
@@ -201,19 +320,9 @@ class PageContentEditor extends Component
 
         // اگر operator اجازه ویرایش مقادیر ویجت را ندارد (صفحه published)،
         // چیزی از این مسیر ارسال نمی‌شود — فقط extra_css/extra_js مستقل ذخیره می‌شود.
-        $fieldValues = $this->canEditWidgetValues ? $this->fieldValues : [];
+        $fieldValues = $this->canEditWidgetValues ? $this->fieldValuesWithLinesResolved() : [];
 
         if ($this->canEditWidgetValues) {
-            foreach ($this->editableNodes() as $node) {
-                foreach ($node['fields'] as $field) {
-                    if ($field['type'] === 'lines') {
-                        $raw = (string) ($this->linesRaw[$node['id']][$field['key']] ?? '');
-                        $lines = array_values(array_filter(array_map('trim', explode("\n", $raw)), fn ($line) => $line !== ''));
-                        $fieldValues[$node['id']][$field['key']] = $lines;
-                    }
-                }
-            }
-
             $this->mergeUploadedFiles($this->imageUploads, $fieldValues);
         }
 

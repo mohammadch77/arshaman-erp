@@ -15,8 +15,12 @@ class CreatePageFromDemo
 
     /**
      * @param  array{owner_company_id: string, page_demo_id: string, title: string, slug: string, meta_title: ?string, meta_description: ?string}  $data
+     * @param  array<int, array<string, mixed>>|null  $widgetTree  اگر داده شود (مسیر PageCreateFlow —
+     *   کاربر پیش از ذخیره مقادیر دمو را در حافظه ویرایش کرده)، به‌جای widget_tree
+     *   خام دمو همین درخت ذخیره می‌شود. ساختار/تعداد/ترتیب گره‌ها همچنان دست‌کاری
+     *   نمی‌شود، فقط منبع تعیین می‌کند از کجا خوانده شود.
      */
-    public function handle(array $data, User $actor): Page
+    public function handle(array $data, User $actor, ?array $widgetTree = null): Page
     {
         Gate::forUser($actor)->authorize('create', [Page::class, $data['owner_company_id']]);
 
@@ -24,7 +28,7 @@ class CreatePageFromDemo
 
         // widget_tree دموی مرجع عیناً کپی می‌شود — کاربر فقط بعداً مقادیر
         // داخل فیلدها را عوض می‌کند، ساختار همیشه همان دموست.
-        $widgetTree = $demo->widget_tree;
+        $widgetTree ??= $demo->widget_tree;
 
         return Page::create([
             'owner_company_id' => $data['owner_company_id'],

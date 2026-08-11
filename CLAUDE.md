@@ -1168,4 +1168,85 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
 متعدد برای شش دسته صفحه با این ۱۳ ویجت (Session بعدی)، ویجت‌های یکپارچه
 وبلاگ/تماس، رندر عمومی نهایی صفحات با استفاده از دموی هدر/فوتر فعال.
 
+- [x] Session 3: دموهای واقعی و متعدد — از یک دموی نمونه به ۳۰ دمو
+
+  **چه ساخته شد:** Seeder جدید append-only
+  `database/seeders/SiteBuilderDemosExpansionSeeder.php` (ثبت‌شده در
+  `DatabaseSeeder` بعد از دو seeder قبلی ماژول، بدون ویرایش آن‌ها) —
+  ۱۸ دموی صفحه (سه دموی واقعاً متفاوت برای هر شش دسته: home/about/contact/
+  services/blog/login) + ۳ دموی هدر + ۳ دموی فوتر = ۲۴ دموی جدید، به‌علاوه
+  دموی نمونه Session ۱ که دست‌نخورده ماند (جمع نهایی: about و هر دو layout
+  چهار دمو، بقیه دسته‌ها سه دمو).
+
+  **تصمیم‌های این Session:**
+  - چون کاتالوگ فعلی فقط ۱۳ ویجت دارد و هیچ ویجت متن‌آزاد (paragraph) وجود
+    ندارد، برای توضیحات کوتاه از ویجت `title` با `level` بالاتر (۴ تا ۶)
+    استفاده شد — نه یک ویجت جدید. تصمیم طراحی این Session، نه محدودیت فنی
+    غیرقابل‌دور زدن.
+  - دموهای `contact`/`blog` طبق دستور صریح کارفرما فقط جای‌گیر بصری‌اند
+    (`Container`+`Title` به‌جای فرم تماس واقعی/فهرست واقعی پست‌ها) — دو
+    آیتم متناظر (`contact_form`, `blog_post_list`) در `docs/BACKLOG.md`
+    ثبت شد.
+  - هر گره هر ۳۰ دمو یک `instance_label` منحصربه‌فرد و توصیفی گرفت (تست
+    `DemoExpansionTest` این را برای همه دموها بازگشتی بررسی می‌کند) — طبق
+    درسِ باگ قبلی این ماژول (برچسب مشترک بین دو نمونه هم‌نوع، فرم
+    `PageContentEditor` را گمراه‌کننده می‌کند).
+  - `thumbnail_path` همه دموهای جدید عمداً `null` ماند؛ تصویر بندانگشتی
+    واقعی در `docs/BACKLOG.md` ثبت شد (خارج از scope دیتابیسی این Session).
+  - **بازدید بصری واقعی در مرورگر این Session هم ممکن نشد** — همان محدودیت
+    قبلی این ماژول (sandbox نمی‌تواند `arshaman-erp.test` را resolve کند؛
+    این‌بار تأیید شد که Laragon این دامنه را از طریق DNS داخلی خودش سرویس
+    می‌دهد، نه فایل hosts، پس شبکه sandbox اصلاً مسیری به آن ندارد). تأیید
+    از طریق ۵ تست Feature جدید (`tests/Feature/SiteBuilder/DemoExpansionTest.php`)
+    + کل سوییت پروژه (۴۰۴ سبز) + شمارش مستقیم رکوردهای seed‌شده در دیتابیس
+    توسعه واقعی (`arshaman_erp`، با `php artisan tinker`، بدون هیچ
+    `migrate:fresh`) انجام شد. کاربر تستی موقتی که برای تلاش بازدید بصری
+    ساخته شد (`sitebuilder-demos-visual-test@example.com`) در پایان کامل
+    حذف شد (بند ۱۰ CLAUDE.md).
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): ویجت‌های یکپارچه
+واقعی وبلاگ/تماس، تصاویر بندانگشتی واقعی دموها، رندر عمومی نهایی صفحات با
+استفاده از دموی هدر/فوتر فعال.
+
+- [x] Session 4: پیش‌نمایش زنده در PageContentEditor (split view)
+
+  **چه ساخته شد:** سرویس جدید `WidgetTreeValueMerger` (استخراج‌شده از منطق
+  خصوصی `applyValues` قبلی داخل `UpdatePageWidgetValues`) — تنها منبع
+  جایگزینی مقدار در widget_tree، حالا هم مسیر ذخیره واقعی (`UpdatePageWidgetValues`)
+  هم پیش‌نمایش زنده از همین سرویس + همان `WidgetContentRenderer` سمت سرور
+  استفاده می‌کنند. متد جدید `PageContentEditor::refreshPreview()` (بدون
+  پارامتر، وابستگی‌ها از `app()` گرفته می‌شوند تا هم از Alpine هم از داخل
+  `addRepeaterRow`/`removeRepeaterRow` قابل صدا زدن باشد) یک widget_tree
+  موقت از روی `fieldValues` فعلی فرم می‌سازد و فقط دو property جدید
+  (`previewHtml`/`previewCss`) را پر می‌کند — رکورد `pages` در دیتابیس
+  دست‌نخورده می‌ماند. پنل پیش‌نمایش یک `<iframe sandbox="allow-same-origin">`
+  با `srcdoc` مجزاست (نه inline در DOM ادمین) تا `extra_css` صفحه با استایل
+  پنل تداخل نکند؛ اسکریپت (`extra_js`) عمداً در پیش‌نمایش اجرا نمی‌شود.
+
+  **تصمیم‌های این Session:**
+  - برخلاف autosave وبلاگ (که چند `wire:model.live` مستقل داشت و race
+    واقعی ایجاد کرده بود)، اینجا از روز اول فقط یک تایمر debounce واحد در
+    Alpine (`schedulePreview()`، الگوی دقیق `scheduleAutosave` بلاگ) روی
+    `x-on:input`/`x-on:change` همه فیلدهای متنی/select/textarea/repeater
+    گذاشته شد — فیلد تصویر (`x-file`) عمداً از این trigger کنار گذاشته شد
+    چون آپلود Livewire مسیر شبکه‌ی جداگانه خودش را دارد.
+  - تبدیل فیلد نوع `lines` (خط به آرایه) از save() به یک متد خصوصی مشترک
+    `fieldValuesWithLinesResolved()` منتقل شد — دقیقاً همان استدلال merger:
+    یک منبع واحد بین ذخیره و پیش‌نمایش، نه دو منطق که ممکن است از هم جدا
+    بیفتند.
+  - بازدید بصری واقعی این Session با کاربر تستی موقت
+    (`sitebuilder-preview-visual-test@example.com`) انجام شد، ولی نه از
+    طریق دامنه Laragon (`arshaman-erp.test` — همان محدودیت شبکه sandbox
+    مستندشده در Session‌های قبلی این ماژول) بلکه با `php artisan serve` روی
+    `127.0.0.1:8123`. تست شامل تایپ سریع پشت‌سرهم (stress test مشابه رفع
+    باگ autosave وبلاگ) و یک payload کامل `<script>alert(1)</script>` بود؛
+    هر دو با بازرسی مستقیم DOM/`iframe.contentDocument` (نه اسکرین‌شات — پنل
+    Browser در این محیط فریم را کمپوزیت نمی‌کرد) تأیید شدند: مقدار نهایی
+    پیش‌نمایش دقیقاً با آخرین ورودی مطابق بود (بدون باقی‌ماندن نسخه قدیمی)،
+    صفر تگ `<script>` در iframe، و رکورد `pages` در دیتابیس در تمام این مدت
+    دست‌نخورده ماند. کاربر تستی در پایان کامل حذف شد.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): جابه‌جایی ویجت‌ها،
+ذخیره خودکار صفحه (autosave واقعی، نه فقط پیش‌نمایش).
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.
