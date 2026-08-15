@@ -112,6 +112,7 @@ return [
         'template' => 'o-rectangle-group',
         'header' => 'o-view-columns',
         'footer' => 'o-bars-3-bottom-left',
+        'drag-handle' => 'o-arrows-up-down',
     ],
 
 ];

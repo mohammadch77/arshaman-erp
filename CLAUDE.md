@@ -1329,4 +1329,69 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
 `header_nav`، رندر عمومی وبلاگ/تماس یکپارچه با سایت‌ساز، زمان‌بندی انتشار
 صفحه (مثل `PublishScheduledPost` بلاگ).
 
+- [x] Session 6: جابه‌جایی (drag-and-drop) ویجت‌ها در PageContentEditor/PageCreateFlow
+
+  **چه ساخته شد:** کتابخانه `sortablejs` (npm) با یک wrapper نازک
+  `resources/js/sitebuilder-sortable.js` (`window.initSitebuilderSortable`،
+  بسته‌شده در `app.js` مثل `editor.js`). سرویس جدید و مستقل
+  `App\Modules\SiteBuilder\Services\WidgetTreeReorderer` (فقط جابه‌جایی
+  ساختاری — استخراج نود از هرجای درخت + درج در محل جدید + رد حلقه‌ی
+  بی‌نهایت با `InvalidArgumentException`، کاملاً جدا از `WidgetTreeValueMerger`
+  که فقط مقدار جایگزین می‌کند). هر دو کامپوننت متد جدید `moveWidgetNode($draggedId,
+  $targetParentId, $targetIndex)` گرفتند که روی `widgetTree`/`workingWidgetTree`
+  در حافظه کار می‌کند (بدون DB write)؛ `PageContentEditor` علاوه‌براین اول
+  `PagePolicy::update()` را authorize می‌کند (دقیقاً همان قید operator-فقط-draft
+  بقیه مسیر). `UpdatePageWidgetValues::handle()` یک پارامتر اختیاری جدید
+  `?array $widgetTree` گرفت (مثل الگوی از‌قبل‌موجود `CreatePageFromDemo`) تا
+  ساختار reorder-شده، نه یک بازخوانی خام از DB، پایه‌ی merge مقادیر شود.
+  Blade فرم مسطح قبلی (که اصلاً محفظه‌ها را نشان نمی‌داد — فقط نودهای دارای
+  فیلد را flatten می‌کرد) با یک درخت واقعی recursive جایگزین شد: سه partial
+  جدید `partials/widget-fields.blade.php` (فرم فیلدها، استخراج‌شده از تکرار
+  قبلی بین دو کامپوننت)، `partials/widget-tree.blade.php` (یک لیست
+  sortable — هم سطح بالا هم فرزندان هر محفظه، همه با یک `group` مشترک متصل)،
+  و `partials/widget-tree-node.blade.php` (کارت هر نود + دستگیره‌ی درگ +
+  اگر محفظه بود یک widget-tree تودرتوی دیگر برای فرزندانش).
+
+  **تصمیم‌های این Session:**
+  - **کتابخانه فقط برای انتخاب/جابه‌جایی است، نه افزودن.** طبق تصمیم قبلی
+    کارفرما (این Session، بندی جدید)، هیچ دکمه/drag-handle‌ای برای افزودن
+    نوع ویجت جدید از کتابخانه اضافه نشد — `moveWidgetNode` فقط جای یک نود
+    *موجود* را عوض می‌کند، هرگز نمی‌سازد یا حذف نمی‌کند (تست مستقیم:
+    `WidgetTreeReordererTest` تعداد نودهای قبل/بعد را چک می‌کند).
+  - **دفاع دولایه در برابر حلقه‌ی بی‌نهایت** (بند ۹ CLAUDE.md، الگوی
+    authorize-در-Action): سمت کلاینت `onMove` در sitebuilder-sortable.js
+    فوراً درِ drop روی خودِ محفظه/فرزندانش را می‌بندد (بازخورد آنی UI)؛ سمت
+    سرور `WidgetTreeReorderer::move()` مستقل و بدون‌اعتماد به کلاینت همان
+    چک را دوباره انجام می‌دهد و throw می‌کند — حتی اگر کسی مستقیم
+    `$wire.call('moveWidgetNode', ...)` را با پارامتر دستکاری‌شده صدا بزند
+    (تأیید شده هم با تست Feature هم با فراخوانی مستقیم از کنسول مرورگر در
+    بازدید بصری واقعی).
+  - **SortableJS با `forceFallback: true` مقداردهی شد**، نه HTML5 Drag-and-Drop
+    بومی پیش‌فرض کتابخانه — DnD بومی مرورگر روی لیست‌های تودرتو (محفظه داخل
+    محفظه) و داخل container هایی با اسکرول رفتار ناپایدار دارد؛ حالت
+    fallback (شبیه‌سازی‌شده با رویدادهای pointer/mouse معمولی) هم پایدارتر
+    است هم قابل‌تست با رویدادهای شبیه‌سازی‌شده واقعی (کشف شد حین بازدید
+    بصری: با DnD بومی، هیچ راهی برای تست خودکار/شبیه‌سازی درگ در sandbox
+    بدون یک ژست کاربر واقعی مورد اعتماد مرورگر وجود نداشت).
+  - `moveWidgetNode` در `UpdatePageWidgetValues` فقط وقتی `$widgetTree !== null`
+    باشد `authorize('update')` را اجباری می‌کند؛ `PageContentEditor::save()`
+    این پارامتر را فقط وقتی `canEditWidgetValues` باشد پاس می‌دهد — وگرنه
+    مسیر «operator فقط extra_css/extra_js را روی صفحه‌ی published ویرایش
+    می‌کند» (Session قبلی همین ماژول) با یک authorize اضافه نابجا می‌شکست.
+  - `$this->fieldValues`/`$this->canEditWidgetValues` داخل partial های
+    تودرتوی جدید (`@include` چندلایه) کار می‌کند چون Livewire خودِ کامپوننت
+    را برای *کل* چرخه‌ی render (نه فقط ویو ریشه) با `Closure::bind` به
+    `$this` وصل می‌کند (`ExtendedCompilerEngine::evaluatePath`) — قبل از
+    نوشتن partial ها این را از سورس خودِ پکیج Livewire تأیید کردم، نه حدس.
+
+  **بازدید بصری واقعی این Session** با کاربر تستی موقت
+  (`sitebuilder-drag-visual-test@example.com`، روی `127.0.0.1:8123` نه
+  دامنه Apache) کامل انجام شد: جابه‌جایی یک ویجت از سطح بالا به داخل یک
+  محفظه (تأیید DOM زنده + `POST /livewire/update` واقعی + بعد از Save مستقیم
+  از دیتابیس)، جابه‌جایی بین دو محفظه‌ی متفاوت، و رد‌شدن drop یک محفظه داخل
+  خودش — هم از مسیر واقعی درگ (client-side `onMove` قبل از رسیدن به سرور)
+  هم با فراخوانی مستقیم `Livewire.find(id).call('moveWidgetNode', ...)` از
+  کنسول مرورگر برای دور زدن UI و اثبات این‌که چک واقعی سمت سرور است، نه فقط
+  زینت رابط کاربری. کاربر، دموی موقت، و صفحه‌ی موقت تست در پایان کامل حذف شدند.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

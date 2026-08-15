@@ -4,11 +4,13 @@ namespace App\Livewire\SiteBuilder;
 
 use App\Modules\Core\Services\CompanyContext;
 use App\Modules\SiteBuilder\Actions\CreatePageFromDemo;
+use App\Modules\SiteBuilder\Enums\WidgetKey;
 use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\PageCategory;
 use App\Modules\SiteBuilder\Models\PageDemo;
 use App\Modules\SiteBuilder\Models\Widget;
 use App\Modules\SiteBuilder\Services\WidgetContentRenderer;
+use App\Modules\SiteBuilder\Services\WidgetTreeReorderer;
 use App\Modules\SiteBuilder\Services\WidgetTreeValueMerger;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -189,6 +191,79 @@ class PageCreateFlow extends Component
         $previewTree = $merger->apply($this->workingWidgetTree, $this->fieldValuesForPreview());
 
         $this->previewHtml = $renderer->render($previewTree);
+    }
+
+    /**
+     * جابه‌جایی یک نود در workingWidgetTree (drag-and-drop) — فقط در حافظه،
+     * دقیقاً مثل PageContentEditor::moveWidgetNode() ولی چون هیچ رکورد
+     * pages ای تا create() ساخته نشده، نیازی به authorize جدا نیست: مجوز
+     * ساخت صفحه از قبل در mount() احراز شده و کل جریان مختص همان کاربر است.
+     */
+    public function moveWidgetNode(string $draggedId, ?string $targetParentId, int $targetIndex): void
+    {
+        if ($this->selectedDemoId === null) {
+            return;
+        }
+
+        $theme = $this->workingWidgetTree['theme'] ?? null;
+        $nodes = $this->workingWidgetTree;
+        unset($nodes['theme']);
+        $nodes = array_values($nodes);
+
+        try {
+            $reordered = app(WidgetTreeReorderer::class)->move($nodes, $draggedId, $targetParentId, $targetIndex);
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return;
+        }
+
+        $this->workingWidgetTree = $theme !== null ? ['theme' => $theme] + $reordered : $reordered;
+
+        $this->refreshPreview();
+    }
+
+    /**
+     * ساختار کامل و تودرتوی workingWidgetTree برای رندر درخت درگ‌اند‌دراپ —
+     * نگاه کن PageContentEditor::getWidgetTreeUiProperty() برای دلیل کامل.
+     */
+    public function getWidgetTreeUiProperty(): array
+    {
+        return $this->buildTreeUi($this->workingWidgetTree);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildTreeUi(array $nodes): array
+    {
+        $widgetsByKey = Widget::query()->get()->keyBy('widget_key');
+
+        $map = function (array $nodes) use (&$map, $widgetsByKey): array {
+            $result = [];
+
+            foreach ($nodes as $node) {
+                if (! is_array($node) || ! isset($node['widget_key'])) {
+                    continue;
+                }
+
+                $widget = $widgetsByKey->get($node['widget_key']);
+
+                $result[] = [
+                    'id' => $node['id'],
+                    'widget_key' => $node['widget_key'],
+                    'is_container' => $node['widget_key'] === WidgetKey::Container->value,
+                    'section_label' => $node['instance_label'] ?? ($widget->name ?? $node['widget_key']),
+                    'fields' => $widget?->editableFields() ?? [],
+                    'values' => $node['values'] ?? [],
+                    'children' => $map($node['children'] ?? []),
+                ];
+            }
+
+            return $result;
+        };
+
+        return $map($nodes);
     }
 
     public function getPreviewDocumentProperty(): string

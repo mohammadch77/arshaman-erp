@@ -4,10 +4,12 @@ namespace App\Livewire\SiteBuilder;
 
 use App\Modules\SiteBuilder\Actions\UpdatePageWidgetValues;
 use App\Modules\SiteBuilder\Enums\PageStatus;
+use App\Modules\SiteBuilder\Enums\WidgetKey;
 use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\Widget;
 use App\Modules\SiteBuilder\Policies\PagePolicy;
 use App\Modules\SiteBuilder\Services\WidgetContentRenderer;
+use App\Modules\SiteBuilder\Services\WidgetTreeReorderer;
 use App\Modules\SiteBuilder\Services\WidgetTreeValueMerger;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -22,8 +24,19 @@ class PageContentEditor extends Component
     public Page $record;
 
     /**
-     * نگاشت widget instance id → [field key => مقدار]، از روی widget_tree
-     * فعلی صفحه پر می‌شود. ساختار درخت اینجا نگهداری نمی‌شود، فقط مقادیر.
+     * کپی در-حافظه widget_tree صفحه — ترتیب/محل نودها ممکن است با
+     * moveWidgetNode() (drag-and-drop) از ساختار ذخیره‌شده در دیتابیس جلوتر
+     * باشد؛ رکورد در دیتابیس تا لحظه‌ی save() دست‌نخورده می‌ماند. مطلقاً
+     * همان نقشی که workingWidgetTree در PageCreateFlow دارد.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    public array $widgetTree = [];
+
+    /**
+     * نگاشت widget instance id → [field key => مقدار]، از روی widgetTree
+     * فعلی پر می‌شود. جابه‌جایی ساختاری (drag-and-drop) این نگاشت را دست
+     * نمی‌زند — چون کلید هر مقدار id خودِ نود است، نه محل آن در درخت.
      *
      * @var array<string, array<string, mixed>>
      */
@@ -67,6 +80,8 @@ class PageContentEditor extends Component
     {
         $this->record = Page::with('demo.category')->findOrFail($page);
         $this->authorize('view', $this->record);
+
+        $this->widgetTree = $this->record->widget_tree;
 
         $this->extra_css = (string) ($this->record->extra_css ?? '');
         $this->extra_js = (string) ($this->record->extra_js ?? '');
@@ -161,10 +176,44 @@ class PageContentEditor extends Component
         $merger = app(WidgetTreeValueMerger::class);
         $renderer = app(WidgetContentRenderer::class);
 
-        $previewTree = $merger->apply($this->record->widget_tree, $this->fieldValuesForPreview());
+        $previewTree = $merger->apply($this->widgetTree, $this->fieldValuesForPreview());
 
         $this->previewHtml = $renderer->render($previewTree);
         $this->previewCss = $this->extra_css;
+    }
+
+    /**
+     * جابه‌جایی یک نود در widgetTree (drag-and-drop) — فقط در حافظه، رکورد
+     * دیتابیس دست‌نخورده می‌ماند تا save(). همان authorize صریح مسیر ذخیره
+     * (PagePolicy::update — operator فقط روی draft) اینجا هم رعایت می‌شود
+     * چون جابه‌جایی ساختاری یک ویرایش محتوایی است، نه فقط نمایشی (بند ۹
+     * CLAUDE.md — authorize داخل خودِ مسیر تغییر، نه فقط UI). محفظه‌ای‌که
+     * $targetParentId=null باشد یعنی سطح بالای صفحه.
+     */
+    public function moveWidgetNode(string $draggedId, ?string $targetParentId, int $targetIndex): void
+    {
+        if (! app(PagePolicy::class)->update(auth()->user(), $this->record)) {
+            $this->error('اجازه جابه‌جایی ویجت‌ها را ندارید.');
+
+            return;
+        }
+
+        $theme = $this->widgetTree['theme'] ?? null;
+        $nodes = $this->widgetTree;
+        unset($nodes['theme']);
+        $nodes = array_values($nodes);
+
+        try {
+            $reordered = app(WidgetTreeReorderer::class)->move($nodes, $draggedId, $targetParentId, $targetIndex);
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return;
+        }
+
+        $this->widgetTree = $theme !== null ? ['theme' => $theme] + $reordered : $reordered;
+
+        $this->refreshPreview();
     }
 
     /**
@@ -259,12 +308,16 @@ class PageContentEditor extends Component
     protected function editableNodes(): array
     {
         $widgetsByKey = Widget::query()->get()->keyBy('widget_key');
+        $result = [];
 
-        $flatten = function (array $nodes) use (&$flatten, $widgetsByKey): array {
-            $result = [];
-
+        $walk = function (array $nodes) use (&$walk, $widgetsByKey, &$result): void {
             foreach ($nodes as $node) {
-                $widget = $widgetsByKey->get($node['widget_key'] ?? '');
+                if (! is_array($node) || ! isset($node['widget_key'])) {
+                    // کلید ریشه 'theme' یک نود واقعی نیست، رد می‌شود.
+                    continue;
+                }
+
+                $widget = $widgetsByKey->get($node['widget_key']);
                 $fields = $widget?->editableFields() ?? [];
 
                 if (! empty($fields)) {
@@ -280,14 +333,61 @@ class PageContentEditor extends Component
                 }
 
                 if (! empty($node['children'])) {
-                    $result = [...$result, ...$flatten($node['children'])];
+                    $walk($node['children']);
                 }
+            }
+        };
+
+        $walk($this->widgetTree);
+
+        return $result;
+    }
+
+    /**
+     * ساختار کامل و تودرتوی widgetTree برای رندر درخت درگ‌اند‌دراپ در UI —
+     * برخلاف editableNodes() (که فقط نودهای دارای فیلد را مسطح برمی‌گرداند)،
+     * این متد *همه* نودها (از جمله محفظه‌های بدون فیلد) را با همان تودرتویی
+     * اصلی نگه می‌دارد، چون خودِ ساختار محفظه‌ها است که باید در UI دیده و
+     * drop-target شود.
+     */
+    public function getWidgetTreeUiProperty(): array
+    {
+        return $this->buildTreeUi($this->widgetTree);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildTreeUi(array $nodes): array
+    {
+        $widgetsByKey = Widget::query()->get()->keyBy('widget_key');
+
+        $map = function (array $nodes) use (&$map, $widgetsByKey): array {
+            $result = [];
+
+            foreach ($nodes as $node) {
+                if (! is_array($node) || ! isset($node['widget_key'])) {
+                    // کلید ریشه 'theme' یک نود واقعی نیست، رد می‌شود.
+                    continue;
+                }
+
+                $widget = $widgetsByKey->get($node['widget_key']);
+
+                $result[] = [
+                    'id' => $node['id'],
+                    'widget_key' => $node['widget_key'],
+                    'is_container' => $node['widget_key'] === WidgetKey::Container->value,
+                    'section_label' => $node['instance_label'] ?? ($widget->name ?? $node['widget_key']),
+                    'fields' => $widget?->editableFields() ?? [],
+                    'values' => $node['values'] ?? [],
+                    'children' => $map($node['children'] ?? []),
+                ];
             }
 
             return $result;
         };
 
-        return $flatten($this->record->widget_tree);
+        return $map($nodes);
     }
 
     public function getCanPublishProperty(): bool
@@ -333,6 +433,12 @@ class PageContentEditor extends Component
             $data['extra_css'] !== '' ? $data['extra_css'] : null,
             $data['extra_js'] !== '' ? $data['extra_js'] : null,
             PageStatus::from($data['page_status']),
+            // اگر operator اجازه ویرایش/جابه‌جایی ویجت‌ها را ندارد، ساختار
+            // ارسال نمی‌شود — moveWidgetNode() هم خودش از قبل چنین کاربری
+            // را رد کرده بود، پس widgetTree اینجا با نسخه دیتابیس یکی است؛
+            // ارسال‌نکردنش از این authorize('update') اضافه (که مسیر
+            // extra_css-فقط operator را می‌شکست) جلوگیری می‌کند.
+            $this->canEditWidgetValues ? $this->widgetTree : null,
         );
 
         $this->success('محتوای صفحه ذخیره شد.', redirectTo: route('sitebuilder.pages.index'));
