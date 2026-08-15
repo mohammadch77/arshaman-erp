@@ -1478,4 +1478,58 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
 صفحه (مثل `PublishScheduledPost` بلاگ)، افزودن ویجت جدید از کاتالوگ در
 PageContentEditor.
 
+- [x] Session 8: لوگو در هدر عمومی — آخرین قطعه‌ی نقشه‌راه SiteBuilder
+
+  **چه ساخته شد:** فیلد بولین جدید `show_logo` (پیش‌فرض `true`) به
+  `editable_fields` ویجت `header_nav` در `SiteBuilderWidgetsExpansionSeeder`
+  اضافه شد و با `db:seed --class=SiteBuilderWidgetsExpansionSeeder` روی
+  دیتابیس واقعی به‌روزرسانی شد (نه migration، همان الگوی `updateOrCreate`ی
+  که از Session ۲ همین ماژول برای گسترش کاتالوگ ویجت استفاده می‌شود).
+  `WidgetContentRenderer::renderHeaderNav` حالا قبل از لینک‌های منو
+  `site_settings.logo_path` همان شرکت را (از طریق متد جدید
+  `renderHeaderLogo`) رندر می‌کند — دقیقاً با همان `resolveImageUrl`/
+  `StorageUrl` root-relative بقیه ویجت‌ها، نه یک آدرس هاردکد بر پایه
+  APP_URL (همان باگ سراسری تصاویر شکسته‌ی بند ۹.۱۲ که این‌بار برای مسیر
+  لوگو تکرار نشد). اگر `logo_path` خالی بود، `site_settings.site_title`
+  به‌صورت متنی جایگزین می‌شود؛ اگر آن هم خالی بود، هیچ‌چیز رندر نمی‌شود —
+  هرگز یک `<img>` شکسته یا جای خالی توضیح‌ناپذیر.
+
+  **تصمیم‌های این Session:**
+  - نوع فیلد `boolean` برای اولین بار به سیستم عمومی `editable_fields`
+    اضافه شد (`x-checkbox` در `widget-fields.blade.php`، طبق الگوی دقیق
+    `product-form.blade.php`) + یک کلید عمومی جدید `default` در تعریف هر
+    فیلد که `PageContentEditor`/`PageCreateFlow` هنگام مقداردهی اولیه یک
+    نود بدون آن کلید استفاده می‌کنند (`$field['default'] ?? null`، به‌جای
+    `null` خام قبلی) — چون کلید غایب در یک `widget_tree` قدیمی‌تر باید
+    پیش‌فرض واقعی فیلد را بگیرد، نه همیشه `null`/`false`.
+  - چون هیچ UI ای برای ویرایش مقادیر نودهای `header_nav`/`footer` داخل
+    `layout_demos` وجود ندارد (این دو فقط از یک کاتالوگ دموی ثابت در
+    `LayoutDemoSelector` انتخاب می‌شوند، نه دستی ویرایش)، مقدار `show_logo`
+    فقط از طریق `default` در کاتالوگ یا مقدار seed‌شده‌ی خودِ دموی هدر
+    قابل تنظیم است، نه یک فرم زنده — این محدودیت معماری از قبل موجود بود
+    (Session ۱)، نه چیزی که این Session معرفی کرده باشد.
+  - `renderHeaderLogo` مستقیماً `SiteSetting` را با `withoutGlobalScope('owner_company')`
+    از روی `$company->id` کوئری می‌کند (دقیقاً همان الگوی `resolveNavHref`
+    برای صفحات) — نه یک پارامتر جدید روی امضای عمومی `render()`، چون فقط
+    `PublicSiteController::renderPage` واقعاً یک `$company` غیر-null دارد؛
+    در پیش‌نمایش ادمین (`$company === null`) لوگو اصلاً رندر نمی‌شود، دقیقاً
+    همان رفتار قبلی لینک‌های منو در نبود شرکت.
+  - بازدید بصری واقعی (`php artisan serve` روی `127.0.0.1:8123`، همان
+    محدودیت شبکه sandbox نسبت به دامنه Apache مستندشده در کل این ماژول) با
+    یک کاربر تستی موقت روی شرکت واقعی `arshaman` انجام شد: یک PNG واقعی
+    روی دیسک `public` قرار گرفت، `site_settings.logo_path` به آن اشاره
+    کرد، و `/site/arshaman` واقعاً لوگو را با `naturalWidth:1`/`complete:true`
+    (بارگذاری موفق، نه فقط حضور در HTML) و درخواست شبکه‌ی `200 OK` روی
+    مسیر root-relative `/storage/...` نشان داد؛ سپس حالت بدون لوگو (بازگشت
+    به متن `site_title`) هم روی همان صفحه تأیید شد. فایل PNG تستی،
+    `site_settings.logo_path` (به `null`، مقدار اصلی پیش از این Session)،
+    و کاربر تستی در پایان کامل حذف/بازگردانی شدند (بند ۱۰ CLAUDE.md).
+  - تست‌های جدید در `WidgetExpansionTest.php`: لوگوی واقعی با مسیر
+    root-relative، fallback متنی، حذف کامل هدر وقتی نه لوگو نه منو موجود
+    است، `show_logo=false` حتی با `logo_path` موجود، و عدم رندر لوگو در
+    نبود `$company` (پیش‌نمایش ادمین).
+
+با این Session، آخرین قطعه‌ی باقی‌مانده‌ی نقشه‌راه اصلی ماژول SiteBuilder
+(طبق فهرست Session ۷) تکمیل شد.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

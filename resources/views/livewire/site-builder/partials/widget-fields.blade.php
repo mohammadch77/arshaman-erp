@@ -38,6 +38,13 @@
             option-label="label"
             :disabled="! $canEdit"
         />
+    @elseif($field['type'] === 'boolean')
+        <x-checkbox
+            label="{{ $field['label'] }}"
+            wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}"
+            x-on:change="schedulePreview()"
+            :disabled="! $canEdit"
+        />
     @elseif($field['type'] === 'textarea')
         <x-textarea
             label="{{ $field['label'] }}"

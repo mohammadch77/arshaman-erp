@@ -104,7 +104,7 @@ class PageContentEditor extends Component
                 // خطا مواجه می‌شود چون هیچ property ای در آن مسیر پیدا نمی‌کند.
                 // پس هر فیلد تعریف‌شده صریحاً یک مقدار پیش‌فرض می‌گیرد.
                 if (! array_key_exists($field['key'], $this->fieldValues[$node['id']])) {
-                    $this->fieldValues[$node['id']][$field['key']] = $field['type'] === 'repeater' ? [] : null;
+                    $this->fieldValues[$node['id']][$field['key']] = $field['type'] === 'repeater' ? [] : ($field['default'] ?? null);
                 }
 
                 // <x-file> همیشه wire:model را روی imageUploads (نه fieldValues)

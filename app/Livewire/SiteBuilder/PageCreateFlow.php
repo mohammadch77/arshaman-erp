@@ -127,7 +127,7 @@ class PageCreateFlow extends Component
                 }
 
                 if (! array_key_exists($field['key'], $this->fieldValues[$node['id']])) {
-                    $this->fieldValues[$node['id']][$field['key']] = $field['type'] === 'repeater' ? [] : null;
+                    $this->fieldValues[$node['id']][$field['key']] = $field['type'] === 'repeater' ? [] : ($field['default'] ?? null);
                 }
 
                 if ($field['type'] === 'image' && ! array_key_exists($field['key'], $this->imageUploads[$node['id']] ?? [])) {

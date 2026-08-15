@@ -136,6 +136,12 @@ class SiteBuilderWidgetsExpansionSeeder extends Seeder
                 'default_config' => [
                     'editable_fields' => [
                         [
+                            'key' => 'show_logo',
+                            'type' => 'boolean',
+                            'label' => 'نمایش لوگوی سایت کنار منو',
+                            'default' => true,
+                        ],
+                        [
                             'key' => 'nav_links',
                             'type' => 'repeater',
                             'label' => 'آیتم‌های منو',

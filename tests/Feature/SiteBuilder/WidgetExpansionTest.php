@@ -12,6 +12,7 @@ use App\Modules\SiteBuilder\Enums\WidgetKey;
 use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\PageCategory;
 use App\Modules\SiteBuilder\Models\PageDemo;
+use App\Modules\SiteBuilder\Models\SiteSetting;
 use App\Modules\SiteBuilder\Models\Widget;
 use App\Modules\SiteBuilder\Services\WidgetContentRenderer;
 use Database\Seeders\SiteBuilderWidgetsExpansionSeeder;
@@ -262,6 +263,91 @@ it('renders header nav links and footer social links, escaping xss attempts', fu
 
     expect($footerHtml)->toContain('تمامی حقوق محفوظ است');
     expect($footerHtml)->toContain('اینستاگرام');
+});
+
+it('renders the company logo from site_settings next to the header nav with a root-relative url', function () {
+    $renderer = app(WidgetContentRenderer::class);
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman-'.uniqid(), 'business_type' => 'project_services']);
+    SiteSetting::create([
+        'owner_company_id' => $company->id,
+        'site_title' => 'آرشامان',
+        'logo_path' => 'sitebuilder/branding/logo-test.png',
+    ]);
+
+    $navHtml = $renderer->render([
+        ['id' => 'nav1', 'widget_key' => WidgetKey::HeaderNav->value, 'values' => [], 'children' => []],
+    ], $company);
+
+    expect($navHtml)->toContain('src="/storage/sitebuilder/branding/logo-test.png"');
+    expect($navHtml)->toContain('class="sb-header-logo"');
+    // src باید root-relative باشد، نه یک آدرس کامل بر پایه APP_URL هاردکد (بند ۹.۱۲ CLAUDE.md).
+    preg_match('/<img[^>]*src="([^"]+)"/', $navHtml, $matches);
+    expect($matches[1])->toStartWith('/storage/');
+});
+
+it('falls back to the site title text when no logo is configured, without breaking layout', function () {
+    $renderer = app(WidgetContentRenderer::class);
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman-'.uniqid(), 'business_type' => 'project_services']);
+    SiteSetting::create(['owner_company_id' => $company->id, 'site_title' => 'آرشامان']);
+
+    $navHtml = $renderer->render([
+        ['id' => 'nav1', 'widget_key' => WidgetKey::HeaderNav->value, 'values' => [], 'children' => []],
+    ], $company);
+
+    expect($navHtml)->toContain('sb-header-logo-text');
+    expect($navHtml)->toContain('آرشامان');
+    expect($navHtml)->not->toContain('<img');
+});
+
+it('renders nothing for the logo when no site_settings row and no nav links exist at all', function () {
+    $renderer = app(WidgetContentRenderer::class);
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman-'.uniqid(), 'business_type' => 'project_services']);
+
+    $navHtml = $renderer->render([
+        ['id' => 'nav1', 'widget_key' => WidgetKey::HeaderNav->value, 'values' => [], 'children' => []],
+    ], $company);
+
+    expect($navHtml)->toContain('sb-page-empty');
+});
+
+it('hides the logo when show_logo is explicitly false even though logo_path is set', function () {
+    $renderer = app(WidgetContentRenderer::class);
+
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman-'.uniqid(), 'business_type' => 'project_services']);
+    SiteSetting::create([
+        'owner_company_id' => $company->id,
+        'site_title' => 'آرشامان',
+        'logo_path' => 'sitebuilder/branding/logo-test.png',
+    ]);
+
+    $navHtml = $renderer->render([
+        [
+            'id' => 'nav1',
+            'widget_key' => WidgetKey::HeaderNav->value,
+            'values' => [
+                'show_logo' => false,
+                'nav_links' => [],
+            ],
+            'children' => [],
+        ],
+    ], $company);
+
+    expect($navHtml)->toContain('sb-page-empty');
+    expect($navHtml)->not->toContain('<img');
+    expect($navHtml)->not->toContain('logo-test.png');
+});
+
+it('does not render the logo in the admin preview where no company is resolved', function () {
+    $renderer = app(WidgetContentRenderer::class);
+
+    $navHtml = $renderer->render([
+        ['id' => 'nav1', 'widget_key' => WidgetKey::HeaderNav->value, 'values' => [], 'children' => []],
+    ]);
+
+    expect($navHtml)->toContain('sb-page-empty');
 });
 
 it('clamps spacer height and renders nothing for zero height', function () {

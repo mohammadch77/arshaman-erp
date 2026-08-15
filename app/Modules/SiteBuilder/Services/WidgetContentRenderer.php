@@ -6,6 +6,7 @@ use App\Modules\Core\Models\Company;
 use App\Modules\SiteBuilder\Enums\PageCategoryKey;
 use App\Modules\SiteBuilder\Enums\WidgetKey;
 use App\Modules\SiteBuilder\Models\Page;
+use App\Modules\SiteBuilder\Models\SiteSetting;
 use App\Modules\SiteBuilder\Support\StorageUrl;
 use Illuminate\Support\Facades\Log;
 
@@ -192,11 +193,15 @@ class WidgetContentRenderer
         .sb-widget-map,.sb-widget-video{position:relative;width:100%;aspect-ratio:16/9;margin:.5rem 0;border-radius:var(--sb-radius-lg);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 24px -16px rgba(15,23,42,.2);}
         .sb-widget-map iframe,.sb-widget-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
         .sb-widget-video-unavailable{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;height:100%;width:100%;background:linear-gradient(135deg, color-mix(in srgb, var(--sb-primary-color) 12%, #fff), color-mix(in srgb, var(--sb-secondary-color) 8%, #fff));color:#6b7280;font-size:.9rem;font-weight:600;text-align:center;padding:1rem;}
-        .sb-widget-header-nav{display:flex;flex-wrap:wrap;gap:1.75rem;padding:1.1rem 1.5rem;align-items:center;}
-        .sb-widget-header-nav a{position:relative;color:#20242c;text-decoration:none;font-weight:600;padding-bottom:.3rem;transition:color .15s ease;}
-        .sb-widget-header-nav a::after{content:'';position:absolute;inset-inline-start:0;bottom:0;width:0;height:2px;background:var(--sb-primary-color);transition:width .2s ease;}
-        .sb-widget-header-nav a:hover{color:var(--sb-primary-color);}
-        .sb-widget-header-nav a:hover::after{width:100%;}
+        .sb-widget-header-nav{display:flex;flex-wrap:wrap;gap:1.75rem;padding:1.1rem 1.5rem;align-items:center;justify-content:space-between;}
+        .sb-header-logo-link{display:inline-flex;align-items:center;flex-shrink:0;text-decoration:none;}
+        .sb-header-logo{display:block;max-height:2.75rem;width:auto;object-fit:contain;}
+        .sb-header-logo-text{font-family:var(--sb-heading-font);font-size:1.25rem;font-weight:800;color:#20242c;}
+        .sb-header-nav-links{display:flex;flex-wrap:wrap;gap:1.75rem;align-items:center;}
+        .sb-header-nav-links a{position:relative;color:#20242c;text-decoration:none;font-weight:600;padding-bottom:.3rem;transition:color .15s ease;}
+        .sb-header-nav-links a::after{content:'';position:absolute;inset-inline-start:0;bottom:0;width:0;height:2px;background:var(--sb-primary-color);transition:width .2s ease;}
+        .sb-header-nav-links a:hover{color:var(--sb-primary-color);}
+        .sb-header-nav-links a:hover::after{width:100%;}
         .sb-widget-footer{margin-top:var(--sb-space-gap);padding:2.5rem 1.5rem;background:var(--sb-secondary-color);color:#fff;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:1.25rem;font-size:.9rem;}
         .sb-widget-footer a{color:inherit;}
         .sb-footer-copyright{opacity:.75;}
@@ -219,6 +224,8 @@ class WidgetContentRenderer
         .sb-blog-post-list-empty{padding:2.5rem 1.5rem;text-align:center;color:#9ca3af;font-size:.9rem;border:1px dashed #e7e9ee;border-radius:var(--sb-radius-lg);}
         @media (max-width: 640px){
             .sb-widget-header-nav{gap:1rem;padding:.85rem 1rem;justify-content:center;}
+            .sb-header-nav-links{gap:1rem;justify-content:center;}
+            .sb-header-logo{max-height:2.25rem;}
             .sb-widget-footer{flex-direction:column;text-align:center;}
         }
         CSS;
@@ -576,39 +583,88 @@ class WidgetContentRenderer
      * باشد (پیش‌نمایش ادمین یک صفحه، نه رندر واقعی هدر/فوتر عمومی)، یا اگر
      * صفحه‌ی مقصد برای این شرکت وجود/انتشار نداشته باشد، آیتم بی‌صدا حذف
      * می‌شود — هرگز یک لینک مرده (href خالی/نامعتبر) رندر نمی‌شود.
+     *
+     * لوگو (site_settings.logo_path همان شرکت) کنار منو نمایش داده می‌شود،
+     * فقط وقتی show_logo صراحتاً false نباشد (کلید غایب در widget_tree های
+     * قدیمی‌تر = true، طبق پیش‌فرض فیلد در کاتالوگ ویجت). بدون $company
+     * (پیش‌نمایش ادمین) لوگو اصلاً رندر نمی‌شود — دقیقاً همان رفتار لینک‌های
+     * منو در نبود $company.
      */
     private function renderHeaderNav(array $values, ?Company $company): string
     {
         $links = $values['nav_links'] ?? [];
-
-        if (! is_array($links) || $links === []) {
-            return '';
-        }
-
         $itemsHtml = '';
 
-        foreach ($links as $link) {
-            $label = trim((string) ($link['label'] ?? ''));
-            $categoryKey = trim((string) ($link['category_key'] ?? ''));
+        if (is_array($links)) {
+            foreach ($links as $link) {
+                $label = trim((string) ($link['label'] ?? ''));
+                $categoryKey = trim((string) ($link['category_key'] ?? ''));
 
-            if ($label === '' || $categoryKey === '') {
-                continue;
+                if ($label === '' || $categoryKey === '') {
+                    continue;
+                }
+
+                $href = $this->resolveNavHref($categoryKey, $company);
+
+                if ($href === null) {
+                    continue;
+                }
+
+                $itemsHtml .= '<a href="'.e($href).'">'.e($label).'</a>';
             }
-
-            $href = $this->resolveNavHref($categoryKey, $company);
-
-            if ($href === null) {
-                continue;
-            }
-
-            $itemsHtml .= '<a href="'.e($href).'">'.e($label).'</a>';
         }
 
-        if ($itemsHtml === '') {
+        $showLogo = ($values['show_logo'] ?? true) !== false;
+        $logoHtml = $showLogo ? $this->renderHeaderLogo($company) : '';
+        $navLinksHtml = $itemsHtml !== '' ? '<nav class="sb-header-nav-links">'.$itemsHtml.'</nav>' : '';
+
+        if ($logoHtml === '' && $navLinksHtml === '') {
             return '';
         }
 
-        return '<nav class="sb-widget sb-widget-header-nav">'.$itemsHtml.'</nav>';
+        return '<div class="sb-widget sb-widget-header-nav">'.$logoHtml.$navLinksHtml.'</div>';
+    }
+
+    /**
+     * لوگوی site_settings.logo_path همان شرکت، با همان الگوی root-relative
+     * resolveImageUrl/StorageUrl بقیه ویجت‌ها — نه یک آدرس کامل بر پایه
+     * APP_URL هاردکد‌شده (همان باگ سراسری قبلی تصاویر شکسته که بند ۹.۱۲
+     * CLAUDE.md درباره‌اش هشدار می‌دهد، این‌بار برای مسیر جدید لوگوی هدر).
+     * اگر لوگو تنظیم نشده باشد، به‌جای شکستن layout، نام سایت
+     * (site_settings.site_title) جایگزین متنی می‌شود؛ اگر آن هم خالی بود،
+     * هیچ‌چیز رندر نمی‌شود (نه یک عنصر خالی).
+     */
+    private function renderHeaderLogo(?Company $company): string
+    {
+        if ($company === null) {
+            return '';
+        }
+
+        $siteSetting = SiteSetting::withoutGlobalScope('owner_company')
+            ->where('owner_company_id', $company->id)
+            ->first();
+
+        $homeUrl = route('public-site.home', ['companySlug' => $company->slug]);
+        $logoPath = trim((string) ($siteSetting->logo_path ?? ''));
+
+        if ($logoPath !== '') {
+            $src = $this->resolveImageUrl($logoPath);
+
+            if ($src !== '') {
+                $alt = trim((string) ($siteSetting->site_title ?? $company->name ?? ''));
+
+                return '<a href="'.e($homeUrl).'" class="sb-header-logo-link">'
+                    .'<img class="sb-header-logo" src="'.e($src).'" alt="'.e($alt).'"></a>';
+            }
+        }
+
+        $siteTitle = trim((string) ($siteSetting->site_title ?? ''));
+
+        if ($siteTitle !== '') {
+            return '<a href="'.e($homeUrl).'" class="sb-header-logo-link sb-header-logo-text">'.e($siteTitle).'</a>';
+        }
+
+        return '';
     }
 
     private function resolveNavHref(string $categoryKey, ?Company $company): ?string
