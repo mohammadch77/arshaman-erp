@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Core\Models\Company;
 use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\SiteSetting;
+use App\Modules\SiteBuilder\Services\DynamicWidgetResolver;
 use App\Modules\SiteBuilder\Services\WidgetContentRenderer;
 use Illuminate\View\View;
 
@@ -18,7 +19,10 @@ use Illuminate\View\View;
  */
 class PublicSiteController extends Controller
 {
-    public function __construct(private WidgetContentRenderer $renderer) {}
+    public function __construct(
+        private WidgetContentRenderer $renderer,
+        private DynamicWidgetResolver $dynamicWidgetResolver,
+    ) {}
 
     public function home(string $companySlug): View
     {
@@ -78,11 +82,18 @@ class PublicSiteController extends Controller
             ? $this->renderer->render($siteSetting->activeFooterDemo->widget_tree, $company)
             : '';
 
+        // content_html خودِ صفحه یک snapshot است (نگاه کن RegenerateSiteBuilderContentHtml)،
+        // ولی contact_form/blog_post_list باید همیشه زنده باشند — این resolve
+        // فقط همان دو marker را در یک کپی از رشته جایگزین می‌کند، بدون هیچ
+        // نوشتنی روی رکورد Page.
+        $bodyHtml = $this->dynamicWidgetResolver->resolve($page->content_html ?? '', $company);
+
         return view('public.sitebuilder.show', [
             'company' => $company,
             'siteSetting' => $siteSetting,
             'page' => $page,
             'headerHtml' => $headerHtml,
+            'bodyHtml' => $bodyHtml,
             'footerHtml' => $footerHtml,
         ]);
     }

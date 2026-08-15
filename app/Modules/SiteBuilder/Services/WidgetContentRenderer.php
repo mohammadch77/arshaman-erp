@@ -6,6 +6,7 @@ use App\Modules\Core\Models\Company;
 use App\Modules\SiteBuilder\Enums\PageCategoryKey;
 use App\Modules\SiteBuilder\Enums\WidgetKey;
 use App\Modules\SiteBuilder\Models\Page;
+use App\Modules\SiteBuilder\Support\StorageUrl;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -204,6 +205,18 @@ class WidgetContentRenderer
         .sb-footer-social a{color:#fff;text-decoration:none;font-weight:600;opacity:.85;transition:opacity .15s ease;}
         .sb-footer-social a:hover{opacity:1;text-decoration:underline;}
         .sb-page-empty{padding:4rem 1.5rem;text-align:center;color:#9ca3af;font-size:.95rem;}
+        .sb-widget-dynamic-placeholder{padding:2.5rem 1.5rem;text-align:center;color:#6b7280;font-size:.9rem;font-weight:600;border:1.5px dashed color-mix(in srgb, var(--sb-primary-color) 40%, #d1d5db);border-radius:var(--sb-radius-lg);background:color-mix(in srgb, var(--sb-primary-color) 4%, #fff);}
+        .sb-widget-contact-form{margin:.5rem 0;}
+        .sb-widget-blog-post-list{margin:.5rem 0;}
+        .sb-blog-post-list-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--sb-space-gap);}
+        .sb-blog-post-card{display:flex;flex-direction:column;background:#fff;border-radius:var(--sb-radius-lg);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 20px -12px rgba(15,23,42,.18);text-decoration:none;color:inherit;transition:transform .2s ease,box-shadow .2s ease;}
+        .sb-blog-post-card:hover{transform:translateY(-3px);box-shadow:0 1px 2px rgba(15,23,42,.05),0 16px 28px -14px rgba(15,23,42,.28);}
+        .sb-blog-post-card img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;}
+        .sb-blog-post-card-body{padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.5rem;flex:1;}
+        .sb-blog-post-card-title{margin:0;font-family:var(--sb-heading-font);font-size:1.05rem;font-weight:700;color:#20242c;}
+        .sb-blog-post-card-excerpt{margin:0;font-size:.88rem;color:#525a68;line-height:1.7;flex:1;}
+        .sb-blog-post-card-date{font-size:.78rem;color:#9ca3af;font-weight:600;}
+        .sb-blog-post-list-empty{padding:2.5rem 1.5rem;text-align:center;color:#9ca3af;font-size:.9rem;border:1px dashed #e7e9ee;border-radius:var(--sb-radius-lg);}
         @media (max-width: 640px){
             .sb-widget-header-nav{gap:1rem;padding:.85rem 1rem;justify-content:center;}
             .sb-widget-footer{flex-direction:column;text-align:center;}
@@ -251,6 +264,8 @@ class WidgetContentRenderer
             WidgetKey::Spacer => $this->renderSpacer($values),
             WidgetKey::HeaderNav => $this->renderHeaderNav($values, $company),
             WidgetKey::Footer => $this->renderFooter($values),
+            WidgetKey::ContactForm => $this->renderContactForm($values),
+            WidgetKey::BlogPostList => $this->renderBlogPostList($values),
         };
     }
 
@@ -305,15 +320,7 @@ class WidgetContentRenderer
      */
     private function resolveImageUrl(string $path): string
     {
-        if ($path === '') {
-            return '';
-        }
-
-        if (preg_match('#^(https?://|//|/)#i', $path) === 1) {
-            return $path;
-        }
-
-        return '/storage/'.ltrim($path, '/');
+        return StorageUrl::resolve($path);
     }
 
     private function renderButton(array $values): string
@@ -664,5 +671,64 @@ class WidgetContentRenderer
         }
 
         return '<footer class="sb-widget sb-widget-footer">'.$copyrightHtml.$contactHtml.$socialWrapperHtml.'</footer>';
+    }
+
+    /**
+     * برخلاف بقیه ویجت‌ها، contact_form/blog_post_list در این متد به HTML
+     * نهایی رندر نمی‌شوند — این‌جا فقط یک placeholder ثابت (متن راهنما برای
+     * پیش‌نمایش ادمین) داخل یک جفت کامنت HTML مشخص تولید می‌شود. کامنت‌ها
+     * marker ای هستند که فقط App\Modules\SiteBuilder\Services\DynamicWidgetResolver
+     * می‌شناسد و در لحظه‌ی رندر صفحه‌ی عمومی (نه در content_html ذخیره‌شده،
+     * نه در پیش‌نمایش ادمین) با محتوای واقعی/زنده جایگزین می‌کند — یکی فرم
+     * تماس واقعی Livewire (نیاز به session/hydrate واقعی که در یک snapshot
+     * ذخیره‌شده معنا ندارد)، دیگری کوئری زنده‌ی پست‌های منتشرشده وبلاگ (که
+     * باید همیشه تازه باشد، نه فریز‌شده در لحظه‌ی آخرین ذخیره صفحه).
+     */
+    /**
+     * عنوان بخش هم (مثل blog_post_list) به‌صورت base64(json) داخل خودِ کامنت
+     * marker کد می‌شود — DynamicWidgetResolver کل بلوک بین شروع/پایان کامنت
+     * را با کامپوننت واقعی جایگزین می‌کند، پس هر چیزی که فقط داخل HTML بین
+     * دو کامنت باشد (نه در خودِ کامنت) موقع resolve از بین می‌رود.
+     */
+    private function renderContactForm(array $values): string
+    {
+        $title = trim((string) ($values['section_title'] ?? ''));
+        $titleHtml = $title !== '' ? '<h3 class="sb-widget-title sb-widget-contact-form-title">'.e($title).'</h3>' : '';
+
+        $config = base64_encode(json_encode(['title' => $title], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        return '<!--sb:contact_form:'.$config.'-->'
+            .'<div class="sb-widget sb-widget-contact-form">'
+            .$titleHtml
+            .'<div class="sb-widget-dynamic-placeholder">فرم تماس واقعی اینجا نمایش داده می‌شود</div>'
+            .'</div>'
+            .'<!--/sb:contact_form-->';
+    }
+
+    /**
+     * تعداد پست قابل‌نمایش بین ۱ تا ۲۴ محدود می‌شود (هم اینجا هم دوباره در
+     * DynamicWidgetResolver — چون این مقدار از فیلد متنی ادمین می‌آید، نه یک
+     * select با گزینه ثابت). عنوان بخش (در صورت وجود) هم در این placeholder
+     * هم در کارت‌های واقعی رندر می‌شود؛ برای انتقال این دو مقدار به مرحله‌ی
+     * رندر زنده، به‌جای متن خام داخل کامنت (که یک '-->' داخل عنوان می‌توانست
+     * از کامنت خارج بزند) پیکربندی base64(json) می‌شود — base64 هیچ‌گاه
+     * حاوی توالی '-->' یا هیچ کاراکتر خاص HTML دیگری نیست.
+     */
+    private function renderBlogPostList(array $values): string
+    {
+        $count = (int) ($values['posts_count'] ?? 3);
+        $count = $count > 0 && $count <= 24 ? $count : 3;
+
+        $title = trim((string) ($values['section_title'] ?? ''));
+        $titleHtml = $title !== '' ? '<h3 class="sb-widget-title sb-widget-blog-post-list-title">'.e($title).'</h3>' : '';
+
+        $config = base64_encode(json_encode(['count' => $count, 'title' => $title], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        return '<!--sb:blog_post_list:'.$config.'-->'
+            .'<div class="sb-widget sb-widget-blog-post-list">'
+            .$titleHtml
+            .'<div class="sb-widget-dynamic-placeholder">'.e((string) $count).' پست وبلاگ اخیر اینجا به‌صورت زنده نمایش داده می‌شود</div>'
+            .'</div>'
+            .'<!--/sb:blog_post_list-->';
     }
 }

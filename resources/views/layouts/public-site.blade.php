@@ -27,6 +27,12 @@
     @hasSection('extra_css')
         <style>@yield('extra_css')</style>
     @endif
+
+    {{-- فقط برای هیدریت واقعی ویجت contact_form لازم است (نگاه کن
+         App\Modules\SiteBuilder\Services\DynamicWidgetResolver) — بدون این
+         دو، کامپوننت Livewire embed‌شده HTML اولیه‌اش را نشان می‌دهد ولی
+         تعاملی نمی‌شود (ارسال فرم کار نمی‌کند). --}}
+    @livewireStyles
 </head>
 <body class="min-h-screen bg-base-100 font-sans antialiased">
     @yield('content')
@@ -34,5 +40,7 @@
     @hasSection('extra_js')
         <script>@yield('extra_js')</script>
     @endif
+
+    @livewireScripts
 </body>
 </html>

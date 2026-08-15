@@ -213,8 +213,9 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
     }
 
     // ------------------------------------------------------------------
-    // تماس (contact): map + container/متن جای‌گیر برای فرم — طبق دستور صریح
-    // این Session ویجت contact_form یکپارچه واقعی نمی‌سازد.
+    // تماس (contact): map + فرم تماس یکپارچه واقعی (contact_form) — نگاه کن
+    // App\Modules\SiteBuilder\Services\DynamicWidgetResolver. هر ۳ دمو حالا
+    // یک فرم واقعی و کاملاً تعاملی دارند، نه یک container جای‌گیر.
     // ------------------------------------------------------------------
     private function contactDemos(): array
     {
@@ -227,13 +228,12 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     self::n('contact-side-email', WidgetKey::Title, 'ایمیل کنار هم', ['text' => 'info@arshaman.example', 'level' => 4]),
                 ]),
                 self::n('contact-side-map', WidgetKey::Map, 'نقشه آدرس دفتر مرکزی کنار هم', ['embed_url' => 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1!2d51.4!3d35.7']),
+                self::n('contact-side-form', WidgetKey::ContactForm, 'فرم تماس کنار هم', ['section_title' => 'برای ما پیام بگذارید']),
             ], ['primary' => '#0EA5E9', 'secondary' => '#0C4A6E', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
-            'دموی تماس — نقشه تمام‌عرض با فرم جای‌گیر' => self::withTheme([
+            'دموی تماس — نقشه تمام‌عرض با فرم' => self::withTheme([
                 self::n('contact-fullmap-map', WidgetKey::Map, 'نقشه تمام‌عرض دفتر', ['embed_url' => 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2!2d51.4!3d35.7']),
-                self::n('contact-fullmap-form-placeholder', WidgetKey::Container, 'کانتینر جای‌گیر فرم تماس', [], [
-                    self::n('contact-fullmap-form-title', WidgetKey::Title, 'عنوان فرم تماس جای‌گیر', ['text' => 'فرم تماس (به‌زودی)', 'level' => 2]),
-                ]),
+                self::n('contact-fullmap-form', WidgetKey::ContactForm, 'فرم تماس تمام‌عرض', ['section_title' => 'فرم تماس']),
                 self::n('contact-fullmap-info', WidgetKey::Container, 'کانتینر اطلاعات تماس ثانویه', [], [
                     self::n('contact-fullmap-hours', WidgetKey::Title, 'ساعات کاری تماس', ['text' => 'شنبه تا چهارشنبه، ۹ تا ۱۸', 'level' => 4]),
                     self::n('contact-fullmap-call-button', WidgetKey::Button, 'دکمه تماس تلفنی', ['label' => 'تماس بگیرید', 'url' => 'tel:02112345678', 'style' => 'primary']),
@@ -252,6 +252,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['question' => 'چطور با پشتیبانی تماس بگیرم؟', 'answer' => 'از طریق شماره دفتر مرکزی یا فرم تماس هر شعبه.'],
                     ['question' => 'آیا امکان بازدید حضوری هست؟', 'answer' => 'بله، با هماهنگی قبلی امکان‌پذیر است.'],
                 ]]),
+                self::n('contact-branches-form', WidgetKey::ContactForm, 'فرم تماس شعب', ['section_title' => 'با نزدیک‌ترین دفتر تماس بگیرید']),
             ], ['primary' => '#059669', 'secondary' => '#064E3B', 'heading' => "'Tajawal', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
         ];
     }
@@ -300,8 +301,9 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
     }
 
     // ------------------------------------------------------------------
-    // وبلاگ (blog): فقط چیدمان بصری اطراف — اتصال واقعی به فهرست پست‌ها در
-    // Session یکپارچه‌سازی بعدی. طبق دستور صریح کارفرما اینجا فقط جای‌گیر است.
+    // وبلاگ (blog): فهرست پست‌های وبلاگ یکپارچه واقعی (blog_post_list) — نگاه
+    // کن App\Modules\SiteBuilder\Services\DynamicWidgetResolver. هر ۳ دمو حالا
+    // پست‌های واقعاً منتشرشده همان شرکت را نشان می‌دهند، نه یک container جای‌گیر.
     // ------------------------------------------------------------------
     private function blogDemos(): array
     {
@@ -309,9 +311,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
             'دموی وبلاگ — هدر ساده' => self::withTheme([
                 self::n('blog-simple-title', WidgetKey::Title, 'عنوان صفحه وبلاگ ساده', ['text' => 'وبلاگ آرشامان', 'level' => 1]),
                 self::n('blog-simple-description', WidgetKey::Title, 'توضیح کوتاه وبلاگ ساده', ['text' => 'آخرین مقالات و اخبار حوزه دیجیتال', 'level' => 4]),
-                self::n('blog-simple-list-placeholder', WidgetKey::Container, 'کانتینر جای‌گیر فهرست پست‌های ساده', [], [
-                    self::n('blog-simple-list-placeholder-title', WidgetKey::Title, 'برچسب جای‌گیر فهرست پست‌های ساده', ['text' => 'فهرست پست‌ها به‌زودی اینجا نمایش داده می‌شود', 'level' => 5]),
-                ]),
+                self::n('blog-simple-list', WidgetKey::BlogPostList, 'فهرست پست‌های وبلاگ ساده', ['posts_count' => '6', 'section_title' => '']),
             ], ['primary' => '#0D9488', 'secondary' => '#134E4A', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
             'دموی وبلاگ — با تصویر شاخص و گالری موضوعات' => self::withTheme([
@@ -322,9 +322,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['image_path' => null, 'caption' => 'کسب‌وکار دیجیتال'],
                     ['image_path' => null, 'caption' => 'بازاریابی محتوا'],
                 ]]),
-                self::n('blog-featured-list-placeholder', WidgetKey::Container, 'کانتینر جای‌گیر فهرست پست‌های اخیر', [], [
-                    self::n('blog-featured-list-placeholder-title', WidgetKey::Title, 'برچسب جای‌گیر فهرست پست‌های اخیر', ['text' => 'جدیدترین مقالات به‌زودی اینجا نمایش داده می‌شوند', 'level' => 5]),
-                ]),
+                self::n('blog-featured-list', WidgetKey::BlogPostList, 'فهرست جدیدترین پست‌های وبلاگ', ['posts_count' => '3', 'section_title' => 'جدیدترین مقالات']),
             ], ['primary' => '#DC2626', 'secondary' => '#7F1D1D', 'heading' => "'Noto Naskh Arabic', serif", 'radius' => 'sharp', 'density' => 'compact']),
 
             'دموی وبلاگ — دسته‌بندی‌ها و خبرنامه' => self::withTheme([
@@ -334,9 +332,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['question' => 'کسب‌وکار دیجیتال', 'answer' => 'تجربه و تحلیل‌های مدیریتی هلدینگ.'],
                     ['question' => 'سئو و بازاریابی', 'answer' => 'روش‌های افزایش ترافیک ارگانیک.'],
                 ]]),
-                self::n('blog-newsletter-list-placeholder', WidgetKey::Container, 'کانتینر جای‌گیر فهرست پست‌های خبرنامه', [], [
-                    self::n('blog-newsletter-list-placeholder-title', WidgetKey::Title, 'برچسب جای‌گیر فهرست پست‌های خبرنامه', ['text' => 'فهرست پست‌ها به‌زودی اینجا نمایش داده می‌شود', 'level' => 5]),
-                ]),
+                self::n('blog-newsletter-list', WidgetKey::BlogPostList, 'فهرست پست‌های وبلاگ خبرنامه', ['posts_count' => '9', 'section_title' => 'آخرین مطالب']),
                 self::n('blog-newsletter-button', WidgetKey::Button, 'دکمه عضویت در خبرنامه', ['label' => 'عضویت در خبرنامه', 'url' => '#subscribe', 'style' => 'primary']),
             ], ['primary' => '#4338CA', 'secondary' => '#1E1B4B', 'heading' => "'Cairo', sans-serif", 'radius' => 'soft', 'density' => 'airy']),
         ];

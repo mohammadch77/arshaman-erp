@@ -17,6 +17,8 @@ enum WidgetKey: string
     case Spacer = 'spacer';
     case HeaderNav = 'header_nav';
     case Footer = 'footer';
+    case ContactForm = 'contact_form';
+    case BlogPostList = 'blog_post_list';
 
     public function label(): string
     {
@@ -34,6 +36,8 @@ enum WidgetKey: string
             self::Spacer => 'فاصله‌گذار',
             self::HeaderNav => 'منوی ناوبری',
             self::Footer => 'فوتر',
+            self::ContactForm => 'فرم تماس',
+            self::BlogPostList => 'فهرست پست‌های وبلاگ',
         };
     }
 }

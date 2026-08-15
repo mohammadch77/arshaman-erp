@@ -28,7 +28,7 @@
     {!! $headerHtml !!}
 
     <main>
-        {!! $page->content_html !!}
+        {!! $bodyHtml !!}
     </main>
 
     {!! $footerHtml !!}
