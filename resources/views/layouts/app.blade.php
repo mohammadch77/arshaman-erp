@@ -92,7 +92,6 @@
                         <x-menu-item title="مخاطب جدید" :icon="theme_icon('add')" link="{{ route('contacts.create') }}" />
                         <x-menu-item title="قیف فروش" :icon="theme_icon('lead')" link="{{ route('leads.index') }}" />
                         <x-menu-item title="بخش‌بندی RFM" :icon="theme_icon('segment')" link="{{ route('rfm-segments.index') }}" />
-                        <x-menu-item title="پیام‌های تماس با ما" :icon="theme_icon('inbox')" link="{{ route('contact-submissions.index') }}" />
                     </x-menu-sub>
                 @endif
 
@@ -125,24 +124,23 @@
                     <x-menu-item title="پروژه‌ها" :icon="theme_icon('project')" link="#" no-wire-navigate />
                 @endif
 
-                {{-- وبلاگ — عمداً hasRoleInCompany($activeCompany->id) بدون فهرست نقش است،
-                     همان شرط دقیق BlogPostPolicy::viewAny («هر نقشی در شرکت»). بدون محدودیت
-                     business_type چون محتوای وبلاگ برای هر پنج مجموعه معنا دارد. --}}
-                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
-                    <x-menu-sub title="وبلاگ" :icon="theme_icon('blog')">
-                        <x-menu-item title="پست‌ها" :icon="theme_icon('blog')" link="{{ route('blog.posts.index') }}" />
-                        <x-menu-item title="دسته‌بندی‌ها" :icon="theme_icon('category')" link="{{ route('blog.categories.index') }}" />
-                        <x-menu-item title="برچسب‌ها" :icon="theme_icon('blog-tag')" link="{{ route('blog.tags.index') }}" />
-                    </x-menu-sub>
-                @endif
-
                 {{-- سایت‌ساز — عمداً hasRoleInCompany($activeCompany->id) بدون فهرست نقش،
                      همان شرط دقیق PagePolicy::viewAny («هر نقشی در شرکت»). بدون محدودیت
-                     business_type، مثل وبلاگ. --}}
+                     business_type. وبلاگ (BlogPostPolicy::viewAny — همان شرط) و پیام‌های
+                     تماس با ما (فقط holding_admin/operator — همان شرط دقیق قبلی زیر منوی
+                     «مخاطبین») هم Session ۹ به همین زیرمنو منتقل شدند؛ فقط محل نمایش عوض
+                     شد، هیچ Policy/route/controller دست نخورد. --}}
                 @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
                     <x-menu-sub title="سایت‌ساز" :icon="theme_icon('site-builder')">
                         <x-menu-item title="صفحات" :icon="theme_icon('page')" link="{{ route('sitebuilder.pages.index') }}" />
                         <x-menu-item title="تنظیمات سایت" :icon="theme_icon('settings')" link="{{ route('sitebuilder.settings') }}" />
+                        <x-menu-item title="پست‌های وبلاگ" :icon="theme_icon('blog')" link="{{ route('blog.posts.index') }}" />
+                        <x-menu-item title="دسته‌بندی‌های وبلاگ" :icon="theme_icon('category')" link="{{ route('blog.categories.index') }}" />
+                        <x-menu-item title="برچسب‌های وبلاگ" :icon="theme_icon('blog-tag')" link="{{ route('blog.tags.index') }}" />
+
+                        @if(auth()->user()->hasRoleInCompany($activeCompany->id, ['holding_admin', 'operator']))
+                            <x-menu-item title="پیام‌های تماس با ما" :icon="theme_icon('inbox')" link="{{ route('contact-submissions.index') }}" />
+                        @endif
                     </x-menu-sub>
                 @endif
 

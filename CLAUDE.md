@@ -1532,4 +1532,135 @@ PageContentEditor.
 با این Session، آخرین قطعه‌ی باقی‌مانده‌ی نقشه‌راه اصلی ماژول SiteBuilder
 (طبق فهرست Session ۷) تکمیل شد.
 
+- [x] Session 9: حذف/پیش‌نمایش صفحه، پیش‌نمایش زنده هدر/فوتر، افزودن ویجت
+  با کلیک، فرم ثبت‌نام مشتری → CRM، سازماندهی منو
+
+  **چه ساخته شد (پنج بخش مستقل، طبق درخواست صریح کارفرما):**
+
+  1. **حذف/مشاهده صفحه:** `PagePolicy::delete()` (عیناً `update()` —
+     holding_admin هر صفحه، operator فقط draft)، Action جدید `DeletePage`
+     (soft-delete؛ هوک موجود `Page::booted()['deleting']` خودش ارجاع
+     `site_settings` را پاک می‌کند). مسیر پیش‌نمایش ادمین جدید
+     `GET /sitebuilder/pages/{page}/preview` (`PublicSiteController::preview()`،
+     auth + `PagePolicy::view`، **بدون** فیلتر `published()` — برخلاف
+     `show()` عمومی). `PublicSiteController::renderPage()` از `private` به
+     `protected` تغییر کرد + پارامتر `bool $preview` برای بنر هشدار زرد در
+     `public/sitebuilder/show.blade.php` (دقیقاً الگوی `blog.posts.preview`).
+     `PageIndex`: دکمه «مشاهده سایت» (به `public-site.home`)، ستون عملیات
+     هر ردیف حالا «مشاهده صفحه» (published → لینک مستقیم عمومی، غیر آن →
+     مسیر پیش‌نمایش) + «حذف صفحه» (`wire:confirm` مستقیم، بدون مودال جدا —
+     عیناً الگوی `BlogPostIndex`).
+
+  2. **پیش‌نمایش زنده تنظیمات سایت:** آپلود لوگو/فاوآیکون از Session ۱ این
+     ماژول از قبل با `WithFileUploads` واقعی کار می‌کرد (فقط تأیید شد، کد
+     اضافه لازم نبود). رادیوهای انتخاب دموی هدر/فوتر از `wire:model` به
+     `wire:model.live` تغییر کردند؛ دو computed property جدید
+     (`headerPreviewHtml`/`footerPreviewHtml`) مستقیم از همان
+     `WidgetContentRenderer::render()` (با `Company` واقعی، پس لوگو هم در
+     پیش‌نمایش دیده می‌شود) در یک `<iframe srcdoc>` کوچک کنار هر گروه رادیویی.
+     بدون debounce Alpine — انتخاب رادیو یک رویداد گسسته است، نه تایپ پیوسته.
+
+  3. **پنل «افزودن ویجت» با کلیک (تغییر تصمیم آگاهانه نسبت به Session ۶):**
+     آن Session عمداً گفته بود کتابخانه فقط برای انتخاب/جابه‌جایی است، نه
+     افزودن؛ کارفرما این بار صریح یک مسیر افزودن **محدود** خواسته بود:
+     کلیک (نه درگ از کتابخانه به صفحه). `WidgetTreeReorderer::addNode()`
+     متد عمومی جدید (بدون تغییر امضای متدهای موجود) که همان `insert()`
+     خصوصی موجود را با `$targetIndex = PHP_INT_MAX` صدا می‌زند — همان قید
+     «فقط داخل یک محفظه» رایگان از کد موجود می‌آید. کاتالوگ «افزودن سریع»
+     دقیقاً ۱۰ ویجت (`config/sitebuilder.php` → `quick_add_widgets`):
+     `container, title, text_editor, image, icon, button, gallery, slider,
+     faq_accordion, contact_form`. `PageContentEditor`/`PageCreateFlow` هر
+     دو `activeContainerId` (مقصد افزودن — با دکمه‌ی «انتخاب به‌عنوان مقصد»
+     روی هر نود محفظه در `widget-tree-node.blade.php`) و `addWidget()` گرفتند
+     (در `PageContentEditor` با همان authorize صریح `moveWidgetNode`؛ در
+     `PageCreateFlow` بدون authorize جدا، چون هنوز رکورد `pages` وجود ندارد
+     — همان استدلال `moveWidgetNode` آنجا). نود تازه فقط یک آیتم دیگر در
+     `widgetTree` است، پس درگ‌اند‌دراپ موجود Session ۶ بدون هیچ کد اضافه
+     رویش کار می‌کند (تأیید شده هم با تست هم با بازدید بصری).
+
+     **سه ویجت جدید برای رسیدن به ۱۰ مورد:**
+     - `text_editor`: فیلد نوع جدید `richtext` — سمت کلاینت از همان
+       `window.initBlogEditor`/`saveBlogEditor` موجود بلاگ استفاده می‌کند
+       (تابع عمداً عمومی بود، فقط اسمش تاریخی «Blog» مانده). کنترلر آپلود
+       تصویر **جدا** از بلاگ ساخته شد
+       (`SiteBuilder\Http\Controllers\SiteBuilderEditorImageUploadController`،
+       مسیر `sitebuilder.editor-image-upload`، authorize با
+       `PagePolicy::create`) — چون کنترلر بلاگ `BlogPostPolicy::create` را
+       authorize می‌کند و به‌اشتراک‌گذاشتن مستقیم route بین دو ماژول قانون
+       وابستگی بند ۴ CLAUDE.md را نقض می‌کرد. **sanitize فقط در یک نقطه**:
+       `WidgetTreeValueMerger::applyValues()` گسترش یافت — وقتی نوع فیلد
+       `richtext` است، مقدار قبل از نوشتن با `Purifier::clean()` (همان
+       `config/purifier.php` بلاگ) پاک می‌شود؛ چون `refreshPreview()` هم از
+       همین merger عبور می‌کند، پیش‌نمایش و ذخیره نهایی هرگز از هم جدا
+       نمی‌افتند.
+     - `icon`: فیلدهای `icon_name` (select، whitelist ثابت ۱۴ نام heroicon
+       تزئینی — الگوی مستند Session ۲ همین ماژول، نقض بند ۳.۵ نیست چون داده
+       سطح دیتابیس است)، `size`، `color` (فقط کلاس CSS متصل به
+       `--sb-primary-color`/`--sb-secondary-color` موجود). **کشف حین نوشتن
+       تست (نه بازدید بصری این‌بار):** هلپر سراسری `svg()` پکیج blade-icons
+       نام کامل ست آیکون را می‌خواهد (`heroicon-o-star`)، نه میان‌بر `o-star`ی
+       که `<x-icon>` مری داخلی‌اش با `Mary\View\Components\Icon::icon()`
+       می‌سازد؛ بدون این تبدیل، هر آیکون معتبر هم بی‌صدا رندر نمی‌شد (silent
+       catch). رفع شد با `svg('heroicon-'.$iconName, ...)`.
+     - `slider`: فیلد `slides` (repeater: تصویر+عنوان+متن). رندر با کاروسل
+       **خالص CSS** (بدون JS جدید) — رادیوی مخفی به‌ازای هر اسلاید (نامش از
+       node id مشتق می‌شود تا چند اسلایدر روی یک صفحه تداخل نکنند) +
+       انتخاب‌گر `:nth-of-type(i):checked ~ ...`. چون nowdoc ثابت
+       `baseStyles()` نمی‌تواند تعداد اسلاید متغیر را از پیش بداند،
+       انتخاب‌گرهای CSS برای حداکثر ۲۰ اسلاید در یک متد جدا
+       (`sliderSelectorStyles()`) با حلقه PHP تولید می‌شوند، مستقل از تعداد
+       واقعی اسلاید هر نمونه.
+
+  4. **فرم «ثبت‌نام مشتری» → CRM (نه Contact/Lead مستقیم):** طبق بررسی
+     معماری موجود، هر Action واقعی CRM (`ContactMatcher::findOrCreateContact`,
+     `CreateContactSiteProfile`, `CreateLead`, `RecordInteraction`) یک
+     `User $actor` غیرقابل‌حذف برای `Gate::authorize`/`created_by_user_id`
+     می‌خواهد که بازدیدکننده مهمان ندارد — تنها الگوی موجود نوشتن CRM بدون
+     کاربر واردشده همان `SubmitContactForm`/`ContactSubmission` است (استثنای
+     مستند بند ۹). ستون جدید `contact_submissions.source` (VARCHAR(20)
+     + CHECK `IN ('contact_form','site_signup')`، پیش‌فرض `contact_form`)
+     در یک migration جدا (نه ویرایش قدیمی). Action جدید
+     `App\Modules\CRM\Actions\CaptureCustomerSignup` — کپی ساختاری
+     `SubmitContactForm` (honeypot silent-drop، rate limit جدا با کلید
+     `customer-signup:{ip}:{companyId}`، بدون Gate/actor)، می‌نویسد روی
+     همان `contact_submissions` با `source='site_signup'`. کامپوننت عمومی
+     جدید `App\Livewire\CRM\Public\CustomerSignupForm` (namespace/الگوی دقیق
+     `ContactForm` موجود). `WidgetKey::CustomerSignupForm` + marker pattern
+     عیناً `renderContactForm`/`resolveContactForm` (کامنت HTML
+     `<!--sb:customer_signup_form:BASE64-->`، فقط کامپوننت Livewire جدا).
+     تبدیل این ثبت‌نام به یک `Contact`/`Lead` واقعی عمداً خودکار نیست —
+     کار کارمند احراز‌هویت‌شده از همان پنل «پیام‌های تماس با ما» می‌ماند
+     (که حالا یک ستون «منبع» هم نشان می‌دهد). دو تا از سه دموی دسته Login
+     (`SiteBuilderDemosExpansionSeeder::loginDemos()`) به این ویجت واقعی
+     مجهز شدند؛ چون این‌ها فقط کاتالوگ (`page_demos`) هستند نه صفحات واقعی،
+     فقط seeder دوباره روی دیتابیس واقعی اجرا شد (idempotent)، بدون نیاز
+     به `regenerate-content-html`.
+
+  5. **سازماندهی منو (فقط `layouts/app.blade.php`):** آیتم‌های وبلاگ و
+     «پیام‌های تماس با ما» زیر «سایت‌ساز» منتقل شدند — فقط محل نمایش، هیچ
+     Policy/route/controller دست نخورد. چون شرط دسترسی «پیام‌های تماس با
+     ما» (`holding_admin`/`operator`) محدودتر از شرط عمومی‌تر زیرمنوی
+     سایت‌ساز («هر نقشی در شرکت») بود، همان `@if` محدودتر قبلی روی خودِ آن
+     یک `<x-menu-item>` (نه کل زیرمنو) نگه داشته شد.
+
+  **تست‌ها:** `WidgetTreeReordererTest` (تست `addNode` جدید)،
+  `PageDeletionAndQuickAddTest` (حذف/Policy/پیش‌نمایش ادمین/پیش‌نمایش زنده
+  تنظیمات/افزودن ویجت هم در PageContentEditor هم PageCreateFlow/regression
+  درگ‌اند‌دراپ روی نود تازه)، `QuickAddWidgetRenderTest` (رندر امن سه ویجت
+  جدید + sanitize مرکزی richtext)، `CustomerSignupFormTest` (ثبت موفق/rate
+  limit/honeypot/ایزولاسیون شرکت/CHECK دیتابیس/marker resolve)،
+  `SiteBuilderNavigationTest` (جای جدید آیتم‌ها، Policy دست‌نخورده). کل
+  سوییت پروژه: ۵۱۶ سبز، ۱۱ skip (همان CHECKهای mysql-only).
+
+  **بازدید بصری واقعی** با `php artisan serve` روی `127.0.0.1:8123` (همان
+  محدودیت شبکه sandbox نسبت به دامنه Apache، مستندشده در کل این ماژول) و
+  یک کاربر تستی موقت روی شرکت واقعی `arshaman`: ساخت یک صفحه از دموی ورود
+  برندی (شامل `customer_signup_form` از قبل)، افزودن زنده ویجت آیکون از
+  پنل و دیدن SVG واقعی در پیش‌نمایش، انتشار و ارسال واقعی فرم ثبت‌نام از
+  سایت عمومی (رکورد واقعی در `contact_submissions` با `source=site_signup`
+  و ستون «منبع» درست در پنل ادمین تأیید شد)، پیش‌نمایش زنده تعویض دموی هدر
+  (بدون ذخیره ماندن — تأیید شد که `site_settings` واقعی دست‌نخورده ماند)،
+  و حذف واقعی صفحه‌ی تستی. صفحه/پیام تماس/کاربر تستی در پایان کامل حذف شدند
+  (بند ۱۰ CLAUDE.md).
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

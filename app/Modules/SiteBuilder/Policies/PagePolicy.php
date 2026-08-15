@@ -70,4 +70,13 @@ class PagePolicy
     {
         return $user->hasRoleInCompany($companyId, ['holding_admin', 'operator']);
     }
+
+    /**
+     * همان قاعده‌ی update() — holding_admin هر صفحه را حذف می‌کند، operator فقط
+     * صفحه‌ی draft را (طبق بند ۹ CLAUDE.md).
+     */
+    public function delete(User $user, Page $page): bool
+    {
+        return $this->update($user, $page);
+    }
 }

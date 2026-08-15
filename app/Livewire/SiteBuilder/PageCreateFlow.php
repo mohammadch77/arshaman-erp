@@ -62,6 +62,12 @@ class PageCreateFlow extends Component
 
     public string $previewHtml = '';
 
+    /**
+     * محفظه‌ی فعلاً «انتخاب‌شده به‌عنوان مقصد» برای پنل افزودن ویجت — دقیقاً
+     * همان مفهوم PageContentEditor::$activeContainerId.
+     */
+    public ?string $activeContainerId = null;
+
     public function mount(): void
     {
         $this->authorize('create', Page::class);
@@ -89,6 +95,7 @@ class PageCreateFlow extends Component
         $this->fieldValues = [];
         $this->imageUploads = [];
         $this->linesRaw = [];
+        $this->activeContainerId = null;
 
         $this->seedFieldValues();
         $this->refreshPreview();
@@ -106,6 +113,7 @@ class PageCreateFlow extends Component
         $this->imageUploads = [];
         $this->linesRaw = [];
         $this->previewHtml = '';
+        $this->activeContainerId = null;
     }
 
     /**
@@ -221,6 +229,152 @@ class PageCreateFlow extends Component
         $this->workingWidgetTree = $theme !== null ? ['theme' => $theme] + $reordered : $reordered;
 
         $this->refreshPreview();
+    }
+
+    public function setActiveContainer(?string $nodeId): void
+    {
+        if ($nodeId === null) {
+            $this->activeContainerId = null;
+
+            return;
+        }
+
+        $node = $this->findNodeById($this->widgetTreeWithoutTheme(), $nodeId);
+
+        if ($node !== null && ($node['widget_key'] ?? null) === WidgetKey::Container->value) {
+            $this->activeContainerId = $nodeId;
+        }
+    }
+
+    /**
+     * افزودن یک نود کاملاً تازه — دقیقاً همان PageContentEditor::addWidget()
+     * ولی بدون authorize جدا (همان استدلال moveWidgetNode بالا: مجوز ساخت
+     * صفحه از قبل در mount() احراز شده، هیچ رکورد pages ای هنوز وجود ندارد).
+     */
+    public function addWidget(string $widgetKey): void
+    {
+        if ($this->selectedDemoId === null) {
+            return;
+        }
+
+        $widget = Widget::where('widget_key', $widgetKey)->first();
+
+        if ($widget === null) {
+            $this->error('این ویجت در کاتالوگ پیدا نشد.');
+
+            return;
+        }
+
+        $fields = $widget->editableFields();
+        $newNode = [
+            'id' => (string) Str::uuid(),
+            'widget_key' => $widgetKey,
+            'instance_label' => $widget->name.' جدید',
+            'values' => $this->defaultValuesForFields($fields),
+            'children' => [],
+        ];
+
+        $theme = $this->workingWidgetTree['theme'] ?? null;
+        $nodes = $this->workingWidgetTree;
+        unset($nodes['theme']);
+        $nodes = array_values($nodes);
+
+        try {
+            $updated = app(WidgetTreeReorderer::class)->addNode($nodes, $this->activeContainerId, $newNode);
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return;
+        }
+
+        $this->workingWidgetTree = $theme !== null ? ['theme' => $theme] + $updated : $updated;
+
+        $this->fieldValues[$newNode['id']] = $newNode['values'];
+
+        foreach ($fields as $field) {
+            if ($field['type'] === 'lines') {
+                $this->linesRaw[$newNode['id']][$field['key']] = '';
+
+                continue;
+            }
+
+            if ($field['type'] === 'image') {
+                $this->imageUploads[$newNode['id']][$field['key']] = null;
+            }
+        }
+
+        $this->refreshPreview();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $fields
+     * @return array<string, mixed>
+     */
+    private function defaultValuesForFields(array $fields): array
+    {
+        $values = [];
+
+        foreach ($fields as $field) {
+            $values[$field['key']] = $field['type'] === 'repeater' ? [] : ($field['default'] ?? null);
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function widgetTreeWithoutTheme(): array
+    {
+        $nodes = $this->workingWidgetTree;
+        unset($nodes['theme']);
+
+        return array_values($nodes);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $nodes
+     * @return array<string, mixed>|null
+     */
+    private function findNodeById(array $nodes, string $id): ?array
+    {
+        foreach ($nodes as $node) {
+            if (! is_array($node) || ! isset($node['id'])) {
+                continue;
+            }
+
+            if ($node['id'] === $id) {
+                return $node;
+            }
+
+            if (! empty($node['children'])) {
+                $found = $this->findNodeById($node['children'], $id);
+
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public function getQuickAddWidgetsProperty()
+    {
+        $keys = config('sitebuilder.quick_add_widgets', []);
+
+        return Widget::whereIn('widget_key', $keys)->get()->sortBy(fn ($widget) => array_search($widget->widget_key, $keys, true))->values();
+    }
+
+    public function getActiveContainerLabelProperty(): ?string
+    {
+        if ($this->activeContainerId === null) {
+            return null;
+        }
+
+        $node = $this->findNodeById($this->widgetTreeWithoutTheme(), $this->activeContainerId);
+
+        return $node['instance_label'] ?? null;
     }
 
     /**

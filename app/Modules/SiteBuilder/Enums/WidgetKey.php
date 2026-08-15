@@ -19,6 +19,10 @@ enum WidgetKey: string
     case Footer = 'footer';
     case ContactForm = 'contact_form';
     case BlogPostList = 'blog_post_list';
+    case TextEditor = 'text_editor';
+    case Icon = 'icon';
+    case Slider = 'slider';
+    case CustomerSignupForm = 'customer_signup_form';
 
     public function label(): string
     {
@@ -38,6 +42,10 @@ enum WidgetKey: string
             self::Footer => 'فوتر',
             self::ContactForm => 'فرم تماس',
             self::BlogPostList => 'فهرست پست‌های وبلاگ',
+            self::TextEditor => 'متن غنی',
+            self::Icon => 'آیکون',
+            self::Slider => 'اسلایدر تصاویر',
+            self::CustomerSignupForm => 'فرم ثبت‌نام مشتری',
         };
     }
 }

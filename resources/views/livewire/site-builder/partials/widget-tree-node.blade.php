@@ -24,6 +24,20 @@
             </div>
         </x-slot:title>
 
+        @if($isContainer && $canEdit)
+            <x-slot:menu>
+                @if(($activeContainerId ?? null) === $node['id'])
+                    <x-badge value="مقصد افزودن ویجت" class="badge-primary badge-sm" />
+                @else
+                    <x-button
+                        label="انتخاب به‌عنوان مقصد"
+                        class="btn-ghost btn-xs"
+                        wire:click="setActiveContainer('{{ $node['id'] }}')"
+                    />
+                @endif
+            </x-slot:menu>
+        @endif
+
         @if(! empty($node['fields']))
             <div class="flex flex-col gap-4">
                 @include('livewire.site-builder.partials.widget-fields', ['node' => $node, 'canEdit' => $canEdit])
@@ -33,7 +47,7 @@
 
     @if($isContainer)
         <div class="rounded-b-box border border-t-0 border-base-300 bg-base-200/40 p-3">
-            @include('livewire.site-builder.partials.widget-tree', ['nodes' => $node['children'], 'canEdit' => $canEdit, 'parentId' => $node['id']])
+            @include('livewire.site-builder.partials.widget-tree', ['nodes' => $node['children'], 'canEdit' => $canEdit, 'parentId' => $node['id'], 'activeContainerId' => $activeContainerId ?? null])
         </div>
     @endif
 </div>

@@ -26,6 +26,7 @@ class DynamicWidgetResolver
     {
         $html = $this->resolveContactForm($html, $company);
         $html = $this->resolveBlogPostList($html, $company);
+        $html = $this->resolveCustomerSignupForm($html, $company);
 
         return $html;
     }
@@ -74,6 +75,35 @@ class DynamicWidgetResolver
                 $count = $count > 0 && $count <= self::MAX_POSTS_COUNT ? $count : 3;
 
                 return $this->renderLivePostList($company, $count, trim((string) ($config['title'] ?? '')));
+            },
+            $html
+        );
+
+        return $result ?? $html;
+    }
+
+    /**
+     * marker pattern عیناً مثل resolveContactForm — فقط کامپوننت Livewire جدا
+     * (crm.public.customer-signup-form، نگاه کن CaptureCustomerSignup برای
+     * دلیل نوشتن روی contact_submissions به‌جای Contact/Lead).
+     */
+    private function resolveCustomerSignupForm(string $html, Company $company): string
+    {
+        $result = preg_replace_callback(
+            '/<!--sb:customer_signup_form:([A-Za-z0-9+\/=]+)-->.*?<!--\/sb:customer_signup_form-->/s',
+            function (array $matches) use ($company): string {
+                $config = json_decode(base64_decode($matches[1], true) ?: '', true);
+                $config = is_array($config) ? $config : [];
+                $title = trim((string) ($config['title'] ?? ''));
+
+                $titleHtml = $title !== '' ? '<h3 class="sb-widget-title sb-widget-customer-signup-form-title">'.e($title).'</h3>' : '';
+
+                $formHtml = Blade::render(
+                    '@livewire(\'crm.public.customer-signup-form\', ["companySlug" => $companySlug], key($key))',
+                    ['companySlug' => $company->slug, 'key' => 'sb-customer-signup-form-'.Str::random(12)]
+                );
+
+                return '<div class="sb-widget sb-widget-customer-signup-form">'.$titleHtml.$formHtml.'</div>';
             },
             $html
         );

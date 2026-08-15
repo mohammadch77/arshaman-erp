@@ -7,18 +7,22 @@ use App\Modules\CRM\Models\ContactSubmission;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Support\Facades\RateLimiter;
 
-class SubmitContactForm
+/**
+ * ثبت فرم «ثبت‌نام مشتری» ویجت سایت‌ساز customer_signup_form — کپی ساختاری
+ * SubmitContactForm (بند ۹ CLAUDE.md: مسیر عمومی/مهمان، بدون Gate/actor).
+ * روی همان contact_submissions می‌نویسد (source='site_signup')، نه
+ * Contact/Lead — نگاه کن یادداشت بخش ۴ Session ۹ در CLAUDE.md برای دلیل کامل:
+ * هر Action واقعی CRM (ContactMatcher/CreateLead/RecordInteraction) یک
+ * User $actor غیرقابل‌حذف می‌خواهد که بازدیدکننده مهمان ندارد.
+ */
+class CaptureCustomerSignup
 {
     public const MAX_ATTEMPTS_PER_WINDOW = 3;
 
     public const DECAY_SECONDS = 600;
 
     /**
-     * مسیر عمومی/مهمان است — هیچ کاربر واردشده‌ای برای Gate::authorize وجود
-     * ندارد (استثنای مستند بند ۹ CLAUDE.md، مثل bootstrapping). لایه دفاعی
-     * این‌جا honeypot + rate limit + validation سطح کامپوننت است، نه Policy.
-     *
-     * @param  array{full_name: string, phone: string, email: ?string, subject: ?string, message: string, honeypot: string}  $data
+     * @param  array{full_name: string, phone: string, email: ?string, honeypot: string}  $data
      * @return ContactSubmission|null  null یعنی honeypot پر بود — بدون خطا، بدون ثبت.
      */
     public function handle(Company $company, array $data, string $ipAddress): ?ContactSubmission
@@ -34,16 +38,16 @@ class SubmitContactForm
             'full_name' => $data['full_name'],
             'phone' => $data['phone'],
             'email' => $data['email'] ?? null,
-            'subject' => $data['subject'] ?? null,
-            'message' => $data['message'],
+            'subject' => 'ثبت‌نام مشتری از سایت',
+            'message' => 'ثبت‌نام از طریق فرم عضویت سایت.',
             'ip_address' => $ipAddress,
-            'source' => 'contact_form',
+            'source' => 'site_signup',
         ]);
     }
 
     protected function throttle(string $ipAddress, string $companyId): void
     {
-        $key = "contact-submission:{$ipAddress}:{$companyId}";
+        $key = "customer-signup:{$ipAddress}:{$companyId}";
 
         if (RateLimiter::tooManyAttempts($key, self::MAX_ATTEMPTS_PER_WINDOW)) {
             throw new ThrottleRequestsException('تعداد درخواست‌های شما بیش از حد مجاز است. کمی بعد دوباره تلاش کنید.');

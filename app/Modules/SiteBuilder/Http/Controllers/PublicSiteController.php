@@ -57,6 +57,30 @@ class PublicSiteController extends Controller
         return $this->renderPage($company, $siteSetting, $page);
     }
 
+    /**
+     * پیش‌نمایش ادمین (auth، PagePolicy::view) — برخلاف show()، فیلتر
+     * published() ندارد چون تنها راه دیدن یک صفحه‌ی draft قبل از انتشار همین
+     * است. برخلاف مسیرهای مهمان بالا، route model binding معمولی (اسکوپ‌شده
+     * به BelongsToCompany/CompanyContext ادمین) استفاده می‌شود، نه
+     * withoutGlobalScope — پیش‌نمایش باید به شرکت فعال همان ادمین محدود بماند.
+     */
+    public function preview(Page $page): View
+    {
+        $this->authorizePreview($page);
+
+        $company = Company::findOrFail($page->owner_company_id);
+        $siteSetting = $this->findSiteSetting($company->id);
+
+        return $this->renderPage($company, $siteSetting, $page, preview: true);
+    }
+
+    private function authorizePreview(Page $page): void
+    {
+        if (! auth()->user()?->can('view', $page)) {
+            abort(403);
+        }
+    }
+
     private function findSiteSetting(string $companyId): ?SiteSetting
     {
         return SiteSetting::withoutGlobalScope('owner_company')
@@ -72,7 +96,7 @@ class PublicSiteController extends Controller
      * دوباره رندر نمی‌شود؛ فقط widget_tree هدر/فوتر (که چنین ستونی ندارند) در
      * لحظه رندر می‌شود.
      */
-    private function renderPage(Company $company, ?SiteSetting $siteSetting, Page $page): View
+    protected function renderPage(Company $company, ?SiteSetting $siteSetting, Page $page, bool $preview = false): View
     {
         $headerHtml = $siteSetting?->activeHeaderDemo !== null
             ? $this->renderer->render($siteSetting->activeHeaderDemo->widget_tree, $company)
@@ -95,6 +119,7 @@ class PublicSiteController extends Controller
             'headerHtml' => $headerHtml,
             'bodyHtml' => $bodyHtml,
             'footerHtml' => $footerHtml,
+            'preview' => $preview,
         ]);
     }
 }

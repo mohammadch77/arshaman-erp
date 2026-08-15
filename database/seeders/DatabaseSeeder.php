@@ -24,5 +24,6 @@ class DatabaseSeeder extends Seeder
         $this->call(SiteBuilderWidgetsExpansionSeeder::class);
         $this->call(SiteBuilderIntegratedWidgetsSeeder::class);
         $this->call(SiteBuilderDemosExpansionSeeder::class);
+        $this->call(SiteBuilderQuickAddWidgetsSeeder::class);
     }
 }

@@ -23,7 +23,7 @@
     @endif
 >
     @forelse($nodes as $node)
-        @include('livewire.site-builder.partials.widget-tree-node', ['node' => $node, 'canEdit' => $canEdit])
+        @include('livewire.site-builder.partials.widget-tree-node', ['node' => $node, 'canEdit' => $canEdit, 'activeContainerId' => $activeContainerId ?? null])
     @empty
         <div class="rounded-box border border-dashed border-base-300 p-4 text-center text-xs text-base-content/40" data-sortable-placeholder>
             {{ $parentId === null ? 'این دمو هیچ ویجتی ندارد.' : 'ویجتی را اینجا رها کن' }}

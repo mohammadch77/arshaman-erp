@@ -61,6 +61,24 @@
             rows="4"
             :disabled="! $canEdit"
         />
+    @elseif($field['type'] === 'richtext')
+        @php($editorId = 'sb-editor-'.$node['id'].'-'.$field['key'])
+        <div>
+            <div class="fieldset-legend mb-1">{{ $field['label'] }}</div>
+            @if($canEdit)
+                <div
+                    wire:ignore
+                    x-data
+                    x-init="window.initBlogEditor('{{ $editorId }}', @js($node['values'][$field['key']] ?? ''), 'editor-content-input-{{ $editorId }}', '{{ route('sitebuilder.editor-image-upload') }}')"
+                    class="rounded-box border border-base-300 bg-base-100 p-4"
+                >
+                    <div id="{{ $editorId }}"></div>
+                </div>
+                <input type="hidden" id="editor-content-input-{{ $editorId }}" wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}" x-on:input="schedulePreview()" />
+            @else
+                <div class="prose max-w-none rounded-box border border-base-300 bg-base-200/40 p-4">{!! $node['values'][$field['key']] ?? '' !!}</div>
+            @endif
+        </div>
     @elseif($field['type'] === 'repeater')
         <div class="rounded-box border border-base-300 p-3">
             <p class="mb-2 text-sm font-medium text-base-content/70">{{ $field['label'] }}</p>

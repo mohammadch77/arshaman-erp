@@ -25,6 +25,13 @@
 @endif
 
 @section('content')
+    @if($preview ?? false)
+        <div class="flex items-center justify-center gap-2 border border-warning bg-warning/10 p-3 text-center text-sm font-semibold text-base-content">
+            <x-icon :name="theme_icon('preview')" class="h-5 w-5 text-warning" />
+            این یک پیش‌نمایش است — این صفحه هنوز منتشر نشده یا این نسخه ذخیره‌نشده است.
+        </div>
+    @endif
+
     {!! $headerHtml !!}
 
     <main>

@@ -2,12 +2,14 @@
 
 namespace App\Livewire\SiteBuilder;
 
+use App\Modules\Core\Models\Company;
 use App\Modules\Core\Services\CompanyContext;
 use App\Modules\SiteBuilder\Actions\UpdateSiteSettings;
 use App\Modules\SiteBuilder\Enums\LayoutType;
 use App\Modules\SiteBuilder\Models\LayoutDemo;
 use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\SiteSetting;
+use App\Modules\SiteBuilder\Services\WidgetContentRenderer;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -65,6 +67,58 @@ class LayoutDemoSelector extends Component
     public function getPublishedPagesProperty()
     {
         return Page::where('owner_company_id', $this->companyId)->published()->orderBy('title')->get();
+    }
+
+    /**
+     * پیش‌نمایش زنده دموی هدر/فوتر انتخاب‌شده — از همان WidgetContentRenderer
+     * که رندر نهایی صفحه عمومی (PublicSiteController) و پیش‌نمایش
+     * PageContentEditor استفاده می‌کنند؛ یک منبع واحد رندر. رادیوهای انتخاب در
+     * Blade با wire:model.live بایند شده‌اند، پس هر کلیک خودش یک round-trip
+     * می‌زند و این computed property را دوباره می‌سازد — نیازی به debounce
+     * جداگانه نیست چون این یک انتخاب گسسته است، نه تایپ پیوسته.
+     */
+    public function getHeaderPreviewHtmlProperty(): string
+    {
+        return $this->renderLayoutDemoPreview($this->active_header_demo_id);
+    }
+
+    public function getFooterPreviewHtmlProperty(): string
+    {
+        return $this->renderLayoutDemoPreview($this->active_footer_demo_id);
+    }
+
+    private function renderLayoutDemoPreview(?string $demoId): string
+    {
+        if ($demoId === null) {
+            return '';
+        }
+
+        $demo = LayoutDemo::find($demoId);
+
+        if ($demo === null) {
+            return '';
+        }
+
+        $company = Company::find($this->companyId);
+
+        return app(WidgetContentRenderer::class)->render($demo->widget_tree, $company);
+    }
+
+    public function getHeaderPreviewDocumentProperty(): string
+    {
+        return $this->wrapPreviewDocument($this->headerPreviewHtml);
+    }
+
+    public function getFooterPreviewDocumentProperty(): string
+    {
+        return $this->wrapPreviewDocument($this->footerPreviewHtml);
+    }
+
+    private function wrapPreviewDocument(string $html): string
+    {
+        return '<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">'
+            .'<style>body{margin:0;padding:1rem;font-family:inherit;}</style>'
+            .'</head><body>'.$html.'</body></html>';
     }
 
     protected function rules(): array

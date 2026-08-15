@@ -31,7 +31,14 @@
             <span class="font-medium">محتوای ویجت‌ها</span>
         </div>
 
-                @include('livewire.site-builder.partials.widget-tree', ['nodes' => $this->widgetTreeUi, 'canEdit' => $this->canEditWidgetValues])
+                @include('livewire.site-builder.partials.widget-add-panel', [
+                    'quickAddWidgets' => $this->quickAddWidgets,
+                    'activeContainerId' => $activeContainerId,
+                    'activeContainerLabel' => $this->activeContainerLabel,
+                    'canEdit' => $this->canEditWidgetValues,
+                ])
+
+                @include('livewire.site-builder.partials.widget-tree', ['nodes' => $this->widgetTreeUi, 'canEdit' => $this->canEditWidgetValues, 'activeContainerId' => $activeContainerId])
 
         <x-card shadow>
             <x-slot:title>

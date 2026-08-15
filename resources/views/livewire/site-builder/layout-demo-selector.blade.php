@@ -50,7 +50,7 @@
                 <div class="flex flex-col gap-2.5">
                     @forelse($this->headerDemos as $demo)
                         <label class="flex cursor-pointer items-center gap-3 rounded-box border p-3.5 transition hover:border-primary/50 {{ $active_header_demo_id === $demo->id ? 'border-primary ring-2 ring-primary bg-primary/5' : 'border-base-300' }}">
-                            <input type="radio" class="radio radio-primary" wire:model="active_header_demo_id" value="{{ $demo->id }}" />
+                            <input type="radio" class="radio radio-primary" wire:model.live="active_header_demo_id" value="{{ $demo->id }}" />
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-box bg-primary/10 text-primary">
                                 <x-icon :name="theme_icon('header')" class="w-4 h-4" />
                             </span>
@@ -60,13 +60,26 @@
                         <x-alert title="هیچ دموی هدری ساخته نشده است." :icon="theme_icon('warning')" class="alert-warning" />
                     @endforelse
                 </div>
+
+                @if($active_header_demo_id)
+                    <div class="mt-3">
+                        <div class="mb-1 text-xs font-medium text-base-content/60">پیش‌نمایش زنده</div>
+                        <iframe
+                            srcdoc="{{ $this->headerPreviewDocument }}"
+                            sandbox="allow-same-origin"
+                            title="پیش‌نمایش هدر"
+                            class="w-full rounded-box border border-base-300"
+                            style="height: 12rem;"
+                        ></iframe>
+                    </div>
+                @endif
             </x-card>
 
             <x-card shadow title="فوتر فعال">
                 <div class="flex flex-col gap-2.5">
                     @forelse($this->footerDemos as $demo)
                         <label class="flex cursor-pointer items-center gap-3 rounded-box border p-3.5 transition hover:border-primary/50 {{ $active_footer_demo_id === $demo->id ? 'border-primary ring-2 ring-primary bg-primary/5' : 'border-base-300' }}">
-                            <input type="radio" class="radio radio-primary" wire:model="active_footer_demo_id" value="{{ $demo->id }}" />
+                            <input type="radio" class="radio radio-primary" wire:model.live="active_footer_demo_id" value="{{ $demo->id }}" />
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-box bg-primary/10 text-primary">
                                 <x-icon :name="theme_icon('footer')" class="w-4 h-4" />
                             </span>
@@ -76,6 +89,19 @@
                         <x-alert title="هیچ دموی فوتری ساخته نشده است." :icon="theme_icon('warning')" class="alert-warning" />
                     @endforelse
                 </div>
+
+                @if($active_footer_demo_id)
+                    <div class="mt-3">
+                        <div class="mb-1 text-xs font-medium text-base-content/60">پیش‌نمایش زنده</div>
+                        <iframe
+                            srcdoc="{{ $this->footerPreviewDocument }}"
+                            sandbox="allow-same-origin"
+                            title="پیش‌نمایش فوتر"
+                            class="w-full rounded-box border border-base-300"
+                            style="height: 12rem;"
+                        ></iframe>
+                    </div>
+                @endif
             </x-card>
         </div>
 

@@ -17,6 +17,7 @@
                 ['key' => 'phone', 'label' => 'موبایل'],
                 ['key' => 'subject', 'label' => 'موضوع'],
                 ['key' => 'message', 'label' => 'پیام'],
+                ['key' => 'source', 'label' => 'منبع'],
                 ['key' => 'status', 'label' => 'وضعیت'],
                 ['key' => 'created_at', 'label' => 'تاریخ ثبت'],
                 ['key' => 'actions', 'label' => ''],
@@ -34,6 +35,10 @@
 
             @scope('cell_message', $submission)
                 <span class="line-clamp-2 max-w-xs">{{ $submission->message }}</span>
+            @endscope
+
+            @scope('cell_source', $submission)
+                <x-badge value="{{ $submission->source === 'site_signup' ? 'ثبت‌نام سایت' : 'فرم تماس' }}" class="badge-ghost badge-sm" />
             @endscope
 
             @scope('cell_status', $submission)

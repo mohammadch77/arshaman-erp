@@ -43,6 +43,7 @@ class ContactSubmission extends Model
         'email',
         'subject',
         'message',
+        'source',
         'status',
         'ip_address',
         'read_at',

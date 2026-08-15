@@ -356,11 +356,13 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     self::n('login-branded-slogan', WidgetKey::Title, 'شعار برند ورود', ['text' => 'همراه دیجیتال کسب‌وکار شما', 'level' => 3]),
                 ]),
                 self::n('login-branded-title', WidgetKey::Title, 'عنوان فرم ورود برندی', ['text' => 'خوش آمدید', 'level' => 1]),
+                self::n('login-branded-signup-form', WidgetKey::CustomerSignupForm, 'فرم ثبت‌نام مشتری ورود برندی', ['section_title' => 'هنوز عضو نیستید؟']),
             ], ['primary' => '#EA580C', 'secondary' => '#7C2D12', 'heading' => "'Markazi Text', serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
             'دموی ورود — پیام خوش‌آمدگویی و بازگشت به صفحه اصلی' => self::withTheme([
                 self::n('login-welcome-title', WidgetKey::Title, 'عنوان خوش‌آمدگویی ورود', ['text' => 'خوشحالیم دوباره می‌بینیمتان', 'level' => 1]),
                 self::n('login-welcome-text', WidgetKey::Title, 'متن خوش‌آمدگویی ورود', ['text' => 'برای ادامه وارد حساب کاربری خود شوید', 'level' => 4]),
+                self::n('login-welcome-signup-form', WidgetKey::CustomerSignupForm, 'فرم ثبت‌نام مشتری خوش‌آمدگویی ورود', ['section_title' => 'ثبت‌نام سریع']),
                 self::n('login-welcome-back-button', WidgetKey::Button, 'دکمه بازگشت به صفحه اصلی ورود', ['label' => 'بازگشت به صفحه اصلی', 'url' => '/', 'style' => 'outline']),
             ], ['primary' => '#059669', 'secondary' => '#064E3B', 'heading' => "'Cairo', sans-serif", 'radius' => 'pill', 'density' => 'comfortable']),
         ];

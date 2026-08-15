@@ -70,7 +70,14 @@
                         <x-textarea label="توضیح متا (سئو، اختیاری)" wire:model="meta_description" rows="2" />
                     </x-card>
 
-                    @include('livewire.site-builder.partials.widget-tree', ['nodes' => $this->widgetTreeUi, 'canEdit' => true])
+                    @include('livewire.site-builder.partials.widget-add-panel', [
+                        'quickAddWidgets' => $this->quickAddWidgets,
+                        'activeContainerId' => $activeContainerId,
+                        'activeContainerLabel' => $this->activeContainerLabel,
+                        'canEdit' => true,
+                    ])
+
+                    @include('livewire.site-builder.partials.widget-tree', ['nodes' => $this->widgetTreeUi, 'canEdit' => true, 'activeContainerId' => $activeContainerId])
                 </div>
 
                 <div class="lg:sticky lg:top-4">

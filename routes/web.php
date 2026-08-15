@@ -47,6 +47,7 @@ use App\Modules\Blog\Http\Controllers\BlogPostPreviewController;
 use App\Modules\Blog\Http\Controllers\EditorImageUploadController;
 use App\Modules\Blog\Http\Controllers\PublicBlogController;
 use App\Modules\SiteBuilder\Http\Controllers\PublicSiteController;
+use App\Modules\SiteBuilder\Http\Controllers\SiteBuilderEditorImageUploadController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -146,6 +147,8 @@ Route::livewire('/sitebuilder/pages', PageIndex::class)->middleware('auth')->nam
 Route::livewire('/sitebuilder/pages/create', PageCreateFlow::class)->middleware('auth')->name('sitebuilder.pages.create');
 Route::livewire('/sitebuilder/pages/{page}/edit', PageContentEditor::class)->middleware('auth')->name('sitebuilder.pages.edit');
 Route::livewire('/sitebuilder/settings', LayoutDemoSelector::class)->middleware('auth')->name('sitebuilder.settings');
+Route::get('/sitebuilder/pages/{page}/preview', [PublicSiteController::class, 'preview'])->middleware('auth')->name('sitebuilder.pages.preview');
+Route::post('/sitebuilder/editor-image-upload', SiteBuilderEditorImageUploadController::class)->middleware('auth')->name('sitebuilder.editor-image-upload');
 
 // مسیرهای عمومی سایت‌ساز — بدون middleware auth. پیشوند /site/... با
 // /sitebuilder/... بالا تداخل ندارد (segment اول متفاوت است)، پس نیازی به

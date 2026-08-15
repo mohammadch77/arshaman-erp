@@ -3,6 +3,7 @@
 namespace App\Modules\SiteBuilder\Services;
 
 use App\Modules\SiteBuilder\Models\Widget;
+use Mews\Purifier\Facades\Purifier;
 
 /**
  * جایگزینی مقادیر داخل widget_tree — منبع مشترک بین ذخیره واقعی
@@ -41,13 +42,23 @@ class WidgetTreeValueMerger
     {
         foreach ($nodes as &$node) {
             $nodeId = $node['id'] ?? null;
-            $allowedKeys = array_column($editableFieldsByWidgetKey[$node['widget_key'] ?? ''] ?? [], 'key');
+            $fieldsByKey = array_column($editableFieldsByWidgetKey[$node['widget_key'] ?? ''] ?? [], null, 'key');
 
             if ($nodeId !== null && isset($fieldValues[$nodeId])) {
                 foreach ($fieldValues[$nodeId] as $fieldKey => $fieldValue) {
-                    if (in_array($fieldKey, $allowedKeys, true)) {
-                        $node['values'][$fieldKey] = $fieldValue;
+                    if (! isset($fieldsByKey[$fieldKey])) {
+                        continue;
                     }
+
+                    // نقطه‌ی مرکزی sanitize فیلدهای richtext (ویجت text_editor) —
+                    // هم ذخیره واقعی (UpdatePageWidgetValues) هم پیش‌نمایش زنده
+                    // (PageContentEditor::refreshPreview) از همین متد رد می‌شوند،
+                    // پس هرگز یک مسیر پاک‌سازی‌نشده باقی نمی‌ماند.
+                    if (($fieldsByKey[$fieldKey]['type'] ?? null) === 'richtext') {
+                        $fieldValue = Purifier::clean((string) $fieldValue);
+                    }
+
+                    $node['values'][$fieldKey] = $fieldValue;
                 }
             }
 

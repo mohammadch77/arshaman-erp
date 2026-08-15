@@ -9,6 +9,7 @@ use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\SiteSetting;
 use App\Modules\SiteBuilder\Support\StorageUrl;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * ساختار هر نود widget_tree:
@@ -38,6 +39,18 @@ class WidgetContentRenderer
     private const MAP_ALLOWED_HOSTS = ['www.google.com', 'google.com'];
 
     private const MAP_ALLOWED_PATH_PREFIX = '/maps/embed';
+
+    /**
+     * whitelist نام آیکون تزئینی ویجت icon — دقیقاً همان استثنای مستند Session ۲
+     * همین ماژول (نام آیکون داده‌ی سطح دیتابیس است، نه hardcode در Blade، پس
+     * نقض بند ۳.۵ CLAUDE.md نیست). هر نامی خارج از این لیست رد و لاگ می‌شود —
+     * دقیقاً همان الگوی whitelist دامنه map/video.
+     */
+    private const ALLOWED_DECORATIVE_ICONS = [
+        'o-star', 'o-shield-check', 'o-sparkles', 'o-bolt', 'o-heart',
+        'o-check-circle', 'o-globe-alt', 'o-light-bulb', 'o-rocket-launch',
+        'o-trophy', 'o-hand-thumb-up', 'o-clock', 'o-gift', 'o-face-smile',
+    ];
 
     private const DEFAULT_PRIMARY_COLOR = '#2563EB';
 
@@ -145,6 +158,11 @@ class WidgetContentRenderer
      */
     public function baseStyles(): string
     {
+        return $this->staticBaseStyles().$this->sliderSelectorStyles();
+    }
+
+    private function staticBaseStyles(): string
+    {
         return <<<'CSS'
         .sb-page{font-family:var(--sb-font-family);color:#20242c;line-height:1.8;-webkit-font-smoothing:antialiased;}
         .sb-page *{box-sizing:border-box;}
@@ -222,6 +240,25 @@ class WidgetContentRenderer
         .sb-blog-post-card-excerpt{margin:0;font-size:.88rem;color:#525a68;line-height:1.7;flex:1;}
         .sb-blog-post-card-date{font-size:.78rem;color:#9ca3af;font-weight:600;}
         .sb-blog-post-list-empty{padding:2.5rem 1.5rem;text-align:center;color:#9ca3af;font-size:.9rem;border:1px dashed #e7e9ee;border-radius:var(--sb-radius-lg);}
+        .sb-widget-text-editor{margin:.5rem 0;line-height:1.85;color:#20242c;}
+        .sb-widget-text-editor img{max-width:100%;height:auto;border-radius:var(--sb-radius-md);}
+        .sb-widget-icon{display:inline-flex;margin:.5rem 0;}
+        .sb-icon-size-sm svg{width:1.5rem;height:1.5rem;}
+        .sb-icon-size-md svg{width:2.5rem;height:2.5rem;}
+        .sb-icon-size-lg svg{width:4rem;height:4rem;}
+        .sb-icon-color-primary svg{color:var(--sb-primary-color);}
+        .sb-icon-color-secondary svg{color:var(--sb-secondary-color);}
+        .sb-icon-color-muted svg{color:#9ca3af;}
+        .sb-widget-slider{position:relative;margin:.5rem 0;border-radius:var(--sb-radius-lg);overflow:hidden;}
+        .sb-slider-radio{position:absolute;opacity:0;pointer-events:none;}
+        .sb-slider-track{display:flex;width:100%;}
+        .sb-slider-slide{flex:0 0 100%;display:none;flex-direction:column;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 20px -12px rgba(15,23,42,.18);}
+        .sb-slider-slide img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;}
+        .sb-slider-slide-body{padding:1.25rem;}
+        .sb-slider-slide-title{margin:0 0 .5rem;font-family:var(--sb-heading-font);font-size:1.1rem;font-weight:700;}
+        .sb-slider-slide-text{margin:0;color:#525a68;line-height:1.75;}
+        .sb-slider-dots{display:flex;justify-content:center;gap:.5rem;padding:.75rem;}
+        .sb-slider-dot{width:.6rem;height:.6rem;border-radius:9999px;background:#d1d5db;cursor:pointer;transition:background .15s ease;}
         @media (max-width: 640px){
             .sb-widget-header-nav{gap:1rem;padding:.85rem 1rem;justify-content:center;}
             .sb-header-nav-links{gap:1rem;justify-content:center;}
@@ -229,6 +266,25 @@ class WidgetContentRenderer
             .sb-widget-footer{flex-direction:column;text-align:center;}
         }
         CSS;
+    }
+
+    /**
+     * انتخاب‌گرهای CSS کاروسل (نگاه کن renderSlider) نمی‌توانند در یک nowdoc
+     * ثابت نوشته شوند چون تعداد اسلاید هر ویجت متفاوت است — این متد قانون
+     * «رادیوی iام checked ⇒ اسلاید/نقطه‌ی iام نمایش داده شود» را برای حداکثر
+     * ۲۰ اسلاید (بیش از کافی برای این ویجت) از پیش تولید می‌کند، مستقل از
+     * تعداد اسلاید واقعی هر نمونه.
+     */
+    private function sliderSelectorStyles(): string
+    {
+        $css = '';
+
+        for ($i = 1; $i <= 20; $i++) {
+            $css .= ".sb-slider-radio:nth-of-type({$i}):checked ~ .sb-slider-track .sb-slider-slide:nth-of-type({$i}){display:flex;}"
+                .".sb-slider-radio:nth-of-type({$i}):checked ~ .sb-slider-dots .sb-slider-dot:nth-of-type({$i}){background:var(--sb-primary-color);}";
+        }
+
+        return $css;
     }
 
     private function renderNodes(array $nodes, ?Company $company): string
@@ -273,6 +329,10 @@ class WidgetContentRenderer
             WidgetKey::Footer => $this->renderFooter($values),
             WidgetKey::ContactForm => $this->renderContactForm($values),
             WidgetKey::BlogPostList => $this->renderBlogPostList($values),
+            WidgetKey::TextEditor => $this->renderTextEditor($values),
+            WidgetKey::Icon => $this->renderIcon($values),
+            WidgetKey::Slider => $this->renderSlider($values, (string) ($node['id'] ?? Str::random(8))),
+            WidgetKey::CustomerSignupForm => $this->renderCustomerSignupForm($values),
         };
     }
 
@@ -786,5 +846,123 @@ class WidgetContentRenderer
             .'<div class="sb-widget-dynamic-placeholder">'.e((string) $count).' پست وبلاگ اخیر اینجا به‌صورت زنده نمایش داده می‌شود</div>'
             .'</div>'
             .'<!--/sb:blog_post_list-->';
+    }
+
+    /**
+     * مقدار values['html'] پیش‌تر (نقطه‌ی مرکزی، نگاه کن
+     * WidgetTreeValueMerger::applyValues) با Purifier::clean() پاک‌سازی شده —
+     * اینجا فقط echo مستقیم، دقیقاً همان الگوی content_html بلاگ.
+     */
+    private function renderTextEditor(array $values): string
+    {
+        $html = trim((string) ($values['html'] ?? ''));
+
+        if ($html === '') {
+            return '';
+        }
+
+        return '<div class="sb-widget sb-widget-text-editor">'.$html.'</div>';
+    }
+
+    private function renderIcon(array $values): string
+    {
+        $iconName = (string) ($values['icon_name'] ?? '');
+
+        if (! in_array($iconName, self::ALLOWED_DECORATIVE_ICONS, true)) {
+            if ($iconName !== '') {
+                Log::warning('SiteBuilder: نام آیکون خارج از whitelist رد شد.', ['icon_name' => $iconName]);
+            }
+
+            return '';
+        }
+
+        $size = in_array($values['size'] ?? null, ['sm', 'md', 'lg'], true) ? $values['size'] : 'md';
+        $color = in_array($values['color'] ?? null, ['primary', 'secondary', 'muted'], true) ? $values['color'] : 'primary';
+        $classes = 'sb-widget-icon sb-icon-size-'.$size.' sb-icon-color-'.$color;
+
+        try {
+            // Mary UI <x-icon name="o-star"> داخلی نام واقعی ست بلید-آیکون را
+            // 'heroicon-o-star' می‌سازد (نگاه کن Mary\View\Components\Icon::icon())
+            // — svg() سراسری هم باید همان نام کامل را بگیرد.
+            return '<div class="sb-widget">'.svg('heroicon-'.$iconName, $classes)->toHtml().'</div>';
+        } catch (\Throwable $e) {
+            Log::warning('SiteBuilder: رندر آیکون شکست خورد.', ['icon_name' => $iconName, 'error' => $e->getMessage()]);
+
+            return '';
+        }
+    }
+
+    /**
+     * کاروسل خالص CSS — بدون هیچ JS جدید. یک رادیوی مخفی به‌ازای هر اسلاید
+     * (نامش با $nodeId یکتا می‌شود تا چند اسلایدر روی یک صفحه با هم تداخل
+     * نکنند)، انتخاب‌گر CSS همجوار (`~`) اسلاید فعال را نمایش می‌دهد.
+     */
+    private function renderSlider(array $values, string $nodeId): string
+    {
+        $slides = $values['slides'] ?? [];
+
+        if (! is_array($slides) || $slides === []) {
+            return '';
+        }
+
+        $groupName = 'sb-slider-'.preg_replace('/[^A-Za-z0-9_-]/', '', $nodeId);
+
+        $radiosHtml = '';
+        $slidesHtml = '';
+        $dotsHtml = '';
+        $index = 0;
+
+        foreach ($slides as $slide) {
+            $imageSrc = $this->resolveImageUrl((string) ($slide['image_path'] ?? ''));
+            $title = trim((string) ($slide['title'] ?? ''));
+            $text = trim((string) ($slide['text'] ?? ''));
+
+            if ($imageSrc === '' && $title === '' && $text === '') {
+                continue;
+            }
+
+            $inputId = $groupName.'-'.$index;
+            $checked = $index === 0 ? ' checked' : '';
+
+            $radiosHtml .= '<input type="radio" class="sb-slider-radio" name="'.e($groupName).'" id="'.e($inputId).'"'.$checked.'>';
+
+            $imageHtml = $imageSrc !== '' ? '<img src="'.e($imageSrc).'" alt="'.e($title).'">' : '';
+            $titleHtml = $title !== '' ? '<h4 class="sb-slider-slide-title">'.e($title).'</h4>' : '';
+            $textHtml = $text !== '' ? '<p class="sb-slider-slide-text">'.e($text).'</p>' : '';
+
+            $slidesHtml .= '<div class="sb-slider-slide">'.$imageHtml.'<div class="sb-slider-slide-body">'.$titleHtml.$textHtml.'</div></div>';
+            $dotsHtml .= '<label for="'.e($inputId).'" class="sb-slider-dot"></label>';
+
+            $index++;
+        }
+
+        if ($slidesHtml === '') {
+            return '';
+        }
+
+        return '<div class="sb-widget sb-widget-slider sb-slider-count-'.$index.'">'
+            .$radiosHtml
+            .'<div class="sb-slider-track">'.$slidesHtml.'</div>'
+            .'<div class="sb-slider-dots">'.$dotsHtml.'</div>'
+            .'</div>';
+    }
+
+    /**
+     * marker pattern عیناً مثل renderContactForm — فقط نام marker و کامپوننت
+     * Livewire جدا (نگاه کن DynamicWidgetResolver::resolveCustomerSignupForm).
+     */
+    private function renderCustomerSignupForm(array $values): string
+    {
+        $title = trim((string) ($values['section_title'] ?? ''));
+        $titleHtml = $title !== '' ? '<h3 class="sb-widget-title sb-widget-customer-signup-form-title">'.e($title).'</h3>' : '';
+
+        $config = base64_encode(json_encode(['title' => $title], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        return '<!--sb:customer_signup_form:'.$config.'-->'
+            .'<div class="sb-widget sb-widget-customer-signup-form">'
+            .$titleHtml
+            .'<div class="sb-widget-dynamic-placeholder">فرم ثبت‌نام مشتری واقعی اینجا نمایش داده می‌شود</div>'
+            .'</div>'
+            .'<!--/sb:customer_signup_form-->';
     }
 }

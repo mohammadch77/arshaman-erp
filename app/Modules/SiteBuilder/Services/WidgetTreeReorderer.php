@@ -105,6 +105,23 @@ class WidgetTreeReorderer
     }
 
     /**
+     * افزودن یک نود کاملاً تازه (پنل «افزودن ویجت» با کلیک) — همان منطق insert()
+     * موجود را دوباره‌استفاده می‌کند، فقط همیشه در انتهای مقصد (ریشه یا داخل یک
+     * محفظه) می‌گذارد. برخلاف move()، اینجا نیازی به extract/بررسی حلقه نیست
+     * چون نود تازه از قبل جایی در درخت نبوده است.
+     *
+     * @param  array<int, array<string, mixed>>  $nodes
+     * @param  array<string, mixed>  $newNode
+     * @return array<int, array<string, mixed>>
+     *
+     * @throws InvalidArgumentException اگر مقصد یک محفظه نباشد یا پیدا نشود.
+     */
+    public function addNode(array $nodes, ?string $targetParentId, array $newNode): array
+    {
+        return $this->insert($nodes, $targetParentId, $newNode, PHP_INT_MAX);
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $nodes
      * @param  array<string, mixed>  $draggedNode
      * @return array<int, array<string, mixed>>

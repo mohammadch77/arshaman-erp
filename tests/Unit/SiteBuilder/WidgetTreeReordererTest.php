@@ -99,3 +99,31 @@ it('clamps an out-of-range target index instead of failing', function () {
 
     expect(array_column($reordered, 'id'))->toBe(['container-a', 'container-b', 'title-1']);
 });
+
+it('appends a brand new node to the root level', function () {
+    $newNode = ['id' => 'brand-new', 'widget_key' => 'button', 'values' => [], 'children' => []];
+
+    $updated = app(WidgetTreeReorderer::class)->addNode(wtrTree(), null, $newNode);
+
+    expect(array_column($updated, 'id'))->toBe(['title-1', 'container-a', 'container-b', 'brand-new']);
+});
+
+it('appends a brand new node inside a container', function () {
+    $newNode = ['id' => 'brand-new', 'widget_key' => 'button', 'values' => [], 'children' => []];
+
+    $updated = app(WidgetTreeReorderer::class)->addNode(wtrTree(), 'container-a', $newNode);
+
+    expect(array_column($updated[1]['children'], 'id'))->toBe(['title-a1', 'title-a2', 'brand-new']);
+});
+
+it('rejects adding a new node into a target that is not a container', function () {
+    $newNode = ['id' => 'brand-new', 'widget_key' => 'button', 'values' => [], 'children' => []];
+
+    app(WidgetTreeReorderer::class)->addNode(wtrTree(), 'title-1', $newNode);
+})->throws(InvalidArgumentException::class);
+
+it('rejects adding a new node into a container that does not exist', function () {
+    $newNode = ['id' => 'brand-new', 'widget_key' => 'button', 'values' => [], 'children' => []];
+
+    app(WidgetTreeReorderer::class)->addNode(wtrTree(), 'not-a-real-container', $newNode);
+})->throws(InvalidArgumentException::class);
