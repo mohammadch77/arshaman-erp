@@ -6,8 +6,10 @@ use App\Modules\Core\Services\CompanyContext;
 use App\Modules\SiteBuilder\Actions\UpdateSiteSettings;
 use App\Modules\SiteBuilder\Enums\LayoutType;
 use App\Modules\SiteBuilder\Models\LayoutDemo;
+use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\SiteSetting;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Mary\Traits\Toast;
@@ -26,19 +28,28 @@ class LayoutDemoSelector extends Component
 
     public ?string $active_footer_demo_id = null;
 
+    public ?string $homepage_page_id = null;
+
+    public ?string $blog_page_id = null;
+
     public $logo = null;
 
     public $favicon = null;
 
+    public string $companyId = '';
+
     public function mount(CompanyContext $companyContext): void
     {
-        $this->record = SiteSetting::firstOrCreate(['owner_company_id' => $companyContext->id()]);
+        $this->companyId = $companyContext->id();
+        $this->record = SiteSetting::firstOrCreate(['owner_company_id' => $this->companyId]);
         $this->authorize('update', $this->record);
 
         $this->site_title = (string) ($this->record->site_title ?? '');
         $this->site_tagline = (string) ($this->record->site_tagline ?? '');
         $this->active_header_demo_id = $this->record->active_header_demo_id;
         $this->active_footer_demo_id = $this->record->active_footer_demo_id;
+        $this->homepage_page_id = $this->record->homepage_page_id;
+        $this->blog_page_id = $this->record->blog_page_id;
     }
 
     public function getHeaderDemosProperty()
@@ -51,13 +62,24 @@ class LayoutDemoSelector extends Component
         return LayoutDemo::where('layout_type', LayoutType::Footer->value)->where('is_active', true)->orderBy('name')->get();
     }
 
+    public function getPublishedPagesProperty()
+    {
+        return Page::where('owner_company_id', $this->companyId)->published()->orderBy('title')->get();
+    }
+
     protected function rules(): array
     {
+        $publishedPageExists = Rule::exists('pages', 'id')->where(function ($query) {
+            $query->where('owner_company_id', $this->companyId)->where('page_status', 'published');
+        });
+
         return [
             'site_title' => ['nullable', 'string', 'max:100'],
             'site_tagline' => ['nullable', 'string', 'max:160'],
             'active_header_demo_id' => ['nullable', 'uuid', 'exists:layout_demos,id'],
             'active_footer_demo_id' => ['nullable', 'uuid', 'exists:layout_demos,id'],
+            'homepage_page_id' => ['nullable', 'uuid', $publishedPageExists],
+            'blog_page_id' => ['nullable', 'uuid', $publishedPageExists],
             'logo' => ['nullable', 'image', 'max:1024'],
             'favicon' => ['nullable', 'image', 'max:256'],
         ];
@@ -75,8 +97,8 @@ class LayoutDemoSelector extends Component
             'site_tagline' => $data['site_tagline'] !== '' ? $data['site_tagline'] : null,
             'logo_path' => $logoPath,
             'favicon_path' => $faviconPath,
-            'homepage_page_id' => $this->record->homepage_page_id,
-            'blog_page_id' => $this->record->blog_page_id,
+            'homepage_page_id' => $data['homepage_page_id'],
+            'blog_page_id' => $data['blog_page_id'],
             'active_header_demo_id' => $data['active_header_demo_id'],
             'active_footer_demo_id' => $data['active_footer_demo_id'],
         ], auth()->user());

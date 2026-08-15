@@ -187,6 +187,52 @@
   موجود با این دو ویجت واقعی.
 - **وضعیت:** باز.
 
+### فیلد لوگو در ویجت header_nav
+- **از کجا آمد:** ماژول SiteBuilder، Session رندر عمومی واقعی —
+  `site_settings.logo_path` وجود دارد ولی به هیچ‌جای صفحه عمومی متصل نشد،
+  چون کارفرما اتصالش را مشروط کرده بود به اینکه ویجت هدر از قبل جایی برای
+  لوگو داشته باشد؛ `header_nav` فعلی فقط `nav_links` دارد.
+- **چه چیزی به‌تعویق افتاد:** افزودن فیلد اختیاری `logo_url`/`logo_path` به
+  `editable_fields` ویجت `header_nav` (+ رندر آن در
+  `WidgetContentRenderer::renderHeaderNav`)، و بعد اتصال واقعی
+  `site_settings.logo_path` در `PublicSiteController` به آن فیلد.
+- **وضعیت:** باز.
+
+### زمان‌بندی انتشار صفحه در SiteBuilder
+- **از کجا آمد:** ماژول SiteBuilder، Session رندر عمومی واقعی — `Page` فقط
+  یک بعد وضعیت دارد (`page_status: draft/published`)، بدون `published_at`
+  یا هیچ مکانیزم زمان‌بندی — برخلاف `BlogPost` که `PublishScheduledPost` +
+  دستور Artisan زمان‌بندی‌شده (`blog:publish-scheduled`) دارد.
+- **چه چیزی به‌تعویق افتاد:** افزودن `pages.scheduled_at` (یا مشابه)، یک
+  Action سیستمی بدون actor (مثل `PublishScheduledPost` بلاگ، با همان الگوی
+  `causedBy(null)`)، و ثبت در `Schedule::` برای انتشار خودکار صفحات
+  زمان‌بندی‌شده.
+- **وضعیت:** باز.
+
+### همان کلاس باگ «دامنه هاردکد در URL عکس» در پیش‌نمایش‌های ادمین
+- **از کجا آمد:** رفع باگ سراسری «عکس‌ها در سایت عمومی SiteBuilder در
+  هیچ شرکتی نمایش داده نمی‌شدند» — علت واقعی این بود که
+  `WidgetContentRenderer::resolveImageUrl()` از `Storage::disk('public')->url()`
+  استفاده می‌کرد که آدرس کامل را از روی `APP_URL` می‌سازد
+  (`config/filesystems.php`)؛ در محیط توسعه که برنامه واقعاً روی
+  `127.0.0.1:8000` سرو می‌شود (نه دامنه‌ی `arshaman-erp.test` که vhost
+  Apache‌اش از کار افتاده)، این یعنی src عکس به دامنه‌ای غیرقابل‌دسترس
+  اشاره می‌کرد. رفع شد با تغییر به مسیر root-relative (`/storage/...`).
+  حین بررسی این باگ، سه محل دیگر با **همان** الگوی `Storage::url()`/
+  `Storage::disk('public')->url()` پیدا شد که عمداً دست‌نخورده ماندند
+  چون مربوط به سایت عمومی (scope گزارش‌شده) نبودند:
+  `app/Livewire/SiteBuilder/LayoutDemoSelector.php` (پیش‌نمایش لوگو/فاوآیکون
+  در فرم تنظیمات سایت)، `app/Livewire/Blog/BlogPostForm.php` (پیش‌نمایش
+  تصویر شاخص بلاگ)، `app/Modules/Blog/Http/Controllers/EditorImageUploadController.php`
+  (پاسخ آپلود تصویر ادیتور Quill).
+- **چه چیزی به‌تعویق افتاد:** بررسی و در صورت لزوم همان اصلاح
+  root-relative برای این سه محل — همه فقط داخل پنل ادمین (نه سایت عمومی)
+  استفاده می‌شوند، پس وقتی ادمین از همان host ای که APP_URL رویش تنظیم
+  شده وارد می‌شود مشکلی نیست؛ ولی در محیط توسعه‌ای مثل همین پروژه که ادمین
+  هم گاهی از `127.0.0.1:8000` باز می‌شود، همین سه پیش‌نمایش هم می‌توانند
+  شکسته دیده شوند.
+- **وضعیت:** باز.
+
 ---
 
 ## قالب افزودن آیتم جدید

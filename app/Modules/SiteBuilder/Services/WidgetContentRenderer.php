@@ -2,9 +2,11 @@
 
 namespace App\Modules\SiteBuilder\Services;
 
+use App\Modules\Core\Models\Company;
+use App\Modules\SiteBuilder\Enums\PageCategoryKey;
 use App\Modules\SiteBuilder\Enums\WidgetKey;
+use App\Modules\SiteBuilder\Models\Page;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * ساختار هر نود widget_tree:
@@ -14,9 +16,17 @@ use Illuminate\Support\Facades\Storage;
  *
  * widget_tree می‌تواند یک کلید ریشه اختیاری 'theme' هم داشته باشد (بدون نیاز
  * به ستون/جدول جدید — فقط یک کلید دیگر در همان JSON):
- * ['theme' => ['primary_color' => '#2563EB', 'font_family' => "'Vazirmatn', sans-serif"], 0 => [...node...], ...]
+ * ['theme' => [
+ *     'primary_color' => '#2563EB', 'secondary_color' => '#0F172A',
+ *     'font_family' => "'Vazirmatn', sans-serif",   // فونت بدنه
+ *     'heading_font' => "'Tajawal', sans-serif",     // اختیاری — نبود آن یعنی همان فونت بدنه
+ *     'radius' => 'sharp'|'soft'|'pill',             // اختیاری — پیش‌فرض soft
+ *     'density' => 'compact'|'comfortable'|'airy',   // اختیاری — پیش‌فرض comfortable
+ * ], 0 => [...node...], ...]
  * این کلید هرگز به‌عنوان یک نود رندر نمی‌شود؛ render() آن را قبل از پیمایش
  * جدا می‌کند و به‌صورت CSS custom property روی wrapper بیرونی صفحه می‌گذارد.
+ * فونت‌های واقعاً فارسی‌خوان مجاز (لود شده در layouts/public-site.blade.php):
+ * Vazirmatn, Tajawal, Cairo, 'Markazi Text', 'Noto Naskh Arabic', Lalezar.
  */
 class WidgetContentRenderer
 {
@@ -29,14 +39,41 @@ class WidgetContentRenderer
 
     private const DEFAULT_PRIMARY_COLOR = '#2563EB';
 
+    private const DEFAULT_SECONDARY_COLOR = '#0F172A';
+
     private const DEFAULT_FONT_FAMILY = "'Vazirmatn', sans-serif";
 
-    public function render(array $widgetTree): string
+    private const DEFAULT_HEADING_FONT = "'Vazirmatn', sans-serif";
+
+    /**
+     * سه سبک گردی گوشه از پیش‌تعریف‌شده — نه یک عدد آزاد، چون این مقدار
+     * مستقیم در CSS تزریق می‌شود؛ محدودکردن به یک enum بسته یعنی هیچ رشته‌ی
+     * دیگری (از جمله چیزی شبیه به کد مخرب) هرگز نمی‌تواند از این مسیر رد شود.
+     */
+    private const RADIUS_SCALES = [
+        'sharp' => ['sm' => '.25rem', 'md' => '.375rem', 'lg' => '.5rem'],
+        'soft' => ['sm' => '.5rem', 'md' => '.9rem', 'lg' => '1.25rem'],
+        'pill' => ['sm' => '.75rem', 'md' => '1.25rem', 'lg' => '2.5rem'],
+    ];
+
+    private const DENSITY_SCALES = [
+        'compact' => ['section' => '2.5rem 1rem', 'gap' => '.75rem', 'card' => '1.25rem'],
+        'comfortable' => ['section' => '4rem 1.25rem', 'gap' => '1.25rem', 'card' => '1.75rem'],
+        'airy' => ['section' => '6rem 1.5rem', 'gap' => '2rem', 'card' => '2.25rem'],
+    ];
+
+    /**
+     * $company فقط برای حل کردن لینک‌های ویجت header_nav لازم است (نگاه کن
+     * renderHeaderNav) — چون فقط PublicSiteController آن را برای یک شرکت
+     * مشخص واقعاً می‌داند، در بقیه call site ها (پیش‌نمایش/ذخیره محتوای خودِ
+     * صفحه، نه لایوت هدر/فوتر) اختیاری و null می‌ماند.
+     */
+    public function render(array $widgetTree, ?Company $company = null): string
     {
         $theme = $this->extractTheme($widgetTree);
         unset($widgetTree['theme']);
 
-        $html = $this->renderNodes($widgetTree);
+        $html = $this->renderNodes($widgetTree, $company);
 
         // content_html هرگز خالی/NULL نباشد، حتی برای دموی بدون هیچ ویجتی.
         if ($html === '') {
@@ -52,25 +89,49 @@ class WidgetContentRenderer
     /**
      * مقادیر theme را از ریشه widget_tree می‌خواند و به یک رشته inline style
      * امن تبدیل می‌کند. رنگ باید دقیقاً هگز ۶ یا ۳ رقمی باشد، فونت فقط از
-     * حروف/فاصله/کاما/آپاستروف/خط تیره تشکیل شده باشد — وگرنه پیش‌فرض
-     * جایگزین می‌شود. دلیل: این مقدار مستقیم داخل یک HTML attribute می‌رود،
-     * پس تزریق دلخواه اینجا دقیقاً همان کلاس خطر XSS ویجت map/video است.
+     * حروف/فاصله/کاما/آپاستروف/خط تیره تشکیل شده باشد، و radius/density فقط
+     * یکی از مقادیر ثابت enum بالا — وگرنه پیش‌فرض جایگزین می‌شود. دلیل: این
+     * مقدار مستقیم داخل یک HTML attribute می‌رود، پس تزریق دلخواه اینجا
+     * دقیقاً همان کلاس خطر XSS ویجت map/video است.
+     *
+     * heading_font اختیاری است و اگر داده نشود از همان font_family (بدنه)
+     * استفاده می‌شود — بیشتر دموها فقط یک فونت لازم دارند، فقط دموهایی که
+     * عمداً تیتر/بدنه را از هم متمایز می‌کنند این کلید را جدا ست می‌کنند.
      */
     private function extractTheme(array $widgetTree): string
     {
         $theme = is_array($widgetTree['theme'] ?? null) ? $widgetTree['theme'] : [];
 
-        $primaryColor = (string) ($theme['primary_color'] ?? '');
-        if (! preg_match('/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/', $primaryColor)) {
-            $primaryColor = self::DEFAULT_PRIMARY_COLOR;
-        }
+        $primaryColor = $this->validColor((string) ($theme['primary_color'] ?? ''), self::DEFAULT_PRIMARY_COLOR);
+        $secondaryColor = $this->validColor((string) ($theme['secondary_color'] ?? ''), self::DEFAULT_SECONDARY_COLOR);
 
-        $fontFamily = (string) ($theme['font_family'] ?? '');
-        if (! preg_match('/^[a-zA-Z0-9 ,\'\-]+$/', $fontFamily)) {
-            $fontFamily = self::DEFAULT_FONT_FAMILY;
-        }
+        $bodyFont = $this->validFontFamily((string) ($theme['font_family'] ?? ''), self::DEFAULT_FONT_FAMILY);
+        $headingFontRaw = (string) ($theme['heading_font'] ?? '');
+        $headingFont = $headingFontRaw !== '' ? $this->validFontFamily($headingFontRaw, $bodyFont) : $bodyFont;
 
-        return '--sb-primary-color:'.$primaryColor.';--sb-font-family:'.$fontFamily.';';
+        $radius = self::RADIUS_SCALES[$theme['radius'] ?? ''] ?? self::RADIUS_SCALES['soft'];
+        $density = self::DENSITY_SCALES[$theme['density'] ?? ''] ?? self::DENSITY_SCALES['comfortable'];
+
+        return '--sb-primary-color:'.$primaryColor.';'
+            .'--sb-secondary-color:'.$secondaryColor.';'
+            .'--sb-font-family:'.$bodyFont.';'
+            .'--sb-heading-font:'.$headingFont.';'
+            .'--sb-radius-sm:'.$radius['sm'].';'
+            .'--sb-radius-md:'.$radius['md'].';'
+            .'--sb-radius-lg:'.$radius['lg'].';'
+            .'--sb-space-section:'.$density['section'].';'
+            .'--sb-space-gap:'.$density['gap'].';'
+            .'--sb-space-card:'.$density['card'].';';
+    }
+
+    private function validColor(string $value, string $default): string
+    {
+        return preg_match('/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/', $value) === 1 ? $value : $default;
+    }
+
+    private function validFontFamily(string $value, string $default): string
+    {
+        return preg_match('/^[a-zA-Z0-9 ,\'\-]+$/', $value) === 1 ? $value : $default;
     }
 
     /**
@@ -83,67 +144,85 @@ class WidgetContentRenderer
     public function baseStyles(): string
     {
         return <<<'CSS'
-        .sb-page{font-family:var(--sb-font-family);color:#1f2430;line-height:1.8;}
+        .sb-page{font-family:var(--sb-font-family);color:#20242c;line-height:1.8;-webkit-font-smoothing:antialiased;}
         .sb-page *{box-sizing:border-box;}
         .sb-widget{display:block;}
-        .sb-widget-container{margin:0 auto;padding:1.5rem 1rem;max-width:72rem;}
-        .sb-widget-title{margin:0 0 .75rem;font-weight:700;letter-spacing:-.01em;}
-        .sb-widget-title:is(h1){font-size:2.25rem;line-height:1.25;}
-        .sb-widget-title:is(h2){font-size:1.75rem;line-height:1.3;}
-        .sb-widget-title:is(h3){font-size:1.375rem;}
-        .sb-widget-title:is(h4){font-size:1.125rem;font-weight:600;color:#4b5261;}
-        .sb-widget-title:is(h5,h6){font-size:.95rem;font-weight:600;color:#6b7280;}
-        .sb-widget-image{display:block;max-width:100%;height:auto;border-radius:.75rem;}
-        .sb-widget-button{display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.4rem;border-radius:.6rem;font-weight:600;text-decoration:none;transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease;}
-        .sb-btn-primary{background:var(--sb-primary-color);color:#fff;box-shadow:0 6px 16px -6px color-mix(in srgb, var(--sb-primary-color) 60%, transparent);}
-        .sb-btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 20px -6px color-mix(in srgb, var(--sb-primary-color) 65%, transparent);}
+        .sb-widget-container{margin:0 auto;padding:var(--sb-space-section);max-width:72rem;display:flex;flex-direction:column;gap:var(--sb-space-gap);}
+        .sb-widget-title{margin:0 0 .75rem;font-family:var(--sb-heading-font);font-weight:700;letter-spacing:-.01em;line-height:1.35;}
+        .sb-widget-title:is(h1){font-size:clamp(2rem,4vw,3rem);line-height:1.2;font-weight:800;}
+        .sb-widget-title:is(h2){font-size:clamp(1.5rem,2.6vw,2.1rem);}
+        .sb-widget-title:is(h3){font-size:1.4rem;}
+        .sb-widget-title:is(h4){font-size:1.125rem;font-weight:600;color:#525a68;}
+        .sb-widget-title:is(h5,h6){font-size:.95rem;font-weight:600;color:#6b7280;letter-spacing:.02em;}
+        .sb-widget-image{display:block;max-width:100%;height:auto;border-radius:var(--sb-radius-lg);}
+        .sb-widget-button{display:inline-flex;align-items:center;gap:.5rem;padding:.8rem 1.6rem;border-radius:var(--sb-radius-md);font-weight:600;text-decoration:none;transition:transform .18s ease,box-shadow .18s ease,opacity .18s ease;}
+        .sb-btn-primary{background:linear-gradient(135deg, var(--sb-primary-color), color-mix(in srgb, var(--sb-primary-color) 75%, var(--sb-secondary-color)));color:#fff;box-shadow:0 10px 24px -10px color-mix(in srgb, var(--sb-primary-color) 65%, transparent);}
+        .sb-btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 28px -10px color-mix(in srgb, var(--sb-primary-color) 70%, transparent);}
         .sb-btn-outline{background:transparent;color:var(--sb-primary-color);border:1.5px solid var(--sb-primary-color);}
-        .sb-btn-outline:hover{background:color-mix(in srgb, var(--sb-primary-color) 10%, transparent);}
-        .sb-widget-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin:1rem 0;}
-        .sb-gallery-item{margin:0;background:#f4f5f7;border-radius:.75rem;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.08);}
+        .sb-btn-outline:hover{background:color-mix(in srgb, var(--sb-primary-color) 10%, transparent);transform:translateY(-1px);}
+        .sb-widget-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--sb-space-gap);margin:.5rem 0;}
+        .sb-gallery-item{margin:0;background:#fff;border-radius:var(--sb-radius-lg);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 20px -12px rgba(15,23,42,.18);transition:transform .2s ease,box-shadow .2s ease;}
+        .sb-gallery-item:hover{transform:translateY(-3px);box-shadow:0 1px 2px rgba(15,23,42,.05),0 16px 28px -14px rgba(15,23,42,.28);}
         .sb-gallery-item img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;}
-        .sb-gallery-item figcaption{padding:.6rem .75rem;font-size:.85rem;color:#4b5261;}
-        .sb-widget-testimonial{margin:1rem 0;padding:1.5rem;background:#f8f9fb;border-radius:1rem;border-inline-start:4px solid var(--sb-primary-color);}
-        .sb-widget-testimonial blockquote{margin:0 0 1rem;font-size:1.1rem;color:#1f2430;}
-        .sb-testimonial-photo{width:2.75rem;height:2.75rem;border-radius:9999px;object-fit:cover;float:inline-end;margin-inline-start:.75rem;}
+        .sb-gallery-item figcaption{padding:.75rem .9rem;font-size:.85rem;color:#525a68;font-weight:500;}
+        .sb-widget-testimonial{margin:.5rem 0;padding:var(--sb-space-card);background:color-mix(in srgb, var(--sb-primary-color) 5%, #fff);border-radius:var(--sb-radius-lg);border-inline-start:4px solid var(--sb-primary-color);}
+        .sb-widget-testimonial blockquote{margin:0 0 1rem;font-size:1.15rem;color:#20242c;line-height:1.7;}
+        .sb-testimonial-photo{width:3rem;height:3rem;border-radius:9999px;object-fit:cover;float:inline-end;margin-inline-start:.75rem;box-shadow:0 0 0 3px #fff,0 0 0 4px color-mix(in srgb, var(--sb-primary-color) 30%, transparent);}
         .sb-widget-testimonial footer{display:flex;gap:.5rem;align-items:baseline;font-size:.9rem;}
         .sb-testimonial-name{font-weight:700;}
         .sb-testimonial-title{color:#6b7280;}
-        .sb-widget-pricing-table{margin:1rem 0;padding:1.75rem;border-radius:1rem;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.06);text-align:center;}
-        .sb-pricing-plan-name{margin:0 0 .5rem;font-size:1.15rem;}
-        .sb-pricing-price{font-size:1.6rem;font-weight:800;color:var(--sb-primary-color);margin-bottom:1rem;}
-        .sb-pricing-features{list-style:none;margin:0 0 1.25rem;padding:0;display:flex;flex-direction:column;gap:.5rem;color:#4b5261;}
-        .sb-pricing-features li{padding-inline-start:1.4rem;position:relative;}
+        .sb-widget-pricing-table{margin:.5rem 0;padding:var(--sb-space-card);border-radius:var(--sb-radius-lg);border:1px solid #e7e9ee;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 24px -16px rgba(15,23,42,.16);text-align:center;transition:transform .2s ease,box-shadow .2s ease;}
+        .sb-widget-pricing-table:hover{transform:translateY(-3px);}
+        .sb-pricing-plan-name{margin:0 0 .5rem;font-family:var(--sb-heading-font);font-size:1.2rem;font-weight:700;}
+        .sb-pricing-price{font-size:1.75rem;font-weight:800;color:var(--sb-primary-color);margin-bottom:1.1rem;}
+        .sb-pricing-features{list-style:none;margin:0 0 1.4rem;padding:0;display:flex;flex-direction:column;gap:.6rem;color:#525a68;}
+        .sb-pricing-features li{padding-inline-start:1.5rem;position:relative;text-align:start;}
         .sb-pricing-features li::before{content:'✓';position:absolute;inset-inline-start:0;color:var(--sb-primary-color);font-weight:700;}
-        .sb-pricing-cta{display:inline-block;padding:.6rem 1.5rem;border-radius:.6rem;background:var(--sb-primary-color);color:#fff;text-decoration:none;font-weight:600;}
-        .sb-widget-faq-accordion{margin:1rem 0;display:flex;flex-direction:column;gap:.6rem;}
-        .sb-faq-item{padding:1rem 1.25rem;background:#f8f9fb;border-radius:.75rem;border:1px solid #edeef1;}
-        .sb-faq-item summary{cursor:pointer;font-weight:600;}
-        .sb-faq-item div{margin-top:.6rem;color:#4b5261;}
-        .sb-widget-map,.sb-widget-video{position:relative;width:100%;aspect-ratio:16/9;margin:1rem 0;border-radius:1rem;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,.08);}
+        .sb-pricing-cta{display:inline-block;padding:.7rem 1.6rem;border-radius:var(--sb-radius-md);background:var(--sb-primary-color);color:#fff;text-decoration:none;font-weight:600;transition:transform .18s ease;}
+        .sb-pricing-cta:hover{transform:translateY(-2px);}
+        .sb-widget-faq-accordion{margin:.5rem 0;display:flex;flex-direction:column;gap:.6rem;}
+        .sb-faq-item{padding:1.1rem 1.4rem;background:#fafafb;border-radius:var(--sb-radius-md);border:1px solid #edeef1;transition:border-color .15s ease;}
+        .sb-faq-item[open]{border-color:color-mix(in srgb, var(--sb-primary-color) 35%, transparent);}
+        .sb-faq-item summary{cursor:pointer;font-weight:600;list-style:none;}
+        .sb-faq-item summary::-webkit-details-marker{display:none;}
+        .sb-faq-item summary::after{content:'+';float:inline-end;color:var(--sb-primary-color);font-weight:700;}
+        .sb-faq-item[open] summary::after{content:'−';}
+        .sb-faq-item div{margin-top:.7rem;color:#525a68;line-height:1.75;}
+        .sb-widget-map,.sb-widget-video{position:relative;width:100%;aspect-ratio:16/9;margin:.5rem 0;border-radius:var(--sb-radius-lg);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 24px -16px rgba(15,23,42,.2);}
         .sb-widget-map iframe,.sb-widget-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
-        .sb-widget-header-nav{display:flex;flex-wrap:wrap;gap:1.5rem;padding:1rem 1.5rem;align-items:center;}
-        .sb-widget-header-nav a{color:#1f2430;text-decoration:none;font-weight:600;}
+        .sb-widget-video-unavailable{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;height:100%;width:100%;background:linear-gradient(135deg, color-mix(in srgb, var(--sb-primary-color) 12%, #fff), color-mix(in srgb, var(--sb-secondary-color) 8%, #fff));color:#6b7280;font-size:.9rem;font-weight:600;text-align:center;padding:1rem;}
+        .sb-widget-header-nav{display:flex;flex-wrap:wrap;gap:1.75rem;padding:1.1rem 1.5rem;align-items:center;}
+        .sb-widget-header-nav a{position:relative;color:#20242c;text-decoration:none;font-weight:600;padding-bottom:.3rem;transition:color .15s ease;}
+        .sb-widget-header-nav a::after{content:'';position:absolute;inset-inline-start:0;bottom:0;width:0;height:2px;background:var(--sb-primary-color);transition:width .2s ease;}
         .sb-widget-header-nav a:hover{color:var(--sb-primary-color);}
-        .sb-widget-footer{margin-top:2rem;padding:2rem 1.5rem;background:#f4f5f7;display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;font-size:.9rem;color:#4b5261;}
-        .sb-footer-social{display:flex;gap:1rem;}
-        .sb-footer-social a{color:var(--sb-primary-color);text-decoration:none;font-weight:600;}
-        .sb-page-empty{padding:3rem;text-align:center;color:#9ca3af;}
+        .sb-widget-header-nav a:hover::after{width:100%;}
+        .sb-widget-footer{margin-top:var(--sb-space-gap);padding:2.5rem 1.5rem;background:var(--sb-secondary-color);color:#fff;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:1.25rem;font-size:.9rem;}
+        .sb-widget-footer a{color:inherit;}
+        .sb-footer-copyright{opacity:.75;}
+        .sb-footer-contact{opacity:.85;}
+        .sb-footer-social{display:flex;gap:1.25rem;}
+        .sb-footer-social a{color:#fff;text-decoration:none;font-weight:600;opacity:.85;transition:opacity .15s ease;}
+        .sb-footer-social a:hover{opacity:1;text-decoration:underline;}
+        .sb-page-empty{padding:4rem 1.5rem;text-align:center;color:#9ca3af;font-size:.95rem;}
+        @media (max-width: 640px){
+            .sb-widget-header-nav{gap:1rem;padding:.85rem 1rem;justify-content:center;}
+            .sb-widget-footer{flex-direction:column;text-align:center;}
+        }
         CSS;
     }
 
-    private function renderNodes(array $nodes): string
+    private function renderNodes(array $nodes, ?Company $company): string
     {
         $html = '';
 
         foreach ($nodes as $node) {
-            $html .= $this->renderNode($node);
+            $html .= $this->renderNode($node, $company);
         }
 
         return $html;
     }
 
-    private function renderNode(array $node): string
+    private function renderNode(array $node, ?Company $company): string
     {
         $key = WidgetKey::tryFrom($node['widget_key'] ?? '');
 
@@ -159,7 +238,7 @@ class WidgetContentRenderer
         $values = $node['values'] ?? [];
 
         return match ($key) {
-            WidgetKey::Container => $this->renderContainer($node),
+            WidgetKey::Container => $this->renderContainer($node, $company),
             WidgetKey::Title => $this->renderTitle($values),
             WidgetKey::Image => $this->renderImage($values),
             WidgetKey::Button => $this->renderButton($values),
@@ -170,14 +249,14 @@ class WidgetContentRenderer
             WidgetKey::Map => $this->renderMap($values),
             WidgetKey::Video => $this->renderVideo($values),
             WidgetKey::Spacer => $this->renderSpacer($values),
-            WidgetKey::HeaderNav => $this->renderHeaderNav($values),
+            WidgetKey::HeaderNav => $this->renderHeaderNav($values, $company),
             WidgetKey::Footer => $this->renderFooter($values),
         };
     }
 
-    private function renderContainer(array $node): string
+    private function renderContainer(array $node, ?Company $company): string
     {
-        $children = $this->renderNodes($node['children'] ?? []);
+        $children = $this->renderNodes($node['children'] ?? [], $company);
 
         return '<div class="sb-widget sb-widget-container">'.$children.'</div>';
     }
@@ -213,6 +292,16 @@ class WidgetContentRenderer
      * Storage::url() دارد — بدون این تفکیک، هر src خام مستقیم رندر می‌شد و
      * نسبت به آدرس صفحه‌ی جاری (نه ریشه سایت) حل می‌شد، هم در iframe
      * پیش‌نمایش هم در content_html نهایی صفحه عمومی.
+     *
+     * عمداً root-relative ("/storage/...") ساخته می‌شود، نه
+     * Storage::disk('public')->url() خام — آن متد آدرس کامل را از روی
+     * APP_URL می‌سازد (طبق config/filesystems.php)، که این‌جا در محیط
+     * توسعه با میزبان واقعی سرو صفحه (مثلاً 127.0.0.1:8000 وقتی vhost
+     * دامنه Apache از کار افتاده) یکی نیست؛ نتیجه‌اش src ای بود که به
+     * دامنه‌ای غیرقابل‌دسترس اشاره می‌کرد و عکس در تمام شرکت‌ها/صفحات
+     * شکسته دیده می‌شد. مسیر root-relative مستقل از میزبان، همیشه نسبت
+     * به همان origin ای حل می‌شود که خودِ صفحه از آن سرو شده — دقیقاً
+     * چیزی که کامنت بالا از ابتدا قصدش بود.
      */
     private function resolveImageUrl(string $path): string
     {
@@ -224,7 +313,7 @@ class WidgetContentRenderer
             return $path;
         }
 
-        return Storage::disk('public')->url($path);
+        return '/storage/'.ltrim($path, '/');
     }
 
     private function renderButton(array $values): string
@@ -410,7 +499,10 @@ class WidgetContentRenderer
         if ($embedUrl === null) {
             Log::warning('SiteBuilder: لینک ویدیو با دامنه غیرمجاز رد شد.', ['url' => $url]);
 
-            return '';
+            // به‌جای حذف کامل ویجت (که یک شکاف خالی توضیح‌ناپذیر در چیدمان
+            // می‌گذاشت)، یک جایگزین بصری شفاف — بدون هیچ iframe/محتوای خارجی.
+            return '<div class="sb-widget sb-widget-video"><div class="sb-widget-video-unavailable">'
+                .'این ویدیو در دسترس نیست</div></div>';
         }
 
         return '<div class="sb-widget sb-widget-video"><iframe src="'.e($embedUrl).'" loading="lazy" allowfullscreen></iframe></div>';
@@ -471,7 +563,14 @@ class WidgetContentRenderer
         return '<div class="sb-widget sb-widget-spacer" style="height:'.$height.'px"></div>';
     }
 
-    private function renderHeaderNav(array $values): string
+    /**
+     * هر آیتم منو به یک category_key اشاره می‌کند، نه یک URL آزاد (نگاه کن
+     * SiteBuilderWidgetsExpansionSeeder برای دلیل). اگر $company داده نشده
+     * باشد (پیش‌نمایش ادمین یک صفحه، نه رندر واقعی هدر/فوتر عمومی)، یا اگر
+     * صفحه‌ی مقصد برای این شرکت وجود/انتشار نداشته باشد، آیتم بی‌صدا حذف
+     * می‌شود — هرگز یک لینک مرده (href خالی/نامعتبر) رندر نمی‌شود.
+     */
+    private function renderHeaderNav(array $values, ?Company $company): string
     {
         $links = $values['nav_links'] ?? [];
 
@@ -483,13 +582,19 @@ class WidgetContentRenderer
 
         foreach ($links as $link) {
             $label = trim((string) ($link['label'] ?? ''));
-            $url = trim((string) ($link['url'] ?? ''));
+            $categoryKey = trim((string) ($link['category_key'] ?? ''));
 
-            if ($label === '' || $url === '') {
+            if ($label === '' || $categoryKey === '') {
                 continue;
             }
 
-            $itemsHtml .= '<a href="'.e($url).'">'.e($label).'</a>';
+            $href = $this->resolveNavHref($categoryKey, $company);
+
+            if ($href === null) {
+                continue;
+            }
+
+            $itemsHtml .= '<a href="'.e($href).'">'.e($label).'</a>';
         }
 
         if ($itemsHtml === '') {
@@ -497,6 +602,36 @@ class WidgetContentRenderer
         }
 
         return '<nav class="sb-widget sb-widget-header-nav">'.$itemsHtml.'</nav>';
+    }
+
+    private function resolveNavHref(string $categoryKey, ?Company $company): ?string
+    {
+        if ($company === null) {
+            return null;
+        }
+
+        $category = PageCategoryKey::tryFrom($categoryKey);
+
+        if ($category === null) {
+            return null;
+        }
+
+        if ($category === PageCategoryKey::Home) {
+            return route('public-site.home', ['companySlug' => $company->slug]);
+        }
+
+        $page = Page::withoutGlobalScope('owner_company')
+            ->where('owner_company_id', $company->id)
+            ->whereHas('demo.category', fn ($query) => $query->where('category_key', $category->value))
+            ->published()
+            ->oldest()
+            ->first();
+
+        if ($page === null) {
+            return null;
+        }
+
+        return route('public-site.show', ['companySlug' => $company->slug, 'pageSlug' => $page->slug]);
     }
 
     private function renderFooter(array $values): string

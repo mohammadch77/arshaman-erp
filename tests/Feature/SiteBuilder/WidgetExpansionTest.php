@@ -7,7 +7,9 @@ use App\Modules\Core\Models\User;
 use App\Modules\Core\Models\UserCompanyRole;
 use App\Modules\SiteBuilder\Actions\CreatePageFromDemo;
 use App\Modules\SiteBuilder\Enums\PageCategoryKey;
+use App\Modules\SiteBuilder\Enums\PageStatus;
 use App\Modules\SiteBuilder\Enums\WidgetKey;
+use App\Modules\SiteBuilder\Models\Page;
 use App\Modules\SiteBuilder\Models\PageCategory;
 use App\Modules\SiteBuilder\Models\PageDemo;
 use App\Modules\SiteBuilder\Models\Widget;
@@ -216,18 +218,34 @@ it('rejects a video url from a disallowed domain', function () {
 it('renders header nav links and footer social links, escaping xss attempts', function () {
     $renderer = app(WidgetContentRenderer::class);
 
+    $company = Company::create(['name' => 'آرشامان', 'slug' => 'arshaman-'.uniqid(), 'business_type' => 'project_services']);
+    $aboutCategory = PageCategory::firstOrCreate(['category_key' => PageCategoryKey::About->value], ['name' => PageCategoryKey::About->label()]);
+    $demo = PageDemo::create(['page_category_id' => $aboutCategory->id, 'name' => 'دموی تست درباره ما', 'widget_tree' => []]);
+    $aboutPage = Page::create([
+        'owner_company_id' => $company->id,
+        'page_demo_id' => $demo->id,
+        'title' => 'درباره ما',
+        'slug' => 'about',
+        'widget_tree' => [],
+        'content_html' => '<div></div>',
+        'page_status' => PageStatus::Published->value,
+    ]);
+
     $navHtml = $renderer->render([
         [
             'id' => 'nav1',
             'widget_key' => WidgetKey::HeaderNav->value,
             'values' => ['nav_links' => [
-                ['label' => '"><script>alert(1)</script>', 'url' => 'https://example.com'],
+                ['label' => '"><script>alert(1)</script>', 'category_key' => 'about'],
+                ['label' => 'خدمات (بدون صفحه)', 'category_key' => 'services'],
             ]],
             'children' => [],
         ],
-    ]);
+    ], $company);
 
     expect($navHtml)->not->toContain('<script>');
+    expect($navHtml)->toContain('/site/'.$company->slug.'/'.$aboutPage->slug);
+    expect($navHtml)->not->toContain('خدمات (بدون صفحه)');
 
     $footerHtml = $renderer->render([
         [
@@ -491,7 +509,7 @@ it('wraps rendered output in the sb-page shell with the shared design CSS for ev
         ['id' => 'm1', 'widget_key' => WidgetKey::Map->value, 'values' => ['embed_url' => 'https://www.google.com/maps/embed?pb=1'], 'children' => []],
         ['id' => 'v1', 'widget_key' => WidgetKey::Video->value, 'values' => ['video_url' => 'https://youtu.be/abcDEF123'], 'children' => []],
         ['id' => 'sp1', 'widget_key' => WidgetKey::Spacer->value, 'values' => ['height_px' => 40], 'children' => []],
-        ['id' => 'hn1', 'widget_key' => WidgetKey::HeaderNav->value, 'values' => ['nav_links' => [['label' => 'خانه', 'url' => '/']]], 'children' => []],
+        ['id' => 'hn1', 'widget_key' => WidgetKey::HeaderNav->value, 'values' => ['nav_links' => [['label' => 'خانه', 'category_key' => 'home']]], 'children' => []],
         ['id' => 'ft1', 'widget_key' => WidgetKey::Footer->value, 'values' => ['copyright_text' => '©'], 'children' => []],
         ['id' => 'im1', 'widget_key' => WidgetKey::Image->value, 'values' => ['image_path' => 'x.jpg', 'alt' => 'a'], 'children' => []],
         ['id' => 'c1', 'widget_key' => WidgetKey::Container->value, 'values' => [], 'children' => []],
@@ -520,7 +538,7 @@ it('resolves a relative stored image path to a full storage url in the rendered 
         ['id' => 'im1', 'widget_key' => WidgetKey::Image->value, 'values' => ['image_path' => 'sitebuilder/images/pic.jpg', 'alt' => 'a'], 'children' => []],
     ]);
 
-    expect($html)->toContain('src="'.Storage::disk('public')->url('sitebuilder/images/pic.jpg').'"');
+    expect($html)->toContain('src="/storage/sitebuilder/images/pic.jpg"');
     expect($html)->not->toContain('src="sitebuilder/images/pic.jpg"');
 });
 
@@ -538,18 +556,32 @@ it('applies a valid theme from the widget_tree root and falls back to defaults f
     $renderer = app(WidgetContentRenderer::class);
 
     $withTheme = $renderer->render([
-        'theme' => ['primary_color' => '#123ABC', 'font_family' => "'Test Font', sans-serif"],
+        'theme' => [
+            'primary_color' => '#123ABC', 'secondary_color' => '#334455',
+            'font_family' => "'Test Font', sans-serif", 'heading_font' => "'Heading Font', serif",
+            'radius' => 'pill', 'density' => 'airy',
+        ],
         ['id' => 't1', 'widget_key' => WidgetKey::Title->value, 'values' => ['text' => 'س', 'level' => 1], 'children' => []],
     ]);
 
     expect($withTheme)->toContain('--sb-primary-color:#123ABC;');
+    expect($withTheme)->toContain('--sb-secondary-color:#334455;');
     expect($withTheme)->toContain("--sb-font-family:&#039;Test Font&#039;, sans-serif;");
+    expect($withTheme)->toContain("--sb-heading-font:&#039;Heading Font&#039;, serif;");
+    expect($withTheme)->toContain('--sb-radius-lg:2.5rem;');
+    expect($withTheme)->toContain('--sb-space-section:6rem 1.5rem;');
 
     $maliciousTheme = $renderer->render([
-        'theme' => ['primary_color' => 'red;}</style><script>alert(1)</script>', 'font_family' => 'x</style><script>alert(1)</script>'],
+        'theme' => [
+            'primary_color' => 'red;}</style><script>alert(1)</script>',
+            'font_family' => 'x</style><script>alert(1)</script>',
+            'radius' => '</style><script>alert(1)</script>',
+        ],
         ['id' => 't1', 'widget_key' => WidgetKey::Title->value, 'values' => ['text' => 'س', 'level' => 1], 'children' => []],
     ]);
 
     expect($maliciousTheme)->not->toContain('<script>');
     expect($maliciousTheme)->toContain('--sb-primary-color:#2563EB;');
+    // radius نامعتبر باید به پیش‌فرض 'soft' برگردد، نه اینکه رشته خام رد شود.
+    expect($maliciousTheme)->toContain('--sb-radius-lg:1.25rem;');
 });

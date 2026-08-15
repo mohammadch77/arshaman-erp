@@ -195,5 +195,5 @@ it('renders an already-saved image with a resolvable storage url in the preview'
 
     $component = Livewire::test(PageCreateFlow::class)->call('selectDemo', $demo->id);
 
-    expect($component->get('previewHtml'))->toContain(Storage::disk('public')->url($storedPath));
+    expect($component->get('previewHtml'))->toContain('/storage/'.$storedPath);
 });

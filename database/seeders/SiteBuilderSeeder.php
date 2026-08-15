@@ -63,11 +63,23 @@ class SiteBuilderSeeder extends Seeder
 
         $aboutCategory = PageCategory::where('category_key', PageCategoryKey::About->value)->firstOrFail();
 
+        // theme اینجا با دست ساخته می‌شود (نه self::withTheme() که فقط در
+        // SiteBuilderDemosExpansionSeeder تعریف شده) — رنگ خنثی/تیره تا این
+        // دموی نمونه هم مثل بقیه ۲۴ دموی Session گسترش یک شخصیت بصری واقعی
+        // (نه پیش‌فرض رندرر) داشته باشد.
         PageDemo::updateOrCreate(
             ['page_category_id' => $aboutCategory->id, 'name' => 'دموی نمونه درباره ما'],
             [
                 'thumbnail_path' => null,
                 'widget_tree' => [
+                    'theme' => [
+                        'primary_color' => '#334155',
+                        'secondary_color' => '#0F172A',
+                        'font_family' => "'Vazirmatn', sans-serif",
+                        'heading_font' => "'Vazirmatn', sans-serif",
+                        'radius' => 'soft',
+                        'density' => 'comfortable',
+                    ],
                     [
                         'id' => 'about-hero-title',
                         'widget_key' => WidgetKey::Title->value,
@@ -109,11 +121,29 @@ class SiteBuilderSeeder extends Seeder
             [
                 'thumbnail_path' => null,
                 'widget_tree' => [
+                    'theme' => [
+                        'primary_color' => '#334155',
+                        'secondary_color' => '#0F172A',
+                        'font_family' => "'Vazirmatn', sans-serif",
+                        'heading_font' => "'Vazirmatn', sans-serif",
+                        'radius' => 'sharp',
+                        'density' => 'compact',
+                    ],
                     [
                         'id' => 'header-site-title',
                         'widget_key' => WidgetKey::Title->value,
                         'instance_label' => 'نام سایت در هدر',
                         'values' => ['text' => 'نام سایت', 'level' => 3],
+                        'children' => [],
+                    ],
+                    [
+                        'id' => 'header-sample-nav',
+                        'widget_key' => WidgetKey::HeaderNav->value,
+                        'instance_label' => 'منوی ناوبری هدر نمونه',
+                        'values' => ['nav_links' => [
+                            ['label' => 'خانه', 'category_key' => 'home'],
+                            ['label' => 'درباره ما', 'category_key' => 'about'],
+                        ]],
                         'children' => [],
                     ],
                 ],
@@ -125,6 +155,14 @@ class SiteBuilderSeeder extends Seeder
             [
                 'thumbnail_path' => null,
                 'widget_tree' => [
+                    'theme' => [
+                        'primary_color' => '#334155',
+                        'secondary_color' => '#0F172A',
+                        'font_family' => "'Vazirmatn', sans-serif",
+                        'heading_font' => "'Vazirmatn', sans-serif",
+                        'radius' => 'sharp',
+                        'density' => 'compact',
+                    ],
                     [
                         'id' => 'footer-copyright-title',
                         'widget_key' => WidgetKey::Title->value,

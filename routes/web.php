@@ -46,6 +46,7 @@ use App\Livewire\SiteBuilder\PageIndex;
 use App\Modules\Blog\Http\Controllers\BlogPostPreviewController;
 use App\Modules\Blog\Http\Controllers\EditorImageUploadController;
 use App\Modules\Blog\Http\Controllers\PublicBlogController;
+use App\Modules\SiteBuilder\Http\Controllers\PublicSiteController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -145,6 +146,16 @@ Route::livewire('/sitebuilder/pages', PageIndex::class)->middleware('auth')->nam
 Route::livewire('/sitebuilder/pages/create', PageCreateFlow::class)->middleware('auth')->name('sitebuilder.pages.create');
 Route::livewire('/sitebuilder/pages/{page}/edit', PageContentEditor::class)->middleware('auth')->name('sitebuilder.pages.edit');
 Route::livewire('/sitebuilder/settings', LayoutDemoSelector::class)->middleware('auth')->name('sitebuilder.settings');
+
+// مسیرهای عمومی سایت‌ساز — بدون middleware auth. پیشوند /site/... با
+// /sitebuilder/... بالا تداخل ندارد (segment اول متفاوت است)، پس نیازی به
+// ثبت بعد از route‌های ثابت نبود؛ همان الگوی ایزولاسیون contact-us/blog
+// عمومی: owner_company_id از companySlug مسیر گرفته می‌شود، نه از
+// CompanyContext session. صفحه اصلی سایت هر شرکت از site_settings.homepage_page_id
+// آن شرکت تعیین می‌شود؛ اگر تنظیم نشده بود، به‌جای ۴۰۴/خطای خام یک پیام واضح
+// نمایش داده می‌شود (نگاه کن PublicSiteController::home).
+Route::get('/site/{companySlug}', [PublicSiteController::class, 'home'])->name('public-site.home');
+Route::get('/site/{companySlug}/{pageSlug}', [PublicSiteController::class, 'show'])->name('public-site.show');
 
 // صفحه داخلی طراحی — مثل بقیه صفحات پشت auth است. تا پیش از این middleware
 // نداشت و چون پوسته پیشخوان به کاربر لاگین‌شده نیاز دارد، برای مهمان به‌جای

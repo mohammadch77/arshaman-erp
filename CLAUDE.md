@@ -303,6 +303,20 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
       (بند ۳.۵ سند طراحی: نرخ ارز مشترک بین کل هلدینگ است)، پس شرکتی برای مقیدکردن وجود ندارد.
     اگر Policy جدیدی هم واقعاً چنین استثنایی دارد، دلیلش را دقیقاً مثل این سه مورد
     در یک کامنت بالای متد مستند کن — حدس نزن.
+12. **هر بار `WidgetContentRenderer` تغییر می‌کند** (رفع باگ رندر، تغییر CSS،
+    افزودن ویجت جدید)، دستور `php artisan sitebuilder:regenerate-content-html`
+    باید روی دیتابیس واقعی اجرا شود تا `content_html` همه صفحات موجود
+    به‌روز بماند — وگرنه صفحات قدیمی‌تر با رندر کهنه گیر می‌کنند.
+    **چرا:** `pages.content_html` یک snapshot است که فقط هنگام ذخیره
+    (`CreatePageFromDemo`/`UpdatePageWidgetValues`) از `widget_tree` ساخته
+    می‌شود؛ صفحه‌ی سایت عمومی مستقیم همین ستون را می‌خواند
+    (`PublicSiteController::renderPage`)، نه اینکه هر بار از نو رندر کند.
+    اگر رندرر بعداً عوض شود، صفحاتی که قبل از آن تغییر ذخیره شده‌اند تا وقتی
+    خودشان دوباره ذخیره نشوند (که ممکن است هیچ‌وقت اتفاق نیفتد) با خروجی کهنه
+    گیر می‌کنند — این دقیقاً همان باگی بود که باعث نمایش آیکون شکسته به‌جای
+    تصویر در `/site/arshaman/services` و صفحات مشابه شد (تصویرها روی دیسک و
+    مسیرشان سالم بودند؛ فقط `content_html` ذخیره‌شده قبل از رفع باگ
+    `resolveImageUrl` بود).
 
 ---
 
@@ -1248,5 +1262,71 @@ Policy/متد `viewAny` صفحه مقصد را با `hasRoleInCompany($activeCom
 
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): جابه‌جایی ویجت‌ها،
 ذخیره خودکار صفحه (autosave واقعی، نه فقط پیش‌نمایش).
+
+- [x] Session 5: رندر عمومی واقعی — URLی که بازدیدکننده مهمان می‌بیند
+
+  **چه ساخته شد:** `Page::scopePublished()` (فقط `page_status`، برخلاف
+  `BlogPost::scopePublished()` که `published_at` هم دارد — Page در این
+  Session هنوز بعد زمان‌بندی انتشار ندارد)، کنترلر جدید
+  `App\Modules\SiteBuilder\Http\Controllers\PublicSiteController` (متدهای
+  `home()`/`show()`، دقیقاً همان الگوی ایزولاسیون `PublicBlogController`:
+  `withoutGlobalScope('owner_company')` + `where('owner_company_id', ...)`
+  از روی `companySlug` مسیر، نه `CompanyContext` session)، مسیرهای عمومی
+  `GET /site/{companySlug}` (نام `public-site.home`) و
+  `GET /site/{companySlug}/{pageSlug}` (نام `public-site.show`)، layout جدید
+  `resources/views/layouts/public-site.blade.php` (جدا از
+  `layouts/public.blade.php` وبلاگ چون هدر/فوتر اینجا از دموی رندرشده
+  می‌آید، نه یک نوار هدر ثابت)، و دو ویو
+  `resources/views/public/sitebuilder/{show,not-configured}.blade.php`.
+
+  **تصمیم‌های این Session:**
+  - هدر/فوتر عمومی از همان `WidgetContentRenderer` موجود ساخته می‌شوند (منبع
+    رندر واحد، نه کپی جدید) — ولی چون `content_html` خودِ صفحه از قبل هنگام
+    ذخیره ساخته و در دیتابیس نگه داشته شده (`CreatePageFromDemo`/
+    `UpdatePageWidgetValues`)، `PublicSiteController` آن را دوباره رندر
+    نمی‌کند، فقط مستقیم می‌خواند؛ فقط `widget_tree` هدر/فوتر (که چنین
+    ستونی برای HTML از‌پیش‌رندرشده ندارند) در لحظه رندر می‌شود.
+  - «سایت هنوز راه‌اندازی نشده» به‌جای ۴۰۴/خطای خام: وقتی `site_settings`
+    اصلاً وجود نداشت یا `homepage_page_id` آن خالی بود، یک ویو مستقل
+    (`not-configured.blade.php`) با پیام واضح نمایش داده می‌شود (۲۰۰، نه
+    ۴۰۴) — چون این حالت یک خطای برنامه نیست، وضعیت طبیعی «هنوز پیکربندی
+    نشده» است.
+  - `logo_path` در `site_settings` این Session به هیچ‌جای صفحه عمومی متصل
+    نشد (نه در `<head>`، نه در ویجت `header_nav`) — چون طبق درخواست صریح
+    کارفرما اتصال لوگو مشروط بود به اینکه «آن ویجت از قبل جایی برای لوگو
+    داشته باشد»، و `header_nav` (بند Session ۲ همین ماژول) فقط `nav_links`
+    دارد، فیلد لوگو ندارد. اضافه‌کردن آن یک قابلیت جدید به ویجت است، خارج
+    از scope این Session — در `docs/BACKLOG.md` ثبت شد. `favicon_path` و
+    `site_title`/`site_tagline` (برای `<title>`/meta description) اما واقعاً
+    متصل شدند، چون این‌ها ورودی مستقیم `<head>` هستند، نه ویجت.
+  - `extra_js` صفحه در این مسیر عمومی واقعاً اجرا می‌شود (برخلاف iframe
+    پیش‌نمایش ادمین `PageContentEditor::getPreviewDocumentProperty()` که
+    عمداً اسکریپت را اجرا نمی‌کند) — طبق درخواست صریح کارفرما، چون این‌جا
+    صفحه واقعی است نه یک پیش‌نمایش امن‌سازی‌شده؛ ریسک عدم-sanitize بودن
+    `extra_css`/`extra_js` از قبل در Session قبلی این ماژول آگاهانه پذیرفته
+    شده بود (طبق `docs/DECISIONS.md`).
+  - بازدید بصری واقعی این Session (برخلاف چند Session قبلی این ماژول) با
+    موفقیت انجام شد: با `php artisan serve` روی `127.0.0.1` (همان محدودیت
+    شبکه sandbox نسبت به دامنه Laragon `arshaman-erp.test`، مستندشده در
+    Session‌های قبلی)، یک صفحه/دموی هدر/دموی فوتر موقت برای شرکت واقعی
+    `arshaman` ساخته شد و در `/site/arshaman` و `/site/arshaman/{slug}`
+    باز شد — هدر (نوار ناوبری)، محتوای اصلی، و فوتر دقیقاً همان چیزی بودند
+    که در widget_tree تعریف شده بود؛ favicon پیش‌فرض/عنوان تب هم تأیید شد.
+    حالت «سایت راه‌اندازی نشده» هم برای یک شرکت بدون `site_settings` تأیید
+    شد. همه داده‌های موقت (صفحه، دو دموی layout، شرکت تستی بدون سایت) در
+    پایان کامل حذف شدند؛ هیچ رمز کاربر واقعی تغییر نکرد (این Session اصلاً
+    نیازی به ورود کاربر نداشت، چون مسیرهای عمومی بدون auth‌اند).
+  - تست‌ها: `tests/Feature/SiteBuilder/PublicSitePageTest.php` (۱۱ تست) —
+    هم‌راستا با الگوی `PublicBlogPageTest`: انتشار/عدم‌انتشار، ایزولاسیون
+    شرکت روی هم صفحه اصلی هم صفحه مستقیم، پیام «راه‌اندازی نشده»، متا
+    تگ‌های واقعی، و دو تست امنیتی که whitelist دامنه map/XSS escape موجود
+    `WidgetContentRenderer` را از طریق مسیر عمومی جدید (نه فقط تست واحد
+    renderer) بازآزمایی می‌کنند — با `content_html` واقعاً از طریق همان
+    renderer ساخته‌شده، نه دستی‌نویسی‌شده، تا این تست‌ها رفتار واقعی مسیر
+    عمومی را بسنجند.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): فیلد لوگو در ویجت
+`header_nav`، رندر عمومی وبلاگ/تماس یکپارچه با سایت‌ساز، زمان‌بندی انتشار
+صفحه (مثل `PublishScheduledPost` بلاگ).
 
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

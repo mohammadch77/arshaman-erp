@@ -57,7 +57,13 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 <div class="flex flex-col gap-5">
-                    <x-card shadow title="اطلاعات صفحه">
+                    <x-card shadow>
+                        <x-slot:title>
+                            <span class="inline-flex items-center gap-2">
+                                <x-icon :name="theme_icon('page')" class="w-4 h-4 text-base-content/60" />
+                                اطلاعات صفحه
+                            </span>
+                        </x-slot:title>
                         <x-input label="عنوان صفحه" wire:model.live="title" :icon="theme_icon('page')" required />
                         <x-input label="نشانی صفحه (slug)" wire:model.live="slug" :icon="theme_icon('link-account')" required />
                         <x-input label="عنوان متا (سئو، اختیاری)" wire:model="meta_title" />
@@ -139,6 +145,15 @@
                                                                             wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
                                                                             x-on:input="schedulePreview()"
                                                                             rows="2"
+                                                                        />
+                                                                    @elseif($itemField['type'] === 'select')
+                                                                        <x-select
+                                                                            label="{{ $itemField['label'] }}"
+                                                                            wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
+                                                                            x-on:change="schedulePreview()"
+                                                                            :options="$itemField['options']"
+                                                                            option-value="value"
+                                                                            option-label="label"
                                                                         />
                                                                     @else
                                                                         <x-input

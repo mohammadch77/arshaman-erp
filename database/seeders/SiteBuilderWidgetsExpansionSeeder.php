@@ -139,9 +139,27 @@ class SiteBuilderWidgetsExpansionSeeder extends Seeder
                             'key' => 'nav_links',
                             'type' => 'repeater',
                             'label' => 'آیتم‌های منو',
+                            // هر آیتم به یک دسته‌ی صفحه (نه یک URL آزاد) اشاره می‌کند —
+                            // نگاه کن WidgetContentRenderer::renderHeaderNav. لایوت‌های
+                            // هدر سراسری/مشترک بین همه شرکت‌ها هستند و در لحظه seed هیچ
+                            // صفحه واقعی (owner_company_id-دار) وجود ندارد که بشود
+                            // مستقیم به آن لینک داد؛ آدرس واقعی فقط در لحظه رندر برای
+                            // هر شرکت مشخص حل می‌شود.
                             'item_fields' => [
                                 ['key' => 'label', 'type' => 'text', 'label' => 'عنوان'],
-                                ['key' => 'url', 'type' => 'text', 'label' => 'لینک'],
+                                [
+                                    'key' => 'category_key',
+                                    'type' => 'select',
+                                    'label' => 'صفحه مقصد',
+                                    'options' => [
+                                        ['value' => 'home', 'label' => 'خانه'],
+                                        ['value' => 'about', 'label' => 'درباره ما'],
+                                        ['value' => 'services', 'label' => 'خدمات'],
+                                        ['value' => 'contact', 'label' => 'تماس با ما'],
+                                        ['value' => 'blog', 'label' => 'وبلاگ'],
+                                        ['value' => 'login', 'label' => 'ورود'],
+                                    ],
+                                ],
                             ],
                         ],
                     ],

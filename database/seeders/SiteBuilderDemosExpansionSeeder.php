@@ -63,17 +63,32 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
 
     /**
      * یک کلید ریشه اختیاری 'theme' به لیست نودهای یک دمو اضافه می‌کند —
-     * WidgetContentRenderer::render() این را رنگ/فونت سطح صفحه (--sb-primary-color/
-     * --sb-font-family) می‌خواند. هیچ ستون/جدول جدیدی لازم نبود، فقط یک کلید
-     * دیگر در همان JSON که renderer/merger هر دو به‌صراحت به‌عنوان «نود نیست»
-     * رد می‌کنند.
+     * WidgetContentRenderer::render()/extractTheme() این را می‌خواند. هیچ
+     * ستون/جدول جدیدی لازم نبود، فقط یک کلید دیگر در همان JSON که
+     * renderer/merger هر دو به‌صراحت به‌عنوان «نود نیست» رد می‌کنند.
+     *
+     * هر دمو یک «نقطه‌نظر بصری» مستقل و آگاهانه دارد — نه فقط رنگ متفاوت روی
+     * همان ساختار: ترکیب primary/secondary + فونت تیتر (از کتابخانه‌ی فارسی‌خوان
+     * لود‌شده در layouts/public-site.blade.php: Vazirmatn/Tajawal/Cairo/
+     * 'Markazi Text'/'Noto Naskh Arabic'/Lalezar) + سبک گردی (radius) + ریتم
+     * فاصله‌گذاری (density) با هم یک شخصیت واحد می‌سازند.
      *
      * @param  array<int, array<string, mixed>>  $nodes
+     * @param  array{primary: string, secondary: string, heading?: string, body?: string, radius?: string, density?: string}  $persona
      * @return array<int|string, mixed>
      */
-    private static function withTheme(array $nodes, string $primaryColor, string $fontFamily): array
+    private static function withTheme(array $nodes, array $persona): array
     {
-        $nodes['theme'] = ['primary_color' => $primaryColor, 'font_family' => $fontFamily];
+        $body = $persona['body'] ?? "'Vazirmatn', sans-serif";
+
+        $nodes['theme'] = [
+            'primary_color' => $persona['primary'],
+            'secondary_color' => $persona['secondary'],
+            'font_family' => $body,
+            'heading_font' => $persona['heading'] ?? $body,
+            'radius' => $persona['radius'] ?? 'soft',
+            'density' => $persona['density'] ?? 'comfortable',
+        ];
 
         return $nodes;
     }
@@ -114,7 +129,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['image_path' => null, 'caption' => 'پروژه بهینه‌سازی سئو'],
                 ]]),
                 self::n('home-classic-testimonial', WidgetKey::Testimonial, 'نظر مشتری برجسته کلاسیک', ['quote_text' => 'تیم آرشامان دقیقاً همان چیزی بود که کسب‌وکار ما نیاز داشت.', 'customer_name' => 'علی رضایی', 'customer_title' => 'مدیرعامل فروشگاه آنلاین']),
-            ], '#2563EB', "'Vazirmatn', 'Segoe UI', sans-serif"),
+            ], ['primary' => '#2563EB', 'secondary' => '#0F172A', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
             'دموی خانه — ویترین محصولات (گالری اول، بنر ثانویه)' => self::withTheme([
                 self::n('home-showcase-gallery-container', WidgetKey::Container, 'کانتینر گالری برجسته ویترین', [], [
@@ -137,7 +152,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['question' => 'آیا پشتیبانی بعد از تحویل هست؟', 'answer' => 'بله، همه پروژه‌ها سه ماه پشتیبانی رایگان دارند.'],
                 ]]),
                 self::n('home-showcase-testimonial', WidgetKey::Testimonial, 'نظر مشتری خانه ویترین', ['quote_text' => 'کیفیت محصولات و سرعت تحویل فوق‌العاده بود.', 'customer_name' => 'مریم احمدی', 'customer_title' => 'مدیر بازاریابی']),
-            ], '#EA580C', "'Vazirmatn', 'Georgia', serif"),
+            ], ['primary' => '#EA580C', 'secondary' => '#7C2D12', 'heading' => "'Cairo', sans-serif", 'radius' => 'pill', 'density' => 'comfortable']),
 
             'دموی خانه — تک‌ستونی داستان‌محور (ویدیو، ارزش‌ها، قیمت)' => self::withTheme([
                 self::n('home-story-title', WidgetKey::Title, 'عنوان کلی صفحه داستان‌محور', ['text' => 'داستان ما را ببینید', 'level' => 1]),
@@ -152,7 +167,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                 self::n('home-story-pricing', WidgetKey::PricingTable, 'جدول قیمت پیش‌نمایش داستان‌محور', ['plan_name' => 'پلن استارتاپی', 'price' => 'از ۵ میلیون تومان', 'features' => "طراحی اختصاصی\nپشتیبانی سه ماهه\nیک دور بازطراحی رایگان", 'cta_label' => 'مشاهده جزئیات', 'cta_url' => '#pricing']),
                 self::n('home-story-pricing-button', WidgetKey::Button, 'دکمه مشاهده همه پلن‌ها داستان‌محور', ['label' => 'مشاهده همه پلن‌ها', 'url' => '#all-plans', 'style' => 'outline']),
                 self::n('home-story-testimonial', WidgetKey::Testimonial, 'نظر مشتری پایانی داستان‌محور', ['quote_text' => 'داستان رشد ما با آرشامان شروع شد.', 'customer_name' => 'حسین کریمی', 'customer_title' => 'بنیان‌گذار استارتاپ']),
-            ], '#0F172A', "'Vazirmatn', 'Courier New', monospace"),
+            ], ['primary' => '#7C3AED', 'secondary' => '#1E1B4B', 'heading' => "'Tajawal', sans-serif", 'radius' => 'sharp', 'density' => 'compact']),
         ];
     }
 
@@ -170,7 +185,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['image_path' => null, 'caption' => 'مدیر طراحی'],
                 ]]),
                 self::n('about-team-testimonial', WidgetKey::Testimonial, 'نقل قول بنیان‌گذار تیم', ['quote_text' => 'تیم ما با اشتیاق برای موفقیت مشتریان کار می‌کند.', 'customer_name' => 'بنیان‌گذار آرشامان', 'customer_title' => 'مدیرعامل']),
-            ], '#16A34A', "'Vazirmatn', 'Trebuchet MS', sans-serif"),
+            ], ['primary' => '#16A34A', 'secondary' => '#14532D', 'heading' => "'Cairo', sans-serif", 'radius' => 'pill', 'density' => 'airy']),
 
             'دموی درباره ما — تاریخچه شرکت' => self::withTheme([
                 self::n('about-history-title', WidgetKey::Title, 'عنوان تاریخچه شرکت', ['text' => 'مسیر ما تا امروز', 'level' => 1]),
@@ -180,7 +195,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['question' => '۱۴۰۰ — گسترش خدمات', 'answer' => 'خدمات سئو و برنامه‌نویسی سفارشی به سبد خدمات اضافه شد.'],
                     ['question' => '۱۴۰۳ — هلدینگ‌سازی', 'answer' => 'زیرمجموعه‌های Verifex، Tkart، دعانو و Pixentry شکل گرفتند.'],
                 ]]),
-            ], '#B45309', "'Vazirmatn', 'Palatino', serif"),
+            ], ['primary' => '#B45309', 'secondary' => '#78350F', 'heading' => "'Noto Naskh Arabic', serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
             'دموی درباره ما — ماموریت و چشم‌انداز' => self::withTheme([
                 self::n('about-mission-container', WidgetKey::Container, 'کانتینر ماموریت', [], [
@@ -193,7 +208,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                 ]),
                 self::n('about-mission-image', WidgetKey::Image, 'تصویر ماموریت و چشم‌انداز', ['image_path' => null, 'alt' => 'تیم در حال برنامه‌ریزی استراتژیک']),
                 self::n('about-mission-button', WidgetKey::Button, 'دکمه تماس درباره ماموریت', ['label' => 'با ما در تماس باشید', 'url' => '#contact', 'style' => 'primary']),
-            ], '#7C3AED', "'Vazirmatn', 'Tahoma', sans-serif"),
+            ], ['primary' => '#7C3AED', 'secondary' => '#4C1D95', 'heading' => "'Markazi Text', serif", 'radius' => 'soft', 'density' => 'airy']),
         ];
     }
 
@@ -212,7 +227,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     self::n('contact-side-email', WidgetKey::Title, 'ایمیل کنار هم', ['text' => 'info@arshaman.example', 'level' => 4]),
                 ]),
                 self::n('contact-side-map', WidgetKey::Map, 'نقشه آدرس دفتر مرکزی کنار هم', ['embed_url' => 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1!2d51.4!3d35.7']),
-            ], '#0EA5E9', "'Vazirmatn', 'Calibri', sans-serif"),
+            ], ['primary' => '#0EA5E9', 'secondary' => '#0C4A6E', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
             'دموی تماس — نقشه تمام‌عرض با فرم جای‌گیر' => self::withTheme([
                 self::n('contact-fullmap-map', WidgetKey::Map, 'نقشه تمام‌عرض دفتر', ['embed_url' => 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2!2d51.4!3d35.7']),
@@ -223,7 +238,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     self::n('contact-fullmap-hours', WidgetKey::Title, 'ساعات کاری تماس', ['text' => 'شنبه تا چهارشنبه، ۹ تا ۱۸', 'level' => 4]),
                     self::n('contact-fullmap-call-button', WidgetKey::Button, 'دکمه تماس تلفنی', ['label' => 'تماس بگیرید', 'url' => 'tel:02112345678', 'style' => 'primary']),
                 ]),
-            ], '#DB2777', "'Vazirmatn', 'Verdana', sans-serif"),
+            ], ['primary' => '#DB2777', 'secondary' => '#831843', 'heading' => "'Tajawal', sans-serif", 'radius' => 'sharp', 'density' => 'compact']),
 
             'دموی تماس — شعب متعدد' => self::withTheme([
                 self::n('contact-branches-title', WidgetKey::Title, 'عنوان شعب تماس', ['text' => 'دفاتر ما', 'level' => 1]),
@@ -237,7 +252,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['question' => 'چطور با پشتیبانی تماس بگیرم؟', 'answer' => 'از طریق شماره دفتر مرکزی یا فرم تماس هر شعبه.'],
                     ['question' => 'آیا امکان بازدید حضوری هست؟', 'answer' => 'بله، با هماهنگی قبلی امکان‌پذیر است.'],
                 ]]),
-            ], '#059669', "'Vazirmatn', 'Segoe UI', sans-serif"),
+            ], ['primary' => '#059669', 'secondary' => '#064E3B', 'heading' => "'Tajawal', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
         ];
     }
 
@@ -256,7 +271,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     ['question' => 'آیا امکان ارتقا بین پلن‌ها هست؟', 'answer' => 'بله، در هر زمان می‌توانید پلن خود را ارتقا دهید.'],
                     ['question' => 'پرداخت چگونه است؟', 'answer' => 'پیش‌پرداخت ۵۰ درصد و باقی هنگام تحویل.'],
                 ]]),
-            ], '#1D4ED8', "'Vazirmatn', 'Segoe UI', sans-serif"),
+            ], ['primary' => '#1D4ED8', 'secondary' => '#0F172A', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'sharp', 'density' => 'compact']),
 
             'دموی خدمات — گالری خدمات با جزئیات' => self::withTheme([
                 self::n('services-gallery-title', WidgetKey::Title, 'عنوان گالری خدمات', ['text' => 'خدماتی که ارائه می‌دهیم', 'level' => 1]),
@@ -270,7 +285,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     self::n('services-gallery-details-text', WidgetKey::Title, 'متن توضیح خدمات گالری', ['text' => 'هر خدمت با تیم تخصصی خودش و متدولوژی مشخص اجرا می‌شود', 'level' => 4]),
                 ]),
                 self::n('services-gallery-button', WidgetKey::Button, 'دکمه مشاوره رایگان خدمات گالری', ['label' => 'دریافت مشاوره رایگان', 'url' => '#consult', 'style' => 'primary']),
-            ], '#C2410C', "'Vazirmatn', 'Georgia', serif"),
+            ], ['primary' => '#C2410C', 'secondary' => '#7C2D12', 'heading' => "'Cairo', sans-serif", 'radius' => 'pill', 'density' => 'airy']),
 
             'دموی خدمات — ترکیبی پلن و گالری' => self::withTheme([
                 self::n('services-combo-title', WidgetKey::Title, 'عنوان معرفی خدمات ترکیبی', ['text' => 'خدمات و نمونه‌کارهای ما', 'level' => 1]),
@@ -280,7 +295,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                 ]]),
                 self::n('services-combo-pricing', WidgetKey::PricingTable, 'پلن ویژه خدمات ترکیبی', ['plan_name' => 'پلن ویژه', 'price' => '۱۰٬۰۰۰٬۰۰۰ تومان', 'features' => "شامل طراحی و اجرا\nپشتیبانی شش ماهه", 'cta_label' => 'شروع پروژه', 'cta_url' => '#start']),
                 self::n('services-combo-testimonial', WidgetKey::Testimonial, 'نظر مشتری خدمات ترکیبی', ['quote_text' => 'نتیجه کار فراتر از انتظارمان بود.', 'customer_name' => 'سارا محمدی', 'customer_title' => 'مدیر محصول']),
-            ], '#9333EA', "'Vazirmatn', 'Tahoma', sans-serif"),
+            ], ['primary' => '#9333EA', 'secondary' => '#3B0764', 'heading' => "'Markazi Text', serif", 'radius' => 'soft', 'density' => 'comfortable']),
         ];
     }
 
@@ -297,7 +312,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                 self::n('blog-simple-list-placeholder', WidgetKey::Container, 'کانتینر جای‌گیر فهرست پست‌های ساده', [], [
                     self::n('blog-simple-list-placeholder-title', WidgetKey::Title, 'برچسب جای‌گیر فهرست پست‌های ساده', ['text' => 'فهرست پست‌ها به‌زودی اینجا نمایش داده می‌شود', 'level' => 5]),
                 ]),
-            ], '#0D9488', "'Vazirmatn', 'Calibri', sans-serif"),
+            ], ['primary' => '#0D9488', 'secondary' => '#134E4A', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
             'دموی وبلاگ — با تصویر شاخص و گالری موضوعات' => self::withTheme([
                 self::n('blog-featured-image', WidgetKey::Image, 'تصویر شاخص وبلاگ', ['image_path' => null, 'alt' => 'تصویر شاخص وبلاگ']),
@@ -310,7 +325,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                 self::n('blog-featured-list-placeholder', WidgetKey::Container, 'کانتینر جای‌گیر فهرست پست‌های اخیر', [], [
                     self::n('blog-featured-list-placeholder-title', WidgetKey::Title, 'برچسب جای‌گیر فهرست پست‌های اخیر', ['text' => 'جدیدترین مقالات به‌زودی اینجا نمایش داده می‌شوند', 'level' => 5]),
                 ]),
-            ], '#DC2626', "'Vazirmatn', 'Georgia', serif"),
+            ], ['primary' => '#DC2626', 'secondary' => '#7F1D1D', 'heading' => "'Noto Naskh Arabic', serif", 'radius' => 'sharp', 'density' => 'compact']),
 
             'دموی وبلاگ — دسته‌بندی‌ها و خبرنامه' => self::withTheme([
                 self::n('blog-newsletter-title', WidgetKey::Title, 'عنوان وبلاگ خبرنامه', ['text' => 'وبلاگ و خبرنامه آرشامان', 'level' => 1]),
@@ -323,7 +338,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     self::n('blog-newsletter-list-placeholder-title', WidgetKey::Title, 'برچسب جای‌گیر فهرست پست‌های خبرنامه', ['text' => 'فهرست پست‌ها به‌زودی اینجا نمایش داده می‌شود', 'level' => 5]),
                 ]),
                 self::n('blog-newsletter-button', WidgetKey::Button, 'دکمه عضویت در خبرنامه', ['label' => 'عضویت در خبرنامه', 'url' => '#subscribe', 'style' => 'primary']),
-            ], '#4338CA', "'Vazirmatn', 'Trebuchet MS', sans-serif"),
+            ], ['primary' => '#4338CA', 'secondary' => '#1E1B4B', 'heading' => "'Cairo', sans-serif", 'radius' => 'soft', 'density' => 'airy']),
         ];
     }
 
@@ -337,7 +352,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
             'دموی ورود — ساده' => self::withTheme([
                 self::n('login-simple-title', WidgetKey::Title, 'عنوان صفحه ورود ساده', ['text' => 'ورود به حساب کاربری', 'level' => 1]),
                 self::n('login-simple-description', WidgetKey::Title, 'توضیح صفحه ورود ساده', ['text' => 'برای دسترسی به پنل خود وارد شوید', 'level' => 4]),
-            ], '#2563EB', "'Vazirmatn', 'Segoe UI', sans-serif"),
+            ], ['primary' => '#2563EB', 'secondary' => '#0F172A', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'soft', 'density' => 'compact']),
 
             'دموی ورود — با تصویر برند کنار فرم' => self::withTheme([
                 self::n('login-branded-container', WidgetKey::Container, 'کانتینر برندینگ ورود', [], [
@@ -345,13 +360,13 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                     self::n('login-branded-slogan', WidgetKey::Title, 'شعار برند ورود', ['text' => 'همراه دیجیتال کسب‌وکار شما', 'level' => 3]),
                 ]),
                 self::n('login-branded-title', WidgetKey::Title, 'عنوان فرم ورود برندی', ['text' => 'خوش آمدید', 'level' => 1]),
-            ], '#EA580C', "'Vazirmatn', 'Palatino', serif"),
+            ], ['primary' => '#EA580C', 'secondary' => '#7C2D12', 'heading' => "'Markazi Text', serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
             'دموی ورود — پیام خوش‌آمدگویی و بازگشت به صفحه اصلی' => self::withTheme([
                 self::n('login-welcome-title', WidgetKey::Title, 'عنوان خوش‌آمدگویی ورود', ['text' => 'خوشحالیم دوباره می‌بینیمتان', 'level' => 1]),
                 self::n('login-welcome-text', WidgetKey::Title, 'متن خوش‌آمدگویی ورود', ['text' => 'برای ادامه وارد حساب کاربری خود شوید', 'level' => 4]),
                 self::n('login-welcome-back-button', WidgetKey::Button, 'دکمه بازگشت به صفحه اصلی ورود', ['label' => 'بازگشت به صفحه اصلی', 'url' => '/', 'style' => 'outline']),
-            ], '#059669', "'Vazirmatn', 'Verdana', sans-serif"),
+            ], ['primary' => '#059669', 'secondary' => '#064E3B', 'heading' => "'Cairo', sans-serif", 'radius' => 'pill', 'density' => 'comfortable']),
         ];
     }
 
@@ -361,43 +376,43 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
             LayoutType::Header->value => [
                 'دموی هدر — ساده فقط منو' => self::withTheme([
                     self::n('header-simple-nav', WidgetKey::HeaderNav, 'منوی ناوبری هدر ساده', ['nav_links' => [
-                        ['label' => 'خانه', 'url' => '/'],
-                        ['label' => 'درباره ما', 'url' => '/about'],
-                        ['label' => 'خدمات', 'url' => '/services'],
-                        ['label' => 'تماس با ما', 'url' => '/contact'],
+                        ['label' => 'خانه', 'category_key' => 'home'],
+                        ['label' => 'درباره ما', 'category_key' => 'about'],
+                        ['label' => 'خدمات', 'category_key' => 'services'],
+                        ['label' => 'تماس با ما', 'category_key' => 'contact'],
                     ]]),
-                ], '#111827', "'Vazirmatn', 'Segoe UI', sans-serif"),
+                ], ['primary' => '#111827', 'secondary' => '#1F2937', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'sharp', 'density' => 'compact']),
 
                 'دموی هدر — با لوگو متنی و دکمه CTA' => self::withTheme([
                     self::n('header-branded-container', WidgetKey::Container, 'کانتینر هدر برندی', [], [
                         self::n('header-branded-sitename', WidgetKey::Title, 'نام سایت در هدر برندی', ['text' => 'آرشامان', 'level' => 3]),
                         self::n('header-branded-nav', WidgetKey::HeaderNav, 'منوی ناوبری هدر برندی', ['nav_links' => [
-                            ['label' => 'خانه', 'url' => '/'],
-                            ['label' => 'خدمات', 'url' => '/services'],
-                            ['label' => 'وبلاگ', 'url' => '/blog'],
+                            ['label' => 'خانه', 'category_key' => 'home'],
+                            ['label' => 'خدمات', 'category_key' => 'services'],
+                            ['label' => 'وبلاگ', 'category_key' => 'blog'],
                         ]]),
                         self::n('header-branded-cta', WidgetKey::Button, 'دکمه تماس هدر برندی', ['label' => 'مشاوره رایگان', 'url' => '#contact', 'style' => 'primary']),
                     ]),
-                ], '#2563EB', "'Vazirmatn', 'Tahoma', sans-serif"),
+                ], ['primary' => '#2563EB', 'secondary' => '#0F172A', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
                 'دموی هدر — با نوار اطلاعات تماس بالای منو' => self::withTheme([
                     self::n('header-topbar-container', WidgetKey::Container, 'کانتینر نوار بالای هدر کامل', [], [
                         self::n('header-topbar-phone', WidgetKey::Title, 'شماره تماس نوار بالای هدر کامل', ['text' => '۰۲۱-۱۲۳۴۵۶۷۸', 'level' => 6]),
                     ]),
                     self::n('header-topbar-nav', WidgetKey::HeaderNav, 'منوی ناوبری هدر کامل', ['nav_links' => [
-                        ['label' => 'خانه', 'url' => '/'],
-                        ['label' => 'درباره ما', 'url' => '/about'],
-                        ['label' => 'خدمات', 'url' => '/services'],
-                        ['label' => 'وبلاگ', 'url' => '/blog'],
-                        ['label' => 'تماس با ما', 'url' => '/contact'],
+                        ['label' => 'خانه', 'category_key' => 'home'],
+                        ['label' => 'درباره ما', 'category_key' => 'about'],
+                        ['label' => 'خدمات', 'category_key' => 'services'],
+                        ['label' => 'وبلاگ', 'category_key' => 'blog'],
+                        ['label' => 'تماس با ما', 'category_key' => 'contact'],
                     ]]),
-                ], '#7C3AED', "'Vazirmatn', 'Georgia', serif"),
+                ], ['primary' => '#7C3AED', 'secondary' => '#312E81', 'heading' => "'Markazi Text', serif", 'radius' => 'soft', 'density' => 'comfortable']),
             ],
 
             LayoutType::Footer->value => [
                 'دموی فوتر — فقط کپی‌رایت' => self::withTheme([
                     self::n('footer-minimal', WidgetKey::Footer, 'فوتر ساده فقط کپی‌رایت', ['copyright_text' => '© تمامی حقوق برای هلدینگ آرشامان محفوظ است.']),
-                ], '#111827', "'Vazirmatn', 'Segoe UI', sans-serif"),
+                ], ['primary' => '#111827', 'secondary' => '#1F2937', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'sharp', 'density' => 'compact']),
 
                 'دموی فوتر — با شبکه‌های اجتماعی' => self::withTheme([
                     self::n('footer-social', WidgetKey::Footer, 'فوتر با شبکه‌های اجتماعی', [
@@ -407,7 +422,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                             ['label' => 'تلگرام', 'url' => 'https://t.me/arshaman'],
                         ],
                     ]),
-                ], '#2563EB', "'Vazirmatn', 'Tahoma', sans-serif"),
+                ], ['primary' => '#2563EB', 'secondary' => '#0F172A', 'heading' => "'Vazirmatn', sans-serif", 'radius' => 'soft', 'density' => 'comfortable']),
 
                 'دموی فوتر — کامل با تماس، شبکه اجتماعی و خبرنامه' => self::withTheme([
                     self::n('footer-full-newsletter', WidgetKey::Container, 'کانتینر خبرنامه فوتر کامل', [], [
@@ -422,7 +437,7 @@ class SiteBuilderDemosExpansionSeeder extends Seeder
                         ],
                         'contact_text' => 'تهران، خیابان ولیعصر، برج آرشامان — info@arshaman.example',
                     ]),
-                ], '#DB2777', "'Vazirmatn', 'Verdana', sans-serif"),
+                ], ['primary' => '#DB2777', 'secondary' => '#831843', 'heading' => "'Tajawal', sans-serif", 'radius' => 'sharp', 'density' => 'comfortable']),
             ],
         ];
     }

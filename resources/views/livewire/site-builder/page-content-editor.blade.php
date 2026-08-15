@@ -25,13 +25,19 @@
         class="gap-6"
     >
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div class="flex flex-col gap-6">
-        <x-card shadow title="محتوای ویجت‌ها">
-            <div class="flex flex-col gap-5">
-                @forelse($this->editableNodes as $node)
-                    <div class="border-b border-base-300 pb-4 last:border-b-0 last:pb-0">
-                        <p class="mb-2 text-sm font-semibold text-base-content/70">{{ $node['section_label'] }}</p>
+        <div class="flex flex-col gap-5">
+        <div class="flex items-center gap-2 text-base-content/70">
+            <x-icon :name="theme_icon('edit')" class="w-5 h-5" />
+            <span class="font-medium">محتوای ویجت‌ها</span>
+        </div>
 
+                @forelse($this->editableNodes as $node)
+                    <x-card shadow>
+                        <x-slot:title>
+                            <span class="text-sm font-semibold text-base-content/70">{{ $node['section_label'] }}</span>
+                        </x-slot:title>
+
+                        <div class="flex flex-col gap-4">
                         @foreach($node['fields'] as $field)
                             @if($field['type'] === 'image')
                                 {{-- <x-file> فقط وقتی slot دارد که واقعاً یک <img> داخلش باشد؛ اگر
@@ -113,6 +119,16 @@
                                                                     rows="2"
                                                                     :disabled="! $this->canEditWidgetValues"
                                                                 />
+                                                            @elseif($itemField['type'] === 'select')
+                                                                <x-select
+                                                                    label="{{ $itemField['label'] }}"
+                                                                    wire:model="fieldValues.{{ $node['id'] }}.{{ $field['key'] }}.{{ $rowIndex }}.{{ $itemField['key'] }}"
+                                                                    x-on:change="schedulePreview()"
+                                                                    :options="$itemField['options']"
+                                                                    option-value="value"
+                                                                    option-label="label"
+                                                                    :disabled="! $this->canEditWidgetValues"
+                                                                />
                                                             @else
                                                                 <x-input
                                                                     label="{{ $itemField['label'] }}"
@@ -154,19 +170,30 @@
                                 />
                             @endif
                         @endforeach
-                    </div>
+                        </div>
+                    </x-card>
                 @empty
                     <x-alert title="این دمو هیچ فیلد قابل‌ویرایشی ندارد." :icon="theme_icon('warning')" class="alert-warning" />
                 @endforelse
-            </div>
-        </x-card>
 
-        <x-card shadow title="کد اختصاصی صفحه">
+        <x-card shadow>
+            <x-slot:title>
+                <span class="inline-flex items-center gap-2">
+                    <x-icon :name="theme_icon('settings')" class="w-4 h-4 text-base-content/60" />
+                    کد اختصاصی صفحه
+                </span>
+            </x-slot:title>
             <x-textarea label="CSS اختصاصی" wire:model="extra_css" x-on:input="schedulePreview()" rows="4" />
             <x-textarea label="JS اختصاصی" wire:model="extra_js" rows="4" />
         </x-card>
 
-        <x-card shadow title="وضعیت انتشار">
+        <x-card shadow>
+            <x-slot:title>
+                <span class="inline-flex items-center gap-2">
+                    <x-icon :name="theme_icon('send')" class="w-4 h-4 text-base-content/60" />
+                    وضعیت انتشار
+                </span>
+            </x-slot:title>
             <x-select
                 label="وضعیت"
                 wire:model="page_status"
