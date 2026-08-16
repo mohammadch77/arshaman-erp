@@ -6,6 +6,7 @@ use App\Modules\Core\Providers\CoreServiceProvider;
 use App\Modules\CRM\Providers\CrmServiceProvider;
 use App\Modules\HR\Providers\HrServiceProvider;
 use App\Modules\Inventory\Providers\InventoryServiceProvider;
+use App\Modules\Process\Providers\ProcessServiceProvider;
 use App\Modules\SiteBuilder\Providers\SiteBuilderServiceProvider;
 use App\Providers\AppServiceProvider;
 
@@ -18,4 +19,5 @@ return [
     InventoryServiceProvider::class,
     BlogServiceProvider::class,
     SiteBuilderServiceProvider::class,
+    ProcessServiceProvider::class,
 ];

@@ -1762,4 +1762,72 @@ PageContentEditor.
   `<a>`) منعکس شد. کاربر و صفحه‌ی تستی در پایان کامل حذف شدند (بند ۱۰
   CLAUDE.md).
 
+### ماژول Process (جدید — موتور گردش‌کار عمومی)
+
+- [x] Session 1: هسته‌ی دیتابیس (پنج جدول، بدون موتور اجرا/UI)
+
+  **چه ساخته شد:** `app/Modules/Process` با `new-module-scaffold`. پنج جدول:
+  `process_definitions` (تعریف فرایند — یا وصل به یک مدل ماژول دیگر با
+  `subject_type`، یا فرایند کاملاً آزاد با `request_form_fields` JSON به
+  همان ساختار `editable_fields` ماژول SiteBuilder)، `process_steps`
+  (`step_type`/`assignment_type`/`condition_operator` هر سه ENUM نیتیو
+  MySQL — استثنای مستند، پایین توضیح داده شده)، `process_transitions`
+  (بدون timestamp — یک یال ساده‌ی گراف، طبق دقیقاً همان ستون‌هایی که در
+  پرامپت Session خواسته شده بود)، `process_instances` (پلی‌مورفیک
+  `subject_type`/`subject_id`، `request_data` JSON برای فرایند آزاد)،
+  `process_instance_logs` (snapshot صریح `owner_company_id`، بدون
+  `updated_at` — رکورد لاگ غیرقابل‌ویرایش، الگوی دقیق
+  `contact_submission_attempts`). شش enum PHP معادل
+  (`StepType`/`AssignmentType`/`ConditionOperator`/`TransitionResult`/
+  `ProcessStatus`/`LogAction`) با label فارسی. `config/processes.php`
+  (رجیستری خالی این Session: `subject_types`/`condition_fields`/
+  `result_actions` — سه whitelist که برنامه‌نویس در Session بعدی برای HR پر
+  می‌کند؛ `result_actions` عمداً whitelist کلاس Action است، نه نام رشته‌ای
+  آزاد قابل‌نمونه‌سازی از ورودی کاربر). `ProcessDefinitionPolicy`
+  (`viewAny` = هر نقشی در شرکت، بقیه فقط `holding_admin`). `ProcessSampleSeeder`
+  (append-only در `DatabaseSeeder`، یک زنجیره‌ی کاملاً ساختگی
+  start→approval→condition→(دو مسیر)→end برای شرکت `arshaman`، تا Session
+  بعدی موتور اجرا رویش تست شود).
+
+  **تصمیم‌های این Session:**
+  - **استثنای مستند جدید:** `process_steps.step_type`/`assignment_type`/
+    `condition_operator`، `process_transitions.on_result`،
+    `process_instances.status`، `process_instance_logs.action` — هر شش با
+    تصمیم صریح کارفرما از نوع ENUM نیتیو MySQL هستند، نه VARCHAR+CHECK
+    استاندارد. جزئیات کامل در `docs/DATABASE_CONVENTIONS.md` بند ۱۵ (الگوی
+    دقیق بند ۱۴ برای SiteBuilder). `process_definitions.subject_type`/
+    `process_key` این استثنا را ندارند — مقدار آزادند، نه از یک مجموعه بسته.
+  - `process_definitions`/`process_steps` عمداً فقط `created_by_user_id`
+    (بدون `updated_by_user_id`) و بدون soft delete دارند — دقیقاً طبق ستون‌های
+    مشخص‌شده در پرامپت این Session، نه یک تصمیم مستقل از قرارداد سراسری بند
+    ۳ CLAUDE.md. اگر Session بعدی نیاز به ویرایش/حذف واقعی تعریف فرایند پیدا
+    کرد، این دو ستون باید قبل از ساخت آن Action اضافه شوند (migration
+    اصلاحی جدید، نه ویرایش این پنج migration).
+  - `process_transitions` بدون هیچ ستون audit/timestamp است — یک یال ساده‌ی
+    گراف بین دو `process_step`، دقیقاً طبق تعریف Session (که هیچ ستون
+    timestamp برای این جدول نخواسته بود).
+  - دو CHECK سطح دیتابیس (`process_definitions`: subject_type/request_form_fields
+    متقابلاً انحصاری؛ `process_instances`: subject_type/subject_id هر دو پر
+    یا هر دو خالی) با همان الگوی گارد `!== 'sqlite'` بقیه‌ی پروژه — تست‌های
+    مربوطه با `markTestSkipped` روی sqlite (محیط تست) skip می‌شوند، دقیقاً
+    الگوی `chk_products_fulfillment_type`/`chk_csa_outcome`.
+  - `ProcessSampleSeeder` مستقیم مدل‌ها را می‌سازد (نه از طریق یک Action/Gate)
+    — همان الگوی `CompanySeeder`/`FiscalPeriodSeeder::buildAttributes`، چون
+    seeder کاربر واردشده‌ای برای authorize ندارد؛ `withoutGlobalScopes()` روی
+    `updateOrCreate` تعریف برای جلوگیری از رکورد تکراری در هر بار seed
+    (همان درسِ مستندشده `FiscalPeriodSeeder`).
+  - تست شامل CHECK دوگانه (skip‌شده روی sqlite)، ایزولاسیون شرکت،
+    Policy (`holding_admin` فقط)، و بازسازی کامل زنجیره‌ی seed‌شده
+    (۵ step + ۵ transition با روابط صحیح) در `tests/Feature/Process/ProcessDefinitionTest.php`.
+    کل سوییت پروژه: ۵۴۸ سبز، ۱۳ skip (۲ مورد جدید همین ماژول + همان
+    CHECKهای mysql-only قبلی) — بدون رگرسیون.
+  - **تأیید مستقیم روی MySQL واقعی این Session ممکن نشد** — سرویس MySQL
+    محلی در لحظه‌ی اجرای این Session بالا نبود (`php artisan migrate --force`
+    با خطای اتصال شکست خورد). تأیید ساختاری فقط از طریق سوییت sqlite انجام
+    شد؛ اجرای `php artisan migrate --force` روی `arshaman_erp` واقعی (بدون
+    `fresh`، طبق بند ۸ CLAUDE.md) هنوز روی کاربر/Session بعدی باقی است.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): موتور اجرای واقعی
+(`ProcessEngine` service)، هیچ UI، اتصال واقعی به HR/مرخصی.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

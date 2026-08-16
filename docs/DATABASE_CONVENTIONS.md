@@ -265,3 +265,27 @@ MySQL، گاهی rebuild کامل جدول). همچنین چون این ستون
 می‌شود (نه از طریق Laravel) لیست مقادیر مجاز را از metadata ستون می‌بیند —
 که هم مزیت (خوداسنادی) هم محدودیت (وابستگی بیشتر schema به لیست دقیق
 مقادیر) دارد.
+
+---
+
+## ۱۵. استثنا: ENUM نیتیو MySQL برای شش ستون ماژول Process
+
+طبق تصمیم صریح کارفرما (مثل استثنای بند ۱۴ برای SiteBuilder)، شش ستون
+enum-like ماژول جدید `Process` (موتور گردش‌کار عمومی) هم از نوع `ENUM`
+نیتیو MySQL هستند، نه VARCHAR+CHECK استاندارد بخش ۳.۲:
+
+- `process_steps.step_type`
+- `process_steps.assignment_type`
+- `process_steps.condition_operator`
+- `process_transitions.on_result`
+- `process_instances.status`
+- `process_instance_logs.action`
+
+همان الگوی SiteBuilder: `$table->enum(...)` در Laravel، بدون گارد
+`Schema::getConnection()->getDriverName() !== 'sqlite'` — چون Laravel خودش
+روی mysql واقعی ENUM می‌سازد و روی sqlite (محیط تست) به VARCHAR+CHECK
+ترجمه می‌کند.
+
+`process_definitions.subject_type` و `process_definitions.process_key` این
+استثنا را **ندارند** — این دو مقدار آزاد (نام کلاس ماژول / کلید فرایند)
+هستند، نه از یک مجموعه بسته‌ی مقادیر، پس اصلاً ENUM/CHECK لیستی معنا ندارد.
