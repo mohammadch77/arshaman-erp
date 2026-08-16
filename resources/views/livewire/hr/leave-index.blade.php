@@ -75,7 +75,7 @@
                 />
             @endscope
 
-            @scope('cell_actions', $leave)
+            @scope('cell_actions', $leave, $activeProcessLeaveIds)
                 <div class="flex gap-1 justify-end">
                     {{-- دکمه دلیل فقط وقتی واقعاً دلیلی نوشته شده — نه یک دکمه
                          همیشه‌حاضر که مودال خالی باز کند. --}}
@@ -98,19 +98,28 @@
                     @endif
 
                     @if($leave->leave_status->value === 'pending')
-                        <x-button
-                            :icon="theme_icon('approve')"
-                            class="btn-success btn-circle btn-sm"
-                            tooltip-left="تأیید"
-                            wire:click="approve('{{ $leave->id }}')"
-                            wire:confirm="این مرخصی تأیید شود؟"
-                        />
-                        <x-button
-                            :icon="theme_icon('reject')"
-                            class="btn-error btn-circle btn-sm"
-                            tooltip-left="رد"
-                            wire:click="openReject('{{ $leave->id }}')"
-                        />
+                        @if(in_array($leave->id, $activeProcessLeaveIds, true))
+                            <x-badge
+                                value="در حال بررسی در فرآیند"
+                                class="badge-info"
+                                :icon="theme_icon('process')"
+                                tooltip-left="این درخواست از طریق فرایند سازمانی در حال بررسی است و مسیر مستقیم مسدود شده"
+                            />
+                        @else
+                            <x-button
+                                :icon="theme_icon('approve')"
+                                class="btn-success btn-circle btn-sm"
+                                tooltip-left="تأیید"
+                                wire:click="approve('{{ $leave->id }}')"
+                                wire:confirm="این مرخصی تأیید شود؟"
+                            />
+                            <x-button
+                                :icon="theme_icon('reject')"
+                                class="btn-error btn-circle btn-sm"
+                                tooltip-left="رد"
+                                wire:click="openReject('{{ $leave->id }}')"
+                            />
+                        @endif
                     @endif
                 </div>
             @endscope

@@ -20,7 +20,7 @@ return [
     */
 
     'subject_types' => [
-        // خالی — این Session فقط ساختار را می‌سازد؛ اتصال واقعی HR در Session بعدی.
+        \App\Modules\HR\Models\Leave::class,
     ],
 
     /*
@@ -40,7 +40,7 @@ return [
     */
 
     'condition_fields' => [
-        // خالی — پر می‌شود هم‌زمان با ثبت هر subject_type در بالا.
+        \App\Modules\HR\Models\Leave::class => ['days_count', 'leave_type'],
     ],
 
     /*
@@ -65,7 +65,10 @@ return [
     */
 
     'result_actions' => [
-        // خالی — پر می‌شود هم‌زمان با ثبت هر subject_type در بالا.
+        \App\Modules\HR\Models\Leave::class => [
+            'approved' => \App\Modules\HR\Actions\ApproveLeave::class,
+            'rejected' => \App\Modules\HR\Actions\RejectLeave::class,
+        ],
     ],
 
 ];

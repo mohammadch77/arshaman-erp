@@ -75,6 +75,7 @@ return [
         'hourly' => 'o-clock',
         'note' => 'o-chat-bubble-bottom-center-text',
         'reopen' => 'o-lock-open',
+        'process' => 'o-arrow-path',
         'party' => 'o-identification',
         'economic-code' => 'o-hashtag',
         'currency' => 'o-currency-dollar',

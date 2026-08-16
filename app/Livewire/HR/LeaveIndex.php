@@ -4,8 +4,11 @@ namespace App\Livewire\HR;
 
 use App\Modules\HR\Actions\ApproveLeave;
 use App\Modules\HR\Actions\RejectLeave;
+use App\Modules\HR\Enums\LeaveStatus;
 use App\Modules\HR\Models\Employee;
 use App\Modules\HR\Models\Leave;
+use App\Modules\Process\Services\ProcessEngine;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
@@ -43,7 +46,13 @@ class LeaveIndex extends Component
     {
         $leave = Leave::findOrFail($leaveId);
 
-        $action->handle($leave, auth()->user());
+        try {
+            $action->handle($leave, auth()->user());
+        } catch (ValidationException $exception) {
+            $this->error(collect($exception->errors())->flatten()->implode(' '));
+
+            return;
+        }
 
         $this->success('مرخصی تأیید شد.');
     }
@@ -62,7 +71,13 @@ class LeaveIndex extends Component
     {
         $leave = Leave::findOrFail($this->rejectingLeaveId);
 
-        $action->handle($leave, auth()->user(), $this->rejectionReason);
+        try {
+            $action->handle($leave, auth()->user(), $this->rejectionReason);
+        } catch (ValidationException $exception) {
+            $this->error(collect($exception->errors())->flatten()->implode(' '));
+
+            return;
+        }
 
         $this->showRejectModal = false;
         $this->rejectingLeaveId = null;
@@ -125,8 +140,20 @@ class LeaveIndex extends Component
 
     public function render()
     {
+        $leaves = $this->leaves;
+
+        // فقط برای درخواست‌های در انتظار معنا دارد؛ چون approve/reject خودش
+        // فقط روی pending اثر می‌کند، محدودکردن کوئری به همان‌ها کافی است.
+        $pendingIds = $leaves->getCollection()
+            ->where('leave_status', LeaveStatus::Pending)
+            ->pluck('id')
+            ->all();
+
+        $activeProcessLeaveIds = app(ProcessEngine::class)->activeInstanceSubjectIds(Leave::class, $pendingIds);
+
         return view('livewire.hr.leave-index', [
-            'leaves' => $this->leaves,
+            'leaves' => $leaves,
+            'activeProcessLeaveIds' => $activeProcessLeaveIds,
         ]);
     }
 }

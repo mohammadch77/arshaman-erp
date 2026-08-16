@@ -1905,4 +1905,92 @@ PageContentEditor.
 به HR/مرخصی (Session جدا)، ثبت `subject_type`/`condition_fields`/
 `result_actions` واقعی در `config/processes.php` (کار Session HR).
 
+- [x] Session 3: اولین اتصال واقعی — فرایند تأیید مرخصی HR
+
+  **چه ساخته شد:** `config/processes.php` رسمی شد: `subject_types` →
+  `Leave::class`، `condition_fields` → `['days_count', 'leave_type']`،
+  `result_actions` → `ApproveLeave::class`/`RejectLeave::class` (همان Action
+  های موجود HR، چیز جدیدی موازی ساخته نشد). Seeder جدید append-only
+  `ProcessLeaveDefinitionSeeder` (ثبت‌شده در `DatabaseSeeder` بعد از
+  `ProcessSampleSeeder`) — زنجیره‌ی واقعی: start → تأیید سرپرست/HR
+  (`accountant`) → بررسی مدت (`days_count <= 5`) → مسیر کوتاه مستقیم
+  `end_approved`، مسیر بلند از `تأیید اضافه‌ی مدیر ارشد` (`holding_admin`)
+  می‌گذرد؛ رد در هر مرحله‌ی approval → `end_rejected`.
+
+  دو متد عمومی جدید روی `ProcessEngine` — تنها نقطه‌ی اتصال HR به موتور:
+  - `startForSubjectIfActive(Model $subject, User $actor)`: اگر برای
+    `owner_company_id`/کلاس سوژه یک definition فعال باشد، instance می‌سازد؛
+    وگرنه `null`. `RequestLeave::handle()` این را همان داخل `DB::transaction`
+    بعد از `Leave::create()` صدا می‌زند — اگر تعریفی نبود، رفتار قبلی
+    (بدون فرایند) کاملاً دست‌نخورده می‌ماند.
+  - `hasActiveInstance(Model $subject)` / نسخه‌ی دسته‌ای
+    `activeInstanceSubjectIds()`: `ApproveLeave`/`RejectLeave` این را قبل از
+    هر تغییر مستقیم صدا می‌زنند و اگر instance «در جریان» باشد
+    `ValidationException` می‌اندازند («این درخواست از طریق فرایند سازمانی در
+    حال بررسی است») — مسیر مستقیم/موازی روی یک درخواست در حال فرایند مسدود
+    است. `LeaveIndex` هم از نسخه‌ی دسته‌ای برای پنهان‌کردن دکمه‌های تأیید/رد
+    و نمایش یک badge («در حال بررسی در فرآیند») استفاده می‌کند — کامپوننت
+    Livewire هرگز مستقیم مدل `ProcessInstance` را کوئری نمی‌کند (بند ۴).
+
+  **منبع واحد حقیقت برای نتیجه‌ی نهایی:** `ProcessEngine::completeInstance()`
+  حالا `$actor`/`$comment` را در طول کل زنجیره‌ی خودکار (شامل چند مرحله‌ی
+  condition پشت‌سرهم) حمل می‌کند و در انتها `applyResultAction()` را صدا
+  می‌زند — این متد از `config('processes.result_actions')` کلاس Action واقعی
+  را می‌خواند و با `(subject, actor, comment)` صدایش می‌زند (همان whitelist
+  امنیتی الگوی map/video در SiteBuilder، اینجا برای instantiate کلاس Action).
+  `$actor` همان آخرین کاربر انسانی‌ای است که این زنجیره را راه انداخته —
+  نقش‌های `assigned_role` مراحل تأیید مرخصی عمداً همان دو نقشی هستند که
+  `LeavePolicy::review()` هم‌اکنون مجاز می‌داند (`holding_admin`/`accountant`)
+  تا این فراخوانی خودکار همیشه از Gate داخلی `ApproveLeave`/`RejectLeave` رد
+  شود؛ در `completeInstance()` وضعیت instance **قبل از** این فراخوانی به
+  approved/rejected تغییر می‌کند، پس `hasActiveInstance()` خودِ همین فراخوانی
+  خودکار را مسدود نمی‌کند.
+
+  **باگ واقعی کشف‌شده حین نوشتن تست یکپارچه (نه فقط از روی مستندات):**
+  - `$instance->subject` (رابطه‌ی `morphTo()`) از global scope خودِ مدل سوژه
+    (`BelongsToCompany` روی `Leave`) عبور می‌کند که بر پایه‌ی `CompanyContext`
+    فعالِ session فیلتر می‌کند — این فراخوانی داخلی موتور اصلاً به یک شرکت
+    فعال در session وابسته نیست، پس همیشه `null` برمی‌گرداند و نتیجه‌ی
+    فرایند بی‌صدا هرگز روی سوژه اعمال نمی‌شد. رفع شد با متد خصوصی مشترک
+    `resolveSubject()` که همیشه `withoutGlobalScopes()->find()` می‌زند —
+    هم در `applyResultAction()` هم در `resolveConditionFieldValue()` (که
+    همین باگ را برای خواندن `days_count` هم داشت).
+  - **تصمیم طراحی از Session ۲ که در طراحی اول این Session نادیده گرفته
+    شد:** `ProcessEngine::resolveEndStatus()` نتیجه‌ی نهایی instance را
+    همیشه از روی **نوع نتیجه‌ی transition** تعیین می‌کند
+    (`condition_true`→`approved`، `condition_false`→`rejected`)، نه از روی
+    این‌که کدام end step فیزیکی هدف است. طراحی اول این Session مسیر «مرخصی
+    کوتاه، تأیید مستقیم» را با `condition_false` به سمت `end_approved` سوار
+    کرده بود — نتیجه این بود که هر مرخصی کوتاه واقعاً **رد** می‌شد، نه تأیید،
+    با اینکه transition به‌ظاهر درست به `end_approved` می‌رفت. با تست
+    یکپارچه (نه یک فرض دستی) کشف و اصلاح شد: شرط برعکس شد
+    (`condition_operator = LessThanOrEqual`)، پس مسیر «مستقیم تأیید» حالا
+    سوار `condition_true` است.
+
+  **تصمیم عملیاتی — چرا `ProcessLeaveDefinitionSeeder` روی دیتابیس واقعی
+  `arshaman_erp` اجرا نشد:** این Session صریح گفته بود هیچ UI ساخته نمی‌شود
+  (تأیید/رد مرحله‌ی فرایند فقط از طریق Action قابل صدازدن است، نه از پنل).
+  اگر این seeder روی شرکت واقعی `arshaman` اجرا می‌شد، از همین الان هر
+  درخواست مرخصی واقعی جدید در آن شرکت خودکار وارد فرایند می‌شد و دکمه‌های
+  تأیید/رد مستقیم `LeaveIndex` برایش مسدود می‌ماند — بدون هیچ راهی برای
+  عبور از آن مرحله تا Session بعدی UI بسازد. پس تأیید کامل روی MySQL واقعی
+  (هر ۵ سناریوی خواسته‌شده: خودکار شروع فرایند، مسدودشدن مسیر مستقیم، تأیید
+  کوتاه، تشدید و تأیید بلند، رد) با یک شرکت/کاربران/تعریف فرایند کاملاً
+  موقت داخل یک `DB::beginTransaction()`/`DB::rollBack()` انجام شد — صفر
+  رکورد باقی‌مانده روی `arshaman_erp`، تأیید شده مستقیم بعد از rollback.
+  خودِ seeder در `DatabaseSeeder` ثبت است و آماده‌ی اجراست؛ فعال‌سازی واقعی
+  آن روی شرکت `arshaman` باید هم‌زمان یا بعد از Session UI باشد، نه زودتر.
+
+  **تست‌ها:** `tests/Feature/Process/LeaveProcessIntegrationTest.php` (۵ تست) —
+  شروع خودکار + مسدودشدن مسیر مستقیم، تأیید کوتاه (`<=5` روز) با یک تأیید،
+  تشدید مرخصی بلند (`>5` روز) به تأیید مدیر ارشد، رد در مرحله‌ی اول، و
+  regression صریح برای شرکت بدون definition فعال (رفتار قدیم دست‌نخورده).
+  کل سوییت پروژه: ۵۶۱ سبز، ۱۳ skip (همان CHECKهای mysql-only) — بدون
+  رگرسیون.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): هیچ UI برای
+تأیید/رد مرحله‌ی فرایند (کارمند/سرپرست باید بتوانند از پنل واقعی اقدام
+کنند، نه فقط از طریق Action مستقیم)، فعال‌سازی seeder روی شرکت واقعی
+`arshaman`، اتصال فرایند به ماژول‌های دیگر غیر از HR.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

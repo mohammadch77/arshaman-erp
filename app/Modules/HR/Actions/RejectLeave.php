@@ -5,6 +5,7 @@ namespace App\Modules\HR\Actions;
 use App\Modules\Core\Models\User;
 use App\Modules\HR\Enums\LeaveStatus;
 use App\Modules\HR\Models\Leave;
+use App\Modules\Process\Services\ProcessEngine;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -22,6 +23,16 @@ class RejectLeave
     public function handle(Leave $leave, User $actor, ?string $rejectionReason = null): Leave
     {
         Gate::forUser($actor)->authorize('review', [Leave::class, $leave->owner_company_id]);
+
+        // چون ProcessEngine::completeInstance() هم خودش این Action را (به‌عنوان
+        // تنها مسیر مجاز تغییر leave_status) صدا می‌زند، این چک را نمی‌بندد —
+        // آن لحظه instance از قبل به rejected تغییر کرده. فقط مسیر مستقیم/موازی
+        // روی یک instance واقعاً «در جریان» مسدود می‌شود.
+        if (app(ProcessEngine::class)->hasActiveInstance($leave)) {
+            throw ValidationException::withMessages([
+                'leave_status' => 'این درخواست از طریق فرایند سازمانی در حال بررسی است.',
+            ]);
+        }
 
         if ($leave->leave_status !== LeaveStatus::Pending) {
             throw ValidationException::withMessages([
