@@ -1,0 +1,272 @@
+<?php
+
+namespace App\Modules\Process\Services;
+
+use App\Modules\Core\Models\User;
+use App\Modules\Process\Enums\AssignmentType;
+use App\Modules\Process\Enums\ConditionOperator;
+use App\Modules\Process\Enums\LogAction;
+use App\Modules\Process\Enums\ProcessStatus;
+use App\Modules\Process\Enums\StepType;
+use App\Modules\Process\Enums\TransitionResult;
+use App\Modules\Process\Exceptions\ProcessCycleDetectedException;
+use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessInstance;
+use App\Modules\Process\Models\ProcessInstanceLog;
+use App\Modules\Process\Models\ProcessStep;
+use App\Modules\Process\Models\ProcessTransition;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Model;
+use InvalidArgumentException;
+use RuntimeException;
+
+/**
+ * موتور اجرای واقعی گردش‌کار: یک process_instance را از مرحله‌ی start تا یک
+ * مرحله‌ی end (از میان مراحل approval/condition) جابه‌جا می‌کند.
+ *
+ * تصمیم طراحی — status نهایی instance: هر مرحله‌ی end با نتیجه‌ی همان
+ * انتقالی که به آن رسیده تعیین می‌شود (approved/condition_true → approved،
+ * rejected/condition_false → rejected)، نه با نام‌گذاری step_key. این قرارداد
+ * ساده و قطعی است و نیازی به یک ستون متادیتای جدید روی process_steps ندارد؛
+ * هر گراف جدیدی که در آینده ساخته شود همین قانون را رایگان می‌گیرد.
+ *
+ * محافظت در برابر چرخه: هر فراخوانی بیرونی (startInstance/advance) یک
+ * مجموعه‌ی visited مخصوص به خودش دارد که فقط در طول همان زنجیره‌ی خودکار
+ * condition→condition→... جمع می‌شود؛ اگر یک مرحله دوباره در همان زنجیره
+ * دیده شود یعنی چرخه‌ی واقعی در گراف است. یک سقف عمق (MAX_AUTO_ADVANCE_STEPS)
+ * هم به‌عنوان لایه‌ی دفاعی دوم وجود دارد.
+ */
+class ProcessEngine
+{
+    private const MAX_AUTO_ADVANCE_STEPS = 50;
+
+    public function startInstance(
+        ProcessDefinition $definition,
+        User $actor,
+        ?Model $subject = null,
+        ?array $requestData = null,
+    ): ProcessInstance {
+        $startStep = $definition->steps()->where('step_type', StepType::Start->value)->first();
+
+        if ($startStep === null) {
+            throw new InvalidArgumentException('این تعریف فرایند هیچ مرحله‌ی شروعی ندارد.');
+        }
+
+        if ($definition->subject_type !== null && ($subject === null || $subject::class !== $definition->subject_type)) {
+            throw new InvalidArgumentException('این تعریف فرایند به یک سوژه از نوع مشخص وصل است — سوژه‌ی داده‌شده مطابق نیست.');
+        }
+
+        if ($definition->subject_type === null && $subject !== null) {
+            throw new InvalidArgumentException('این تعریف فرایند آزاد است (بدون subject_type)؛ سوژه نباید داده شود.');
+        }
+
+        $instance = ProcessInstance::create([
+            'owner_company_id' => $definition->owner_company_id,
+            'process_definition_id' => $definition->id,
+            'subject_type' => $subject !== null ? $subject::class : null,
+            'subject_id' => $subject?->getKey(),
+            'request_data' => $requestData,
+            'current_step_id' => $startStep->id,
+            'status' => ProcessStatus::InProgress,
+            'started_by_user_id' => $actor->id,
+            'started_at' => now(),
+        ]);
+
+        $this->log($instance, $startStep, $actor, LogAction::Started, null);
+
+        // مرحله‌ی start هیچ اقدام انسانی لازم ندارد — بلافاصله با تنها انتقال
+        // خروجی‌اش (بدون فیلتر بر اساس on_result) به مرحله‌ی بعد می‌رود.
+        $this->moveFrom($instance, $startStep, null, [$startStep->id => true], 0);
+
+        return $instance->fresh();
+    }
+
+    /**
+     * نتیجه‌ی مرحله‌ی فعلی instance (approved/rejected از یک تأیید انسانی، یا
+     * condition_true/condition_false از یک ارزیابی خودکار دستی‌فراخوانی‌شده) را
+     * می‌گیرد، انتقال منطبق را پیدا و اعمال می‌کند.
+     */
+    public function advance(ProcessInstance $instance, string $result, ?User $actor = null, ?string $comment = null): void
+    {
+        if ($instance->status !== ProcessStatus::InProgress) {
+            throw new RuntimeException('این فرایند دیگر در جریان نیست — قابل انتقال نیست.');
+        }
+
+        $currentStep = $instance->currentStep;
+
+        if ($currentStep === null || $currentStep->step_type === StepType::End) {
+            throw new RuntimeException('مرحله‌ی فعلی این فرایند نامعتبر یا پایانی است.');
+        }
+
+        $resultEnum = TransitionResult::from($result);
+
+        $this->log($instance, $currentStep, $actor, $this->logActionForResult($resultEnum), $comment);
+
+        $this->moveFrom($instance, $currentStep, $resultEnum, [$currentStep->id => true], 0);
+    }
+
+    /**
+     * بررسی می‌کند آیا $actor واقعاً مجاز تصمیم‌گیری روی مرحله‌ی approval فعلی
+     * است — یا نقش assigned_role را در همان شرکت instance دارد، یا خودِ
+     * assigned_user_id است. طبق بند ۹ CLAUDE.md، این چک مستقل از caller است؛
+     * Action های ApproveProcessStep/RejectProcessStep همیشه آن را صدا می‌زنند.
+     */
+    public function assertActorAuthorizedForStep(ProcessInstance $instance, ProcessStep $step, User $actor): void
+    {
+        $authorized = match ($step->assignment_type) {
+            AssignmentType::Role => $step->assigned_role !== null
+                && $actor->hasRoleInCompany($instance->owner_company_id, $step->assigned_role),
+            AssignmentType::SpecificUser => $step->assigned_user_id !== null
+                && $step->assigned_user_id === $actor->id,
+            default => false,
+        };
+
+        if (! $authorized) {
+            throw new AuthorizationException('شما مجاز به تأیید یا رد این مرحله نیستید.');
+        }
+    }
+
+    /**
+     * @param  array<string, true>  $visitedStepIds  کلید = step id، فقط در طول همین زنجیره‌ی خودکار
+     */
+    private function moveFrom(
+        ProcessInstance $instance,
+        ProcessStep $fromStep,
+        ?TransitionResult $result,
+        array $visitedStepIds,
+        int $depth,
+    ): void {
+        if ($depth > self::MAX_AUTO_ADVANCE_STEPS) {
+            throw new ProcessCycleDetectedException('حد مجاز انتقال خودکار بین مراحل رد شد — احتمال چرخه در گراف فرایند.');
+        }
+
+        $transitionQuery = ProcessTransition::query()->where('from_step_id', $fromStep->id);
+
+        if ($result !== null) {
+            $transitionQuery->where('on_result', $result->value);
+        }
+
+        $transition = $transitionQuery->first();
+
+        if ($transition === null) {
+            throw new RuntimeException("هیچ انتقالی از مرحله‌ی «{$fromStep->name}» برای این نتیجه تعریف نشده است.");
+        }
+
+        $nextStep = $transition->toStep;
+
+        if (isset($visitedStepIds[$nextStep->id])) {
+            throw new ProcessCycleDetectedException('چرخه در گراف فرایند تشخیص داده شد — انتقال متوقف شد.');
+        }
+
+        $visitedStepIds[$nextStep->id] = true;
+
+        $instance->current_step_id = $nextStep->id;
+        $instance->save();
+
+        if ($nextStep->step_type === StepType::End) {
+            $this->completeInstance($instance, $nextStep, $result);
+
+            return;
+        }
+
+        if ($nextStep->step_type === StepType::Condition) {
+            $conditionResult = $this->evaluateCondition($instance, $nextStep);
+            $this->log($instance, $nextStep, null, LogAction::ConditionEvaluated, $conditionResult->label());
+            $this->moveFrom($instance, $nextStep, $conditionResult, $visitedStepIds, $depth + 1);
+
+            return;
+        }
+
+        // مرحله‌ی approval (یا start در یک گراف غیرعادی): اینجا متوقف می‌شود،
+        // منتظر اقدام انسانی بعدی (advance جداگانه) می‌ماند.
+    }
+
+    private function completeInstance(ProcessInstance $instance, ProcessStep $endStep, ?TransitionResult $arrivedVia): void
+    {
+        $instance->status = $this->resolveEndStatus($arrivedVia);
+        $instance->completed_at = now();
+        $instance->save();
+
+        $this->log($instance, $endStep, null, LogAction::Completed, null);
+    }
+
+    private function resolveEndStatus(?TransitionResult $arrivedVia): ProcessStatus
+    {
+        return match ($arrivedVia) {
+            TransitionResult::Approved, TransitionResult::ConditionTrue => ProcessStatus::Approved,
+            TransitionResult::Rejected, TransitionResult::ConditionFalse => ProcessStatus::Rejected,
+            // انتقال بدون نتیجه (مثلاً مستقیم از start) یک تکمیل بدون شاخه است.
+            default => ProcessStatus::Approved,
+        };
+    }
+
+    private function evaluateCondition(ProcessInstance $instance, ProcessStep $step): TransitionResult
+    {
+        $fieldValue = $this->resolveConditionFieldValue($instance, $step);
+        $targetValue = $step->condition_value;
+
+        $bothNumeric = is_numeric($fieldValue) && is_numeric($targetValue);
+        $left = $bothNumeric ? (float) $fieldValue : (string) $fieldValue;
+        $right = $bothNumeric ? (float) $targetValue : (string) $targetValue;
+
+        $passes = match ($step->condition_operator) {
+            ConditionOperator::GreaterThan => $left > $right,
+            ConditionOperator::LessThan => $left < $right,
+            ConditionOperator::Equal => $left == $right,
+            ConditionOperator::GreaterThanOrEqual => $left >= $right,
+            ConditionOperator::LessThanOrEqual => $left <= $right,
+            ConditionOperator::NotEqual => $left != $right,
+            null => throw new RuntimeException("مرحله‌ی شرط «{$step->name}» عملگر شرط ندارد."),
+        };
+
+        return $passes ? TransitionResult::ConditionTrue : TransitionResult::ConditionFalse;
+    }
+
+    /**
+     * فقط از فیلدهای whitelist‌شده در config/processes.php (برای فرایند وصل‌شده
+     * به یک subject_type) یا از request_data خودِ فرایند آزاد (که کلیدهایش از
+     * قبل توسط request_form_fields همان تعریف، ساخته‌شده توسط holding_admin،
+     * محدود شده) خوانده می‌شود — هرگز دسترسی آزاد به هر پراپرتی مدل.
+     */
+    private function resolveConditionFieldValue(ProcessInstance $instance, ProcessStep $step): mixed
+    {
+        $field = $step->condition_field;
+
+        if ($field === null) {
+            throw new RuntimeException("مرحله‌ی شرط «{$step->name}» فیلد شرط ندارد.");
+        }
+
+        if ($instance->subject_type !== null) {
+            $allowedFields = config("processes.condition_fields.{$instance->subject_type}", []);
+
+            if (! in_array($field, $allowedFields, true)) {
+                throw new RuntimeException("فیلد «{$field}» برای این نوع سوژه در whitelist شرط مجاز نیست.");
+            }
+
+            return $instance->subject?->{$field};
+        }
+
+        return data_get($instance->request_data, $field);
+    }
+
+    private function logActionForResult(TransitionResult $result): LogAction
+    {
+        return match ($result) {
+            TransitionResult::Approved => LogAction::Approved,
+            TransitionResult::Rejected => LogAction::Rejected,
+            TransitionResult::ConditionTrue, TransitionResult::ConditionFalse => LogAction::ConditionEvaluated,
+        };
+    }
+
+    private function log(ProcessInstance $instance, ProcessStep $step, ?User $actor, LogAction $action, ?string $comment): void
+    {
+        ProcessInstanceLog::create([
+            'owner_company_id' => $instance->owner_company_id,
+            'process_instance_id' => $instance->id,
+            'step_id' => $step->id,
+            'actor_user_id' => $actor?->id,
+            'action' => $action,
+            'comment' => $comment,
+        ]);
+    }
+}

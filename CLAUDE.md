@@ -1836,4 +1836,73 @@ PageContentEditor.
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): موتور اجرای واقعی
 (`ProcessEngine` service)، هیچ UI، اتصال واقعی به HR/مرخصی.
 
+- [x] Session 2: موتور اجرای واقعی (`ProcessEngine`)
+
+  **چه ساخته شد:** `App\Modules\Process\Services\ProcessEngine` — بدون
+  binding خاص در `ProcessServiceProvider` (کلاس ساده، از `app()` قابل resolve
+  است). دو متد عمومی اصلی: `startInstance()` (می‌سازد، روی مرحله‌ی `start`
+  می‌گذارد، بلافاصله با تنها انتقال خروجی آن جلو می‌رود) و `advance()`
+  (نتیجه‌ی مرحله‌ی approval فعلی را می‌گیرد و زنجیره را ادامه می‌دهد).
+  دو Action نازک `App\Modules\Process\Actions\{ApproveProcessStep,RejectProcessStep}`
+  که authorize واقعی (بند ۹ CLAUDE.md) را قبل از صدازدن `advance()` انجام
+  می‌دهند؛ چک authorize خودش در `ProcessEngine::assertActorAuthorizedForStep()`
+  است (نه در Action تکرار شده) چون به ساختار مرحله (assignment_type/
+  assigned_role/assigned_user_id) نیاز دارد که فقط سرویس آن را می‌شناسد.
+  استثنای اختصاصی `App\Modules\Process\Exceptions\ProcessCycleDetectedException`
+  (فرزند `RuntimeException`) برای تفکیک دقیق خطای چرخه از بقیه‌ی خطاهای موتور.
+
+  **تصمیم‌های این Session:**
+  - **قرارداد تعیین status نهایی instance:** هر مرحله‌ی `end` با نتیجه‌ی همان
+    انتقالی که به آن رسیده تعیین می‌شود — `approved`/`condition_true` →
+    `ProcessStatus::Approved`، `rejected`/`condition_false` →
+    `ProcessStatus::Rejected`. عمداً بر پایه‌ی *نتیجه‌ی انتقال* است، نه نام‌گذاری
+    `step_key` (مثل `end_approved`/`end_rejected` در seeder) — چون نام‌گذاری
+    یک قرارداد نمایشی است و هیچ‌جا در دیتابیس تضمین/اعتبارسنجی نمی‌شود؛ اتکا
+    به آن یعنی یک تعریف فرایند با نام‌گذاری متفاوت (یا فارسی) نتیجه‌ی نادرست
+    می‌گرفت. هیچ ستون متادیتای جدیدی به `process_steps` اضافه نشد.
+  - **زنجیره‌ی خودکار مراحل `condition`:** وقتی `advance()`/`startInstance()`
+    به یک مرحله‌ی `condition` می‌رسد، بلافاصله (بدون بازگشت به caller) آن را
+    ارزیابی و `advance` داخلی را تکرار می‌کند تا به یک مرحله‌ی `approval`
+    واقعی یا `end` برسد — کاملاً طبق درخواست. مرحله‌ی `approval` (یا `start`
+    در یک گراف غیرعادی) تنها جایی است که این حلقه‌ی داخلی واقعاً متوقف
+    می‌شود و منتظر یک `advance()` بیرونی بعدی می‌ماند.
+  - **محافظت در برابر چرخه، دولایه:** (۱) یک مجموعه‌ی `visited` که فقط در
+    طول *یک* فراخوانی بیرونی (`startInstance`/`advance`) جمع می‌شود — اگر
+    مرحله‌ای در همان زنجیره‌ی خودکار دوباره دیده شود، `ProcessCycleDetectedException`.
+    (۲) یک سقف عمق ثابت (`MAX_AUTO_ADVANCE_STEPS = 50`) به‌عنوان لایه‌ی دفاعی
+    دوم، مستقل از تشخیص چرخه‌ی دقیق. تست با یک گراف کاملاً ساختگی (دو مرحله‌ی
+    condition که به هم برمی‌گردند، ساخته‌شده مستقیم با Eloquent در تست، نه
+    از طریق seeder) هر دو راه واقعاً throw کردن را تأیید می‌کند.
+  - **خواندن فیلد شرط، فقط از دو مسیر whitelist‌شده:** برای فرایند وصل‌شده
+    به یک `subject_type`، از `config('processes.condition_fields.{FQCN}')`؛
+    برای فرایند آزاد (`subject_type=null`)، از `request_data` خودِ instance
+    — کلیدهای `request_data` از قبل توسط `request_form_fields` همان تعریف
+    (که فقط `holding_admin` می‌سازد) محدود شده‌اند، پس whitelist دوم لازم
+    نبود. هرگز دسترسی آزاد به یک پراپرتی دلخواه مدل subject.
+  - **اعتبارسنجی سازگاری subject در `startInstance()`:** اگر تعریف به یک
+    `subject_type` وصل است، سوژه‌ی داده‌شده باید دقیقاً همان کلاس باشد (نه
+    فقط «هر مدلی»)؛ اگر تعریف آزاد است، سوژه اصلاً نباید داده شود. هر دو
+    با `InvalidArgumentException` رد می‌شوند — این چک صریح خواسته‌ی پرامپت
+    نبود ولی از قبل در همان لایه بود، اضافه شد تا `subject_type`/`subject_id`
+    نامنطبق با ستون‌های دیتابیس فقط در Session HR (که واقعاً subject واقعی
+    می‌سازد) کشف نشود.
+  - **تست مستقیم روی MySQL واقعی:** با یک کاربر تستی موقت (نقش `holding_admin`
+    در شرکت `arshaman`، بند ۱۰ CLAUDE.md) زنجیره‌ی seed‌شده‌ی
+    `ProcessSampleSeeder` واقعاً از `start` تا هر دو `end` (تأیید با مبلغ بالا
+    → `end_approved`/`approved`، رد مستقیم → `end_rejected`/`rejected`) اجرا
+    و لاگ‌ها تأیید شدند؛ کاربر تستی و instance/logهای ساخته‌شده در پایان کامل
+    حذف شدند (تأیید شد صفر رکورد باقی‌مانده).
+
+  **تست‌ها:** `tests/Feature/Process/ProcessEngineTest.php` (۸ تست) — توقف
+  در اولین approval واقعی، تأیید توسط نقش مجاز → ادامه‌ی خودکار condition →
+  end تأیید‌شده، رد → مستقیم به end ردشده (بدون هیچ لاگ condition_evaluated)،
+  رد تأیید توسط کاربر بدون نقش/تخصیص درست (`AuthorizationException`)، تأیید
+  توسط `assigned_user_id` مشخص (بدون نقش)، هر دو مسیر شرط (بالا/پایین آستانه)،
+  و تشخیص چرخه‌ی واقعی. کل سوییت پروژه: ۵۵۶ سبز، ۱۳ skip (همان CHECKهای
+  mysql-only) — بدون رگرسیون.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): هیچ UI، اتصال واقعی
+به HR/مرخصی (Session جدا)، ثبت `subject_type`/`condition_fields`/
+`result_actions` واقعی در `config/processes.php` (کار Session HR).
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.
