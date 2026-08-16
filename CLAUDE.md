@@ -1821,11 +1821,17 @@ PageContentEditor.
     (۵ step + ۵ transition با روابط صحیح) در `tests/Feature/Process/ProcessDefinitionTest.php`.
     کل سوییت پروژه: ۵۴۸ سبز، ۱۳ skip (۲ مورد جدید همین ماژول + همان
     CHECKهای mysql-only قبلی) — بدون رگرسیون.
-  - **تأیید مستقیم روی MySQL واقعی این Session ممکن نشد** — سرویس MySQL
-    محلی در لحظه‌ی اجرای این Session بالا نبود (`php artisan migrate --force`
-    با خطای اتصال شکست خورد). تأیید ساختاری فقط از طریق سوییت sqlite انجام
-    شد؛ اجرای `php artisan migrate --force` روی `arshaman_erp` واقعی (بدون
-    `fresh`، طبق بند ۸ CLAUDE.md) هنوز روی کاربر/Session بعدی باقی است.
+  - **تأیید مستقیم روی MySQL واقعی (جلسه‌ی تکمیلی همان روز):** بعد از بالا
+    آمدن سرویس MySQL محلی، `php artisan migrate --force` (بدون `fresh`، طبق
+    بند ۸ CLAUDE.md) روی `arshaman_erp` واقعی بدون خطا اجرا شد؛
+    `ProcessSampleSeeder` هم روی همان دیتابیس اجرا شد. با کوئری مستقیم (نه
+    فقط پیام موفقیت دستور) تأیید شد: زنجیره‌ی seed‌شده دقیقاً همان ۵ step/۵
+    transition با روابط صحیح است، هر دو CHECK constraint
+    (`chk_process_definitions_subject_or_form`/`chk_process_instances_subject_pair`)
+    یک insert نامعتبر واقعی را با `QueryException` رد کردند، و هر شش ستون
+    enum-like (`step_type`/`assignment_type`/`condition_operator`/`on_result`/
+    `status`/`action`) واقعاً از نوع native `ENUM` هستند
+    (`information_schema.COLUMNS.COLUMN_TYPE`) — نه صرفاً VARCHAR.
 
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): موتور اجرای واقعی
 (`ProcessEngine` service)، هیچ UI، اتصال واقعی به HR/مرخصی.
