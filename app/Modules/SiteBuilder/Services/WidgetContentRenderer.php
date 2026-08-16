@@ -41,16 +41,12 @@ class WidgetContentRenderer
     private const MAP_ALLOWED_PATH_PREFIX = '/maps/embed';
 
     /**
-     * whitelist نام آیکون تزئینی ویجت icon — دقیقاً همان استثنای مستند Session ۲
-     * همین ماژول (نام آیکون داده‌ی سطح دیتابیس است، نه hardcode در Blade، پس
-     * نقض بند ۳.۵ CLAUDE.md نیست). هر نامی خارج از این لیست رد و لاگ می‌شود —
-     * دقیقاً همان الگوی whitelist دامنه map/video.
+     * مقادیر مجاز فیلد عمومی text_align — هر ویجتی که این فیلد را در
+     * editable_fields خودش تعریف کند (نگاه کن textAlignStyle) از همین enum
+     * بسته استفاده می‌کند، نه یک رشته آزاد که مستقیم در یک HTML attribute
+     * تزریق می‌شود.
      */
-    private const ALLOWED_DECORATIVE_ICONS = [
-        'o-star', 'o-shield-check', 'o-sparkles', 'o-bolt', 'o-heart',
-        'o-check-circle', 'o-globe-alt', 'o-light-bulb', 'o-rocket-launch',
-        'o-trophy', 'o-hand-thumb-up', 'o-clock', 'o-gift', 'o-face-smile',
-    ];
+    private const ALLOWED_TEXT_ALIGNS = ['right', 'left', 'center'];
 
     private const DEFAULT_PRIMARY_COLOR = '#2563EB';
 
@@ -242,13 +238,6 @@ class WidgetContentRenderer
         .sb-blog-post-list-empty{padding:2.5rem 1.5rem;text-align:center;color:#9ca3af;font-size:.9rem;border:1px dashed #e7e9ee;border-radius:var(--sb-radius-lg);}
         .sb-widget-text-editor{margin:.5rem 0;line-height:1.85;color:#20242c;}
         .sb-widget-text-editor img{max-width:100%;height:auto;border-radius:var(--sb-radius-md);}
-        .sb-widget-icon{display:inline-flex;margin:.5rem 0;}
-        .sb-icon-size-sm svg{width:1.5rem;height:1.5rem;}
-        .sb-icon-size-md svg{width:2.5rem;height:2.5rem;}
-        .sb-icon-size-lg svg{width:4rem;height:4rem;}
-        .sb-icon-color-primary svg{color:var(--sb-primary-color);}
-        .sb-icon-color-secondary svg{color:var(--sb-secondary-color);}
-        .sb-icon-color-muted svg{color:#9ca3af;}
         .sb-widget-slider{position:relative;margin:.5rem 0;border-radius:var(--sb-radius-lg);overflow:hidden;}
         .sb-slider-radio{position:absolute;opacity:0;pointer-events:none;}
         .sb-slider-track{display:flex;width:100%;}
@@ -330,7 +319,6 @@ class WidgetContentRenderer
             WidgetKey::ContactForm => $this->renderContactForm($values),
             WidgetKey::BlogPostList => $this->renderBlogPostList($values),
             WidgetKey::TextEditor => $this->renderTextEditor($values),
-            WidgetKey::Icon => $this->renderIcon($values),
             WidgetKey::Slider => $this->renderSlider($values, (string) ($node['id'] ?? Str::random(8))),
             WidgetKey::CustomerSignupForm => $this->renderCustomerSignupForm($values),
         };
@@ -349,7 +337,10 @@ class WidgetContentRenderer
         $level = (int) ($values['level'] ?? 2);
         $level = max(1, min(6, $level));
 
-        return "<h{$level} class=\"sb-widget sb-widget-title\">".e($text)."</h{$level}>";
+        $alignStyle = $this->textAlignStyle($values);
+        $styleAttr = $alignStyle !== '' ? ' style="'.$alignStyle.'"' : '';
+
+        return "<h{$level} class=\"sb-widget sb-widget-title\"{$styleAttr}>".e($text)."</h{$level}>";
     }
 
     private function renderImage(array $values): string
@@ -400,8 +391,15 @@ class WidgetContentRenderer
         }
 
         $style = ($values['style'] ?? 'primary') === 'outline' ? 'sb-btn-outline' : 'sb-btn-primary';
+        $anchor = '<a class="sb-widget-button '.$style.'" href="'.e($url).'">'.e($label).'</a>';
 
-        return '<a class="sb-widget sb-widget-button '.$style.'" href="'.e($url).'">'.e($label).'</a>';
+        // دکمه خودش inline-flex است، پس text-align روی خودش هیچ اثری ندارد —
+        // باید روی یک والد block اعمال شود تا موقعیت دکمه (راست/چپ/وسط) را
+        // در ردیف تعیین کند، نه فقط چیدمان متن داخلش.
+        $alignStyle = $this->textAlignStyle($values);
+        $styleAttr = $alignStyle !== '' ? ' style="'.$alignStyle.'"' : '';
+
+        return '<div class="sb-widget"'.$styleAttr.'>'.$anchor.'</div>';
     }
 
     private function renderGallery(array $values): string
@@ -861,35 +859,24 @@ class WidgetContentRenderer
             return '';
         }
 
-        return '<div class="sb-widget sb-widget-text-editor">'.$html.'</div>';
+        $alignStyle = $this->textAlignStyle($values);
+        $styleAttr = $alignStyle !== '' ? ' style="'.$alignStyle.'"' : '';
+
+        return '<div class="sb-widget sb-widget-text-editor"'.$styleAttr.'>'.$html.'</div>';
     }
 
-    private function renderIcon(array $values): string
+    /**
+     * مقدار فیلد عمومی 'text_align' یک نود (اگر در editable_fields همان ویجت
+     * تعریف شده و مقدار معتبری داشته باشد) را به یک CSS inline-style تبدیل
+     * می‌کند. یک فیلد عمومی است — هر ویجتی که آن را در کاتالوگ خودش تعریف
+     * کند (فعلاً: title, button, text_editor) خودکار پشتیبانی می‌شود، بدون
+     * نیاز به کد جدا به‌ازای هر ویجت.
+     */
+    private function textAlignStyle(array $values): string
     {
-        $iconName = (string) ($values['icon_name'] ?? '');
+        $align = $values['text_align'] ?? null;
 
-        if (! in_array($iconName, self::ALLOWED_DECORATIVE_ICONS, true)) {
-            if ($iconName !== '') {
-                Log::warning('SiteBuilder: نام آیکون خارج از whitelist رد شد.', ['icon_name' => $iconName]);
-            }
-
-            return '';
-        }
-
-        $size = in_array($values['size'] ?? null, ['sm', 'md', 'lg'], true) ? $values['size'] : 'md';
-        $color = in_array($values['color'] ?? null, ['primary', 'secondary', 'muted'], true) ? $values['color'] : 'primary';
-        $classes = 'sb-widget-icon sb-icon-size-'.$size.' sb-icon-color-'.$color;
-
-        try {
-            // Mary UI <x-icon name="o-star"> داخلی نام واقعی ست بلید-آیکون را
-            // 'heroicon-o-star' می‌سازد (نگاه کن Mary\View\Components\Icon::icon())
-            // — svg() سراسری هم باید همان نام کامل را بگیرد.
-            return '<div class="sb-widget">'.svg('heroicon-'.$iconName, $classes)->toHtml().'</div>';
-        } catch (\Throwable $e) {
-            Log::warning('SiteBuilder: رندر آیکون شکست خورد.', ['icon_name' => $iconName, 'error' => $e->getMessage()]);
-
-            return '';
-        }
+        return in_array($align, self::ALLOWED_TEXT_ALIGNS, true) ? 'text-align:'.$align.';' : '';
     }
 
     /**

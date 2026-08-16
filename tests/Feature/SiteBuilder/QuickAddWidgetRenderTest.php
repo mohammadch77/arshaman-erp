@@ -4,6 +4,7 @@ use App\Modules\SiteBuilder\Enums\WidgetKey;
 use App\Modules\SiteBuilder\Models\Widget;
 use App\Modules\SiteBuilder\Services\WidgetContentRenderer;
 use App\Modules\SiteBuilder\Services\WidgetTreeValueMerger;
+use Database\Seeders\SiteBuilderQuickAddWidgetsSeeder;
 
 it('renders text_editor html as-is (already sanitized upstream)', function () {
     $html = app(WidgetContentRenderer::class)->render([
@@ -34,25 +35,6 @@ it('sanitizes a richtext field value through WidgetTreeValueMerger before it eve
     expect($merged[0]['values']['html'])->not->toContain('<script>');
     expect($merged[0]['values']['html'])->not->toContain('onclick');
     expect($merged[0]['values']['html'])->toContain('سلام');
-});
-
-it('renders an icon widget only from the whitelisted icon names', function () {
-    $html = app(WidgetContentRenderer::class)->render([
-        ['id' => 'icon-1', 'widget_key' => WidgetKey::Icon->value, 'values' => ['icon_name' => 'o-star', 'size' => 'lg', 'color' => 'secondary'], 'children' => []],
-    ]);
-
-    // 'sb-widget-icon'/'sb-icon-size-lg' هم داخل بلوک <style> مشترک هم در تگ
-    // svg واقعی ظاهر می‌شوند، پس برای اثبات رندر واقعی (نه فقط وجود قاعده‌ی
-    // CSS) باید خودِ تگ <svg> را بررسی کرد.
-    expect($html)->toContain('<svg');
-});
-
-it('rejects an icon name outside the whitelist and renders nothing for it', function () {
-    $html = app(WidgetContentRenderer::class)->render([
-        ['id' => 'icon-1', 'widget_key' => WidgetKey::Icon->value, 'values' => ['icon_name' => 'o-totally-not-real'], 'children' => []],
-    ]);
-
-    expect($html)->not->toContain('<svg');
 });
 
 it('renders a slider widget with one radio/slide/dot per non-empty slide', function () {
@@ -87,9 +69,9 @@ it('renders nothing for a slider widget with no usable slides', function () {
 });
 
 it('seeds the four new session-9 widgets with editable_fields defined', function () {
-    $this->seed(\Database\Seeders\SiteBuilderQuickAddWidgetsSeeder::class);
+    $this->seed(SiteBuilderQuickAddWidgetsSeeder::class);
 
-    foreach ([WidgetKey::TextEditor, WidgetKey::Icon, WidgetKey::Slider, WidgetKey::CustomerSignupForm] as $key) {
+    foreach ([WidgetKey::TextEditor, WidgetKey::Slider, WidgetKey::CustomerSignupForm] as $key) {
         $widget = Widget::where('widget_key', $key->value)->first();
         expect($widget)->not->toBeNull();
         expect($widget->editableFields())->not->toBeEmpty();

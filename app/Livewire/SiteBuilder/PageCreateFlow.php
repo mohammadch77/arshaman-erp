@@ -231,6 +231,39 @@ class PageCreateFlow extends Component
         $this->refreshPreview();
     }
 
+    /**
+     * حذف یک نود از workingWidgetTree — دقیقاً همان PageContentEditor::deleteWidget()
+     * ولی بدون authorize جدا (همان استدلال moveWidgetNode/addWidget بالا: هیچ
+     * رکورد pages ای هنوز وجود ندارد، مجوز ساخت صفحه از قبل در mount() احراز شده).
+     */
+    public function deleteWidget(string $nodeId): void
+    {
+        if ($this->selectedDemoId === null) {
+            return;
+        }
+
+        $theme = $this->workingWidgetTree['theme'] ?? null;
+        $nodes = $this->workingWidgetTree;
+        unset($nodes['theme']);
+        $nodes = array_values($nodes);
+
+        try {
+            $updated = app(WidgetTreeReorderer::class)->remove($nodes, $nodeId);
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return;
+        }
+
+        $this->workingWidgetTree = $theme !== null ? ['theme' => $theme] + $updated : $updated;
+
+        if ($this->activeContainerId === $nodeId) {
+            $this->activeContainerId = null;
+        }
+
+        $this->refreshPreview();
+    }
+
     public function setActiveContainer(?string $nodeId): void
     {
         if ($nodeId === null) {

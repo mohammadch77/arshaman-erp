@@ -127,3 +127,26 @@ it('rejects adding a new node into a container that does not exist', function ()
 
     app(WidgetTreeReorderer::class)->addNode(wtrTree(), 'not-a-real-container', $newNode);
 })->throws(InvalidArgumentException::class);
+
+it('removes a root-level leaf node and leaves everything else untouched', function () {
+    $updated = app(WidgetTreeReorderer::class)->remove(wtrTree(), 'title-1');
+
+    expect(array_column($updated, 'id'))->toBe(['container-a', 'container-b']);
+});
+
+it('removes a nested leaf node from inside a container', function () {
+    $updated = app(WidgetTreeReorderer::class)->remove(wtrTree(), 'title-a1');
+
+    expect(array_column($updated, 'id'))->toBe(['title-1', 'container-a', 'container-b']);
+    expect(array_column($updated[1]['children'], 'id'))->toBe(['title-a2']);
+});
+
+it('removes a whole container along with all of its children', function () {
+    $updated = app(WidgetTreeReorderer::class)->remove(wtrTree(), 'container-a');
+
+    expect(array_column($updated, 'id'))->toBe(['title-1', 'container-b']);
+});
+
+it('rejects removing a node id that does not exist in the tree', function () {
+    app(WidgetTreeReorderer::class)->remove(wtrTree(), 'not-a-real-id');
+})->throws(InvalidArgumentException::class);

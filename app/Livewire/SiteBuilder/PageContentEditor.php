@@ -224,6 +224,43 @@ class PageContentEditor extends Component
     }
 
     /**
+     * حذف یک نود مشخص (پیش‌فرض دمو یا تازه‌اضافه‌شده) — فقط در حافظه، رکورد
+     * دیتابیس تا save() دست‌نخورده می‌ماند. همان authorize صریح
+     * moveWidgetNode/addWidget (بند ۹ CLAUDE.md). اگر نود مورد نظر همان
+     * محفظه‌ی «مقصد افزودن» فعلی بود، مقصد به ریشه بازنشانی می‌شود — وگرنه
+     * پنل افزودن به یک محفظه‌ی دیگر ناپدید اشاره می‌کرد.
+     */
+    public function deleteWidget(string $nodeId): void
+    {
+        if (! app(PagePolicy::class)->update(auth()->user(), $this->record)) {
+            $this->error('اجازه حذف ویجت را ندارید.');
+
+            return;
+        }
+
+        $theme = $this->widgetTree['theme'] ?? null;
+        $nodes = $this->widgetTree;
+        unset($nodes['theme']);
+        $nodes = array_values($nodes);
+
+        try {
+            $updated = app(WidgetTreeReorderer::class)->remove($nodes, $nodeId);
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return;
+        }
+
+        $this->widgetTree = $theme !== null ? ['theme' => $theme] + $updated : $updated;
+
+        if ($this->activeContainerId === $nodeId) {
+            $this->activeContainerId = null;
+        }
+
+        $this->refreshPreview();
+    }
+
+    /**
      * محفظه‌ی مقصد پنل افزودن ویجت را عوض می‌کند — فقط اگر واقعاً یک نود
      * Container باشد، وگرنه بی‌صدا نادیده گرفته می‌شود. null یعنی بازگشت به
      * ریشه صفحه.

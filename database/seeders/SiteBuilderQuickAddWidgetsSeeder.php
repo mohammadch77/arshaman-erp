@@ -7,10 +7,14 @@ use App\Modules\SiteBuilder\Models\Widget;
 use Illuminate\Database\Seeder;
 
 /**
- * چهار ویجت جدید Session ۹: سه ویجت کاتالوگ «افزودن سریع» (text_editor,
- * icon, slider) + یک ویجت یکپارچه CRM (customer_signup_form، الگوی دقیق
+ * سه ویجت جدید Session ۹: دو ویجت کاتالوگ «افزودن سریع» (text_editor,
+ * slider) + یک ویجت یکپارچه CRM (customer_signup_form، الگوی دقیق
  * contact_form). widgets سراسری‌اند (بدون owner_company_id)، پس
  * updateOrCreate امن است — append-only، بدون ویرایش seederهای قبلی.
+ *
+ * ویجت icon که این‌جا اضافه شده بود در یک Session بعدی طبق نظر کارفرما کامل
+ * حذف شد (نگاه کن WidgetKey enum و SiteBuilderRemoveIconWidgetSeeder) —
+ * دیگر اینجا تعریف نمی‌شود.
  */
 class SiteBuilderQuickAddWidgetsSeeder extends Seeder
 {
@@ -24,56 +28,15 @@ class SiteBuilderQuickAddWidgetsSeeder extends Seeder
                 'default_config' => [
                     'editable_fields' => [
                         ['key' => 'html', 'type' => 'richtext', 'label' => 'متن'],
-                    ],
-                ],
-            ],
-            [
-                'widget_key' => WidgetKey::Icon->value,
-                'name' => 'آیکون',
-                'icon' => 'o-sparkles',
-                'default_config' => [
-                    'editable_fields' => [
                         [
-                            'key' => 'icon_name',
+                            'key' => 'text_align',
                             'type' => 'select',
-                            'label' => 'آیکون',
+                            'label' => 'تراز متن',
+                            'default' => 'right',
                             'options' => [
-                                ['value' => 'o-star', 'label' => 'ستاره'],
-                                ['value' => 'o-shield-check', 'label' => 'محافظت'],
-                                ['value' => 'o-sparkles', 'label' => 'درخشش'],
-                                ['value' => 'o-bolt', 'label' => 'برق'],
-                                ['value' => 'o-heart', 'label' => 'قلب'],
-                                ['value' => 'o-check-circle', 'label' => 'تیک'],
-                                ['value' => 'o-globe-alt', 'label' => 'جهان'],
-                                ['value' => 'o-light-bulb', 'label' => 'لامپ'],
-                                ['value' => 'o-rocket-launch', 'label' => 'موشک'],
-                                ['value' => 'o-trophy', 'label' => 'جام'],
-                                ['value' => 'o-hand-thumb-up', 'label' => 'پسندیدن'],
-                                ['value' => 'o-clock', 'label' => 'ساعت'],
-                                ['value' => 'o-gift', 'label' => 'هدیه'],
-                                ['value' => 'o-face-smile', 'label' => 'لبخند'],
-                            ],
-                        ],
-                        [
-                            'key' => 'size',
-                            'type' => 'select',
-                            'label' => 'اندازه',
-                            'default' => 'md',
-                            'options' => [
-                                ['value' => 'sm', 'label' => 'کوچک'],
-                                ['value' => 'md', 'label' => 'متوسط'],
-                                ['value' => 'lg', 'label' => 'بزرگ'],
-                            ],
-                        ],
-                        [
-                            'key' => 'color',
-                            'type' => 'select',
-                            'label' => 'رنگ',
-                            'default' => 'primary',
-                            'options' => [
-                                ['value' => 'primary', 'label' => 'اصلی'],
-                                ['value' => 'secondary', 'label' => 'ثانویه'],
-                                ['value' => 'muted', 'label' => 'خنثی'],
+                                ['value' => 'right', 'label' => 'راست‌چین'],
+                                ['value' => 'left', 'label' => 'چپ‌چین'],
+                                ['value' => 'center', 'label' => 'وسط‌چین'],
                             ],
                         ],
                     ],

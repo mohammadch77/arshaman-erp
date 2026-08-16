@@ -20,7 +20,6 @@ enum WidgetKey: string
     case ContactForm = 'contact_form';
     case BlogPostList = 'blog_post_list';
     case TextEditor = 'text_editor';
-    case Icon = 'icon';
     case Slider = 'slider';
     case CustomerSignupForm = 'customer_signup_form';
 
@@ -43,7 +42,6 @@ enum WidgetKey: string
             self::ContactForm => 'فرم تماس',
             self::BlogPostList => 'فهرست پست‌های وبلاگ',
             self::TextEditor => 'متن غنی',
-            self::Icon => 'آیکون',
             self::Slider => 'اسلایدر تصاویر',
             self::CustomerSignupForm => 'فرم ثبت‌نام مشتری',
         };

@@ -22,7 +22,7 @@ class WidgetTreeReorderer
      * @return array<int, array<string, mixed>>
      *
      * @throws InvalidArgumentException اگر نود مبدا پیدا نشود، مقصد یک محفظه نباشد،
-     *                                   یا مقصد خودِ نود یا یکی از فرزندانش باشد (حلقه بی‌نهایت).
+     *                                  یا مقصد خودِ نود یا یکی از فرزندانش باشد (حلقه بی‌نهایت).
      */
     public function move(array $nodes, string $draggedId, ?string $targetParentId, int $targetIndex): array
     {
@@ -119,6 +119,33 @@ class WidgetTreeReorderer
     public function addNode(array $nodes, ?string $targetParentId, array $newNode): array
     {
         return $this->insert($nodes, $targetParentId, $newNode, PHP_INT_MAX);
+    }
+
+    /**
+     * حذف یک نود مشخص (هر عمقی) از درخت — دوباره‌استفاده از همان extract()
+     * که move() هم برای برداشتن نود مبدا از جای قبلی‌اش استفاده می‌کند، فقط
+     * اینجا نود برداشته‌شده دور ریخته می‌شود، نه جای دیگری درج. اگر نود یک
+     * محفظه باشد، همه‌ی فرزندانش هم چون داخل همان زیردرخت هستند خودکار با آن
+     * حذف می‌شوند (extract درخت را عمیق پیمایش می‌کند، نه فقط یک لایه) — این
+     * یک تصمیم عمدی است: نگه‌داشتن فرزندانِ یک محفظه‌ی حذف‌شده در ریشه یا هر
+     * جای دیگر یعنی بازآرایی ساختاری خاموش که کاربر انتظارش را نداشته. هشدار
+     * این پیامد در UI (widget-tree-node.blade.php، متن wire:confirm) داده
+     * می‌شود، نه اینجا.
+     *
+     * @param  array<int, array<string, mixed>>  $nodes
+     * @return array<int, array<string, mixed>>
+     *
+     * @throws InvalidArgumentException اگر نود مشخص‌شده در ساختار صفحه پیدا نشود.
+     */
+    public function remove(array $nodes, string $id): array
+    {
+        [$found, $remaining] = $this->extract($nodes, $id);
+
+        if ($found === null) {
+            throw new InvalidArgumentException('ویجت موردنظر برای حذف در ساختار صفحه پیدا نشد.');
+        }
+
+        return $remaining;
     }
 
     /**

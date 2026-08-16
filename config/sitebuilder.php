@@ -18,7 +18,6 @@ return [
         'title',
         'text_editor',
         'image',
-        'icon',
         'button',
         'gallery',
         'slider',

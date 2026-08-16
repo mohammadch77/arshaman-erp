@@ -13,12 +13,30 @@
         wire:submit="save"
         x-data="{
             previewTimer: null,
-            previewInFlight: null,
+            previewBusy: false,
+            previewPending: false,
             schedulePreview() {
                 clearTimeout(this.previewTimer);
-                this.previewTimer = setTimeout(() => {
-                    this.previewInFlight = $wire.refreshPreview().finally(() => { this.previewInFlight = null; });
-                }, 500);
+                this.previewTimer = setTimeout(() => this.runPreview(), 500);
+            },
+            runPreview() {
+                if (this.previewBusy) {
+                    // یک درخواست پیش‌نمایش دیگر هنوز در حال رفت‌وبرگشت است —
+                    // به‌جای رها کردن یک درخواست همزمان دوم (که ممکن است
+                    // زودتر برگردد و مقدار تازه‌تر را با یک پاسخ قدیمی‌تر
+                    // بازنویسی کند)، فقط علامت می‌گذاریم که وقتی درخواست
+                    // جاری تمام شد یک‌بار دیگر اجرا شود.
+                    this.previewPending = true;
+                    return;
+                }
+                this.previewBusy = true;
+                $wire.refreshPreview().finally(() => {
+                    this.previewBusy = false;
+                    if (this.previewPending) {
+                        this.previewPending = false;
+                        this.runPreview();
+                    }
+                });
             },
         }"
         x-on:livewire-upload-finish.window="schedulePreview()"
@@ -26,17 +44,19 @@
     >
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div class="flex flex-col gap-5">
-        <div class="flex items-center gap-2 text-base-content/70">
-            <x-icon :name="theme_icon('edit')" class="w-5 h-5" />
-            <span class="font-medium">محتوای ویجت‌ها</span>
-        </div>
-
                 @include('livewire.site-builder.partials.widget-add-panel', [
                     'quickAddWidgets' => $this->quickAddWidgets,
                     'activeContainerId' => $activeContainerId,
                     'activeContainerLabel' => $this->activeContainerLabel,
                     'canEdit' => $this->canEditWidgetValues,
                 ])
+
+        <div class="flex items-center gap-2 text-base-content/70">
+            <x-icon :name="theme_icon('edit')" class="w-5 h-5" />
+            <span class="font-medium">چیدمان و محتوای ویجت‌ها</span>
+        </div>
+
+                @include('livewire.site-builder.partials.widget-outline', ['nodes' => $this->widgetTreeUi])
 
                 @include('livewire.site-builder.partials.widget-tree', ['nodes' => $this->widgetTreeUi, 'canEdit' => $this->canEditWidgetValues, 'activeContainerId' => $activeContainerId])
 

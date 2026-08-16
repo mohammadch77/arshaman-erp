@@ -1663,4 +1663,103 @@ PageContentEditor.
   و حذف واقعی صفحه‌ی تستی. صفحه/پیام تماس/کاربر تستی در پایان کامل حذف شدند
   (بند ۱۰ CLAUDE.md).
 
+- [x] Session 10: بررسی گزارش باگ فیلدهای متنی، حذف ویجت icon، تراز متن، حذف تکی ویجت، بهبود UI
+
+  **بخش ۱ — گزارش «فیلدهای متنی قابل تایپ نیستند/دکمه دیده نمی‌شود/عنوان
+  فرم تماس دیده نمی‌شود» بازتولید نشد:** با کاربر تستی موقت واقعی روی
+  `127.0.0.1:8123`، تایپ واقعی (نه dispatchEvent ساختگی) در هر مسیر ممکن —
+  فیلد top-level (`image.alt`)، فیلد تودرتوی داخل container (`title.text`
+  ساعات کاری)، فیلد داخل repeater (`faq_accordion.items.N.question`)، فیلد
+  یک ویجت تازه‌اضافه‌شده با کلیک از پنل، و در هر دو PageCreateFlow/
+  PageContentEditor — همه‌جا مقدار درست تایپ، در widget_tree ذخیره، و در
+  content_html/iframe پیش‌نمایش رندر شد؛ button و contact_form.section_title
+  هم در content_html نهایی هم در iframe زنده حاضر بودند. **تصمیم:** به‌جای
+  حدس‌زدن یک «رفع» برای باگی که بازتولید نشد، یک ریسک واقعی که در کد وجود
+  داشت رفع شد — `schedulePreview()`/`refreshPreview()` (هر دو کامپوننت)
+  قبلاً هیچ محافظتی در برابر دو درخواست preview هم‌پوشان نداشت (`previewInFlight`
+  ثبت می‌شد ولی هرگز قبل از شروع تایمر بعدی چک نمی‌شد)؛ حالا با
+  `previewBusy`/`previewPending` یک درخواست در حال رفت‌وبرگشت هرگز با یک
+  درخواست دیگر هم‌پوشان نمی‌شود (صف تک‌مرحله‌ای، نه چند تایمر موازی) —
+  سخت‌شدن دفاعی، نه رفع یک باگ اثبات‌شده. تست‌های
+  `WidgetDeletionTextAlignTest` بخش «رگرسیون بخش ۱» این چهار ادعا را قفل
+  می‌کنند تا این کلاس رفتار در آینده نشکند.
+
+  **بخش ۲ — حذف کامل ویجت icon:** `WidgetKey::Icon` حذف شد (enum دیگر آن
+  case را ندارد)، `renderIcon()`/`ALLOWED_DECORATIVE_ICONS`/CSS مربوطه از
+  `WidgetContentRenderer` حذف شدند، از `config('sitebuilder.quick_add_widgets')`
+  حذف شد، و تعریفش از `SiteBuilderQuickAddWidgetsSeeder` برداشته شد.
+  **تصمیم دربارهٔ داده‌ی موجود:** بررسی مستقیم دیتابیس واقعی نشان داد هیچ
+  صفحه یا دموی واقعی‌ای از این ویجت استفاده نمی‌کرد، پس نیازی به migration
+  داده‌ی widget_tree نبود. برای ردیف کاتالوگ خودِ `widgets` (که با enum حذف‌شده
+  دیگر هرگز رندر نمی‌شود)، seeder یک‌باره‌ی جدید `SiteBuilderRemoveIconWidgetSeeder`
+  (idempotent، با رشته خام `'icon'` چون enum دیگر آن مقدار را ندارد) اضافه
+  و در `DatabaseSeeder` ثبت شد. اگر یک صفحه‌ی قدیمی‌تر (محیط دیگر) هنوز یک
+  نود icon در widget_tree داشته باشد، مسیر امنِ از‌قبل‌موجود
+  `WidgetContentRenderer::renderNode()` برای هر `widget_key` ناشناخته (لاگ +
+  حذف بی‌صدا از خروجی) خودکار آن را می‌گیرد — تصمیم آگاهانه به‌جای یک
+  migration داده‌ی جدا.
+
+  **بخش ۳ — فیلد عمومی `text_align`:** یک نوع فیلد جدید نیست، فقط یک کلید
+  `select` با مقادیر بسته `right`/`left`/`center` (`WidgetContentRenderer::
+  ALLOWED_TEXT_ALIGNS`) که هر ویجتی می‌تواند در `editable_fields` خودش
+  تعریف کند (فعلاً: `title`, `button`, `text_editor`) — سیستم فیلد عمومی
+  موجود (whitelist در `WidgetTreeValueMerger`، پیش‌فرض در `PageContentEditor::mount`/
+  `addWidget`، فرم `select` در `widget-fields.blade.php`) از قبل این را
+  بدون هیچ کد جدید پشتیبانی کرد. برای `title`/`text_editor` مستقیم
+  `style="text-align:...` روی همان تگ اعمال می‌شود. برای `button` این کار
+  نکرد چون `<a>` با `display:inline-flex` روی خودش `text-align` را نادیده
+  می‌گیرد — راه‌حل: لنگر حالا داخل یک `<div class="sb-widget" style="text-align:...">`
+  پیچیده می‌شود (کلاس عمومی `sb-widget` از خودِ `<a>` به این `<div>` منتقل
+  شد، نه تکرار).
+
+  **بخش ۴ — حذف تکی هر ویجت:** متد عمومی جدید `WidgetTreeReorderer::remove()`
+  (از همان `extract()` خصوصی موجود دوباره استفاده می‌کند — دقیقاً همان
+  پیمایش عمیقی که `move()` برای برداشتن نود مبدا استفاده می‌کند). **تصمیم
+  حذف محفظه:** cascade — چون `extract()` کل زیردرخت را با خودش برمی‌دارد،
+  حذف یک محفظه خودکار همه‌ی فرزندانش را هم حذف می‌کند؛ نگه‌داشتن فرزندان در
+  جای دیگر (ریشه یا محفظه‌ی دیگر) یک بازآرایی ساختاری خاموش و غیرمنتظره
+  بود. به‌جای مودال جدا، متن `wire:confirm` روی دکمه حذف بسته به نوع نود
+  فرق می‌کند («این محفظه و همه‌ی ویجت‌های داخلش حذف می‌شوند» در برابر «این
+  ویجت حذف شود؟») — همان الگوی `wire:confirm` مستقیم بلاگ/`FiscalPeriodIndex`،
+  نه یک کامپوننت تأییدیه جدید. `deleteWidget()` در هر دو `PageContentEditor`
+  (authorize صریح `PagePolicy::update`، بند ۹) و `PageCreateFlow` (بدون
+  authorize جدا، همان استدلال `moveWidgetNode`/`addWidget`) اضافه شد؛ اگر
+  نود حذف‌شده همان محفظه‌ی «مقصد افزودن» فعلی بود، مقصد به ریشه بازنشانی
+  می‌شود.
+
+  **بخش ۵ — بهبود UI پنل (بدون skill `artifact-design`، چون این یک artifact
+  نیست؛ `frontend-design`/`mary-ui-component` هر دو صدا زده شدند):** یک
+  فهرست/outline جدید (`partials/widget-outline.blade.php`، پشت یک
+  `<details>` جمع‌شونده وقتی بیش از یک ویجت وجود دارد) با لینک‌های `#sb-node-anchor-{id}`
+  به هر ویجت (هر عمقی، با تورفتگی بر اساس عمق) اضافه شد — بین پنل «افزودن
+  ویجت» و درخت واقعی. سرتیتر «چیدمان و محتوای ویجت‌ها» بالای درخت اضافه شد
+  تا مرز بصری «افزودن» در برابر «ویرایش/چیدمان» واضح‌تر باشد. دکمه‌ی حذف در
+  `widget-tree-node.blade.php` کنار دکمه‌ی «انتخاب به‌عنوان مقصد» (برای
+  محفظه‌ها) در همان `x-slot:menu` — یعنی محل عملیات هر کارت حالا همیشه یک
+  جای ثابت است (بالا-چپ کارت، نه پراکنده)، نه فقط برای محفظه‌ها. کلید آیکون
+  جدید `outline` (`o-list-bullet`) به `config/theme.php` اضافه شد (طبق
+  چک‌لیست skill، هیچ نام آیکون مستقیم در Blade).
+
+  **چک‌لیست skill `mary-ui-component` رعایت‌شده:** بدون کد رنگ مستقیم، آیکون
+  فقط از `theme_icon()` (کلید جدید `outline` قبل از استفاده به
+  `config/theme.php` اضافه شد)، کامپوننت‌های Mary UI (`x-button`, `x-card`,
+  `x-badge`) به‌جای HTML خام، بدون `ml-*`/`mr-*`/`pl-*`/`pr-*` جدید.
+
+  **تست‌ها:** `tests/Unit/SiteBuilder/WidgetTreeReordererTest.php` (۴ تست
+  جدید برای `remove()`)، `tests/Feature/SiteBuilder/WidgetDeletionTextAlignTest.php`
+  (جدید — حذف تکی/محفظه/عملگر operator/create-flow، رندر و whitelist
+  `text_align` برای هر سه ویجت، حذف کامل `icon` از enum/config/seeder،
+  skip امن یک نود icon باقی‌مانده، و رگرسیون بخش ۱). دو تست icon قدیمی در
+  `QuickAddWidgetRenderTest` حذف شدند. کل سوییت پروژه: ۵۳۵ سبز، ۱۱ skip
+  (همان CHECKهای mysql-only) — بدون رگرسیون.
+
+  **بازدید بصری واقعی** با `php artisan serve` روی `127.0.0.1:8123` (همان
+  محدودیت شبکه sandbox نسبت به دامنه Apache) و یک کاربر تستی موقت روی شرکت
+  واقعی `arshaman`: تأیید شد ویجت icon دیگر در پنل «افزودن ویجت» نیست، دکمه
+  حذف واقعی یک ویجت (نقشه) را از پیش‌نمایش زنده و بعد از Save از دیتابیس
+  واقعی حذف کرد، و تغییر `text_align` دکمه به `center` بلافاصله در iframe
+  پیش‌نمایش زنده (`style="text-align:center;"` روی `div` والد، نه خودِ
+  `<a>`) منعکس شد. کاربر و صفحه‌ی تستی در پایان کامل حذف شدند (بند ۱۰
+  CLAUDE.md).
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

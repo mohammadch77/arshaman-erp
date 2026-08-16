@@ -5,7 +5,8 @@
 --}}
 @php($isContainer = $node['is_container'])
 <div
-    class="sb-tree-node rounded-box border border-base-300 bg-base-100"
+    id="sb-node-anchor-{{ $node['id'] }}"
+    class="sb-tree-node scroll-mt-4 rounded-box border border-base-300 bg-base-100"
     data-node-id="{{ $node['id'] }}"
     wire:key="sb-node-{{ $node['id'] }}"
 >
@@ -24,17 +25,29 @@
             </div>
         </x-slot:title>
 
-        @if($isContainer && $canEdit)
+        @if($canEdit)
             <x-slot:menu>
-                @if(($activeContainerId ?? null) === $node['id'])
-                    <x-badge value="مقصد افزودن ویجت" class="badge-primary badge-sm" />
-                @else
+                <div class="flex items-center gap-2">
+                    @if($isContainer)
+                        @if(($activeContainerId ?? null) === $node['id'])
+                            <x-badge value="مقصد افزودن ویجت" class="badge-primary badge-sm" />
+                        @else
+                            <x-button
+                                label="انتخاب به‌عنوان مقصد"
+                                class="btn-ghost btn-xs"
+                                wire:click="setActiveContainer('{{ $node['id'] }}')"
+                            />
+                        @endif
+                    @endif
+
                     <x-button
-                        label="انتخاب به‌عنوان مقصد"
-                        class="btn-ghost btn-xs"
-                        wire:click="setActiveContainer('{{ $node['id'] }}')"
+                        :icon="theme_icon('delete')"
+                        class="btn-ghost btn-xs btn-circle text-error"
+                        wire:click="deleteWidget('{{ $node['id'] }}')"
+                        wire:confirm="{{ $isContainer ? 'این محفظه و همه‌ی ویجت‌های داخلش حذف می‌شوند. ادامه می‌دهید؟' : 'این ویجت حذف شود؟' }}"
+                        title="حذف ویجت"
                     />
-                @endif
+                </div>
             </x-slot:menu>
         @endif
 

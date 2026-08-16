@@ -34,6 +34,17 @@ class SiteBuilderSeeder extends Seeder
                 'default_config' => [
                     'editable_fields' => [
                         ['key' => 'text', 'type' => 'text', 'label' => 'متن عنوان'],
+                        [
+                            'key' => 'text_align',
+                            'type' => 'select',
+                            'label' => 'تراز متن',
+                            'default' => 'right',
+                            'options' => [
+                                ['value' => 'right', 'label' => 'راست‌چین'],
+                                ['value' => 'left', 'label' => 'چپ‌چین'],
+                                ['value' => 'center', 'label' => 'وسط‌چین'],
+                            ],
+                        ],
                     ],
                 ],
             ],

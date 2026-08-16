@@ -33,6 +33,17 @@ class SiteBuilderWidgetsExpansionSeeder extends Seeder
                                 ['value' => 'outline', 'label' => 'خط‌دور'],
                             ],
                         ],
+                        [
+                            'key' => 'text_align',
+                            'type' => 'select',
+                            'label' => 'تراز (موقعیت دکمه در ردیف)',
+                            'default' => 'right',
+                            'options' => [
+                                ['value' => 'right', 'label' => 'راست‌چین'],
+                                ['value' => 'left', 'label' => 'چپ‌چین'],
+                                ['value' => 'center', 'label' => 'وسط‌چین'],
+                            ],
+                        ],
                     ],
                 ],
             ],

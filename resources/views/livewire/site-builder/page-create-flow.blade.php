@@ -1,12 +1,25 @@
 <div
     x-data="{
         previewTimer: null,
-        previewInFlight: null,
+        previewBusy: false,
+        previewPending: false,
         schedulePreview() {
             clearTimeout(this.previewTimer);
-            this.previewTimer = setTimeout(() => {
-                this.previewInFlight = $wire.refreshPreview().finally(() => { this.previewInFlight = null; });
-            }, 500);
+            this.previewTimer = setTimeout(() => this.runPreview(), 500);
+        },
+        runPreview() {
+            if (this.previewBusy) {
+                this.previewPending = true;
+                return;
+            }
+            this.previewBusy = true;
+            $wire.refreshPreview().finally(() => {
+                this.previewBusy = false;
+                if (this.previewPending) {
+                    this.previewPending = false;
+                    this.runPreview();
+                }
+            });
         },
     }"
     x-on:livewire-upload-finish.window="schedulePreview()"
@@ -76,6 +89,13 @@
                         'activeContainerLabel' => $this->activeContainerLabel,
                         'canEdit' => true,
                     ])
+
+                    <div class="flex items-center gap-2 text-base-content/70">
+                        <x-icon :name="theme_icon('edit')" class="w-5 h-5" />
+                        <span class="font-medium">چیدمان و محتوای ویجت‌ها</span>
+                    </div>
+
+                    @include('livewire.site-builder.partials.widget-outline', ['nodes' => $this->widgetTreeUi])
 
                     @include('livewire.site-builder.partials.widget-tree', ['nodes' => $this->widgetTreeUi, 'canEdit' => true, 'activeContainerId' => $activeContainerId])
                 </div>
