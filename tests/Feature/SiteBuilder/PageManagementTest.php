@@ -367,3 +367,108 @@ it('uploads a real image file and stores its path in the page widget_tree', func
     expect($storedPath)->not->toBeNull();
     Storage::disk('public')->assertExists($storedPath);
 });
+
+it('lets PageContentEditor update title/slug/meta of an existing page', function () {
+    [$user, $company] = sbActingAsWithRole('holding_admin');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+    sbSeedWidgets();
+    $demo = sbAboutDemo();
+
+    $page = app(CreatePageFromDemo::class)->handle([
+        'owner_company_id' => $company->id,
+        'page_demo_id' => $demo->id,
+        'title' => 'درباره ما',
+        'slug' => 'about-us',
+    ], $user);
+
+    Livewire::test(PageContentEditor::class, ['page' => $page->id])
+        ->set('title', 'درباره تیم ما')
+        ->set('slug', 'about-our-team')
+        ->set('meta_title', 'عنوان سئو جدید')
+        ->set('meta_description', 'توضیح متای جدید')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $page->refresh();
+
+    expect($page->title)->toBe('درباره تیم ما')
+        ->and($page->slug)->toBe('about-our-team')
+        ->and($page->meta_title)->toBe('عنوان سئو جدید')
+        ->and($page->meta_description)->toBe('توضیح متای جدید');
+});
+
+it('does not raise a false duplicate-slug error when saving without changing the slug', function () {
+    [$user, $company] = sbActingAsWithRole('holding_admin');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+    sbSeedWidgets();
+    $demo = sbAboutDemo();
+
+    $page = app(CreatePageFromDemo::class)->handle([
+        'owner_company_id' => $company->id,
+        'page_demo_id' => $demo->id,
+        'title' => 'درباره ما',
+        'slug' => 'about-us',
+    ], $user);
+
+    Livewire::test(PageContentEditor::class, ['page' => $page->id])
+        ->set('title', 'درباره ما (ویرایش‌شده)')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($page->fresh()->slug)->toBe('about-us')
+        ->and($page->fresh()->title)->toBe('درباره ما (ویرایش‌شده)');
+});
+
+it('rejects a slug that collides with another page in the same company', function () {
+    [$user, $company] = sbActingAsWithRole('holding_admin');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+    sbSeedWidgets();
+    $demo = sbAboutDemo();
+
+    app(CreatePageFromDemo::class)->handle([
+        'owner_company_id' => $company->id,
+        'page_demo_id' => $demo->id,
+        'title' => 'صفحه یک',
+        'slug' => 'page-one',
+    ], $user);
+
+    $pageTwo = app(CreatePageFromDemo::class)->handle([
+        'owner_company_id' => $company->id,
+        'page_demo_id' => $demo->id,
+        'title' => 'صفحه دو',
+        'slug' => 'page-two',
+    ], $user);
+
+    Livewire::test(PageContentEditor::class, ['page' => $pageTwo->id])
+        ->set('slug', 'page-one')
+        ->call('save')
+        ->assertHasErrors(['slug']);
+});
+
+it('reflects a published page slug change at the new public URL', function () {
+    [$user, $company] = sbActingAsWithRole('holding_admin');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+    sbSeedWidgets();
+    $demo = sbAboutDemo();
+
+    $page = app(CreatePageFromDemo::class)->handle([
+        'owner_company_id' => $company->id,
+        'page_demo_id' => $demo->id,
+        'title' => 'درباره ما',
+        'slug' => 'about-us',
+    ], $user);
+
+    $page->update(['page_status' => PageStatus::Published]);
+
+    Livewire::test(PageContentEditor::class, ['page' => $page->id])
+        ->set('slug', 'about-us-new')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->get(route('public-site.show', [$company->slug, 'about-us-new']))->assertOk();
+    $this->get(route('public-site.show', [$company->slug, 'about-us']))->assertNotFound();
+});

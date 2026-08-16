@@ -44,6 +44,21 @@
     >
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div class="flex flex-col gap-5">
+                <x-card shadow>
+                    <x-slot:title>
+                        <span class="inline-flex items-center gap-2">
+                            <x-icon :name="theme_icon('page')" class="w-4 h-4 text-base-content/60" />
+                            اطلاعات صفحه
+                        </span>
+                    </x-slot:title>
+                    <x-input label="عنوان صفحه" wire:model="title" :icon="theme_icon('page')" :disabled="! $this->canEditWidgetValues" required />
+                    <x-input label="نشانی صفحه (slug)" wire:model="slug" :icon="theme_icon('link-account')" :disabled="! $this->canEditWidgetValues" required
+                        hint="{{ $record->page_status === \App\Modules\SiteBuilder\Enums\PageStatus::Published ? 'این صفحه منتشرشده است — تغییر نشانی، آدرس فعلی صفحه را می‌شکند.' : null }}"
+                    />
+                    <x-input label="عنوان متا (سئو، اختیاری)" wire:model="meta_title" :disabled="! $this->canEditWidgetValues" />
+                    <x-textarea label="توضیح متا (سئو، اختیاری)" wire:model="meta_description" rows="2" :disabled="! $this->canEditWidgetValues" />
+                </x-card>
+
                 @include('livewire.site-builder.partials.widget-add-panel', [
                     'quickAddWidgets' => $this->quickAddWidgets,
                     'activeContainerId' => $activeContainerId,

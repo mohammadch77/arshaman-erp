@@ -62,6 +62,14 @@ class PageContentEditor extends Component
      */
     public array $linesRaw = [];
 
+    public string $title = '';
+
+    public string $slug = '';
+
+    public string $meta_title = '';
+
+    public string $meta_description = '';
+
     public string $extra_css = '';
 
     public string $extra_js = '';
@@ -89,6 +97,11 @@ class PageContentEditor extends Component
         $this->authorize('view', $this->record);
 
         $this->widgetTree = $this->record->widget_tree;
+
+        $this->title = $this->record->title;
+        $this->slug = $this->record->slug;
+        $this->meta_title = (string) ($this->record->meta_title ?? '');
+        $this->meta_description = (string) ($this->record->meta_description ?? '');
 
         $this->extra_css = (string) ($this->record->extra_css ?? '');
         $this->extra_js = (string) ($this->record->extra_js ?? '');
@@ -605,6 +618,15 @@ class PageContentEditor extends Component
     protected function rules(): array
     {
         return [
+            'title' => ['required', 'string', 'max:150'],
+            'slug' => [
+                'required', 'string', 'max:150', 'alpha_dash',
+                Rule::unique('pages', 'slug')
+                    ->where('owner_company_id', $this->record->owner_company_id)
+                    ->ignore($this->record->id),
+            ],
+            'meta_title' => ['nullable', 'string', 'max:70'],
+            'meta_description' => ['nullable', 'string', 'max:160'],
             'extra_css' => ['nullable', 'string'],
             'extra_js' => ['nullable', 'string'],
             'page_status' => ['required', Rule::in(array_map(fn ($case) => $case->value, PageStatus::cases()))],
@@ -636,6 +658,15 @@ class PageContentEditor extends Component
             // ارسال‌نکردنش از این authorize('update') اضافه (که مسیر
             // extra_css-فقط operator را می‌شکست) جلوگیری می‌کند.
             $this->canEditWidgetValues ? $this->widgetTree : null,
+            // همان استدلال widgetTree بالا: عنوان/اسلاگ/متا هم یک ویرایش
+            // محتوایی است، نه فقط extra_css/extra_js — operator روی صفحه‌ی
+            // published نباید بتواند این‌ها را هم عوض کند.
+            $this->canEditWidgetValues ? [
+                'title' => $data['title'],
+                'slug' => $data['slug'],
+                'meta_title' => $data['meta_title'] !== '' ? $data['meta_title'] : null,
+                'meta_description' => $data['meta_description'] !== '' ? $data['meta_description'] : null,
+            ] : null,
         );
 
         $this->success('محتوای صفحه ذخیره شد.', redirectTo: route('sitebuilder.pages.index'));
