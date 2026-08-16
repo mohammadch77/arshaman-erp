@@ -6,17 +6,21 @@
             <x-input label="عنوان سایت" wire:model="site_title" :icon="theme_icon('site')" />
             <x-input label="شعار سایت" wire:model="site_tagline" />
 
-            <x-file label="لوگو" wire:model="logo" accept="image/*" hint="حداکثر ۱ مگابایت">
-                @if($existingLogoUrl && ! $logo)
+            @if($existingLogoUrl && ! $logo)
+                <x-file label="لوگو" wire:model="logo" accept="image/*" hint="حداکثر ۱ مگابایت">
                     <img src="{{ $existingLogoUrl }}" class="mt-2 h-12" />
-                @endif
-            </x-file>
+                </x-file>
+            @else
+                <x-file label="لوگو" wire:model="logo" accept="image/*" hint="حداکثر ۱ مگابایت" />
+            @endif
 
-            <x-file label="فاوآیکون" wire:model="favicon" accept="image/*" hint="حداکثر ۲۵۶ کیلوبایت">
-                @if($existingFaviconUrl && ! $favicon)
+            @if($existingFaviconUrl && ! $favicon)
+                <x-file label="فاوآیکون" wire:model="favicon" accept="image/*" hint="حداکثر ۲۵۶ کیلوبایت">
                     <img src="{{ $existingFaviconUrl }}" class="mt-2 h-8" />
-                @endif
-            </x-file>
+                </x-file>
+            @else
+                <x-file label="فاوآیکون" wire:model="favicon" accept="image/*" hint="حداکثر ۲۵۶ کیلوبایت" />
+            @endif
         </x-card>
 
         <x-card shadow title="صفحات سایت">
