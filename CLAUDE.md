@@ -1993,4 +1993,72 @@ PageContentEditor.
 کنند، نه فقط از طریق Action مستقیم)، فعال‌سازی seeder روی شرکت واقعی
 `arshaman`، اتصال فرایند به ماژول‌های دیگر غیر از HR.
 
+- [x] Session 4: پنل طراحی فرایند برای holding_admin — اولین UI واقعی ماژول
+
+  **چه ساخته شد:** `App\Modules\Process\Services\ProcessGraphValidator` —
+  اعتبارسنجی کامل گراف *قبل* از نوشتن در دیتابیس، روی آرایه‌های خام فرم
+  (step_key به‌عنوان شناسه‌ی گره، چون UUID واقعی هنوز ساخته نشده): هر مرحله
+  دقیقاً تعداد/نوع گذار خروجی مجاز خودش را دارد (start=۱، approval/
+  condition=۲ با نتیجه‌ی متفاوت، end=۰)، فیلد شرط فقط از whitelist
+  `config('processes.condition_fields')`، دسترس‌پذیری همه‌ی مراحل از start
+  (BFS)، و نبودِ چرخه (DFS سه‌رنگ) — این سه با هم تضمین می‌کنند هر مسیر
+  ممکن قطعاً به یک end می‌رسد، بدون نیاز به بررسی جداگانه‌ی «هر مسیر تمام
+  می‌شود». Action های `CreateProcessDefinition`/`UpdateProcessDefinition`
+  (authorize صریح + `ProcessGraphValidator` + یک `DB::transaction` واحد
+  برای definition+steps+transitions با هم، بند ۹ CLAUDE.md) و
+  `ToggleProcessDefinitionActive` (مستقل، همیشه مجاز). کامپوننت‌های
+  `ProcessDefinitionIndex`/`ProcessDefinitionForm` (مسیرهای `/processes`,
+  `/processes/create`, `/processes/{id}/edit`) — فرم ساختاریافته (فهرست
+  مراحل + برای هر مرحله انتخاب گذار خروجی از یک select)، عمداً **نه** یک
+  canvas گرافیکی آزاد مثل GrapesJS در SiteBuilder که تجربه‌ی خوبی نداشت.
+  منوی «طراحی فرایندها» زیر منوی اصلی (نه زیرمنو)، کنار «سال‌های مالی»،
+  با همان شرط دقیق `ProcessDefinitionPolicy::create` (`hasRoleInCompany`
+  مقید به شرکت فعال، فقط `holding_admin`).
+
+  **تصمیم این Session — ویرایش ساختاری وقتی تعریف سابقه‌ی instance دارد:**
+  `process_instances.current_step_id` و `process_instance_logs.step_id` هر
+  دو FK با RESTRICT (بدون CASCADE) به `process_steps` دارند — یعنی حذف
+  مراحل قدیمی برای بازسازی ساختار، حتی برای یک instance که سال‌ها پیش
+  approved/rejected شده، در سطح دیتابیس با `QueryException` شکست می‌خورد.
+  به‌جای اجازه‌دادن به این خطای خام، `UpdateProcessDefinition` از همان
+  ابتدا آگاهانه تشخیص می‌دهد تعریف سابقه دارد (هر status ای، نه فقط
+  `in_progress`) و در آن حالت فقط `name`/`is_active` را می‌پذیرد؛ ارسال
+  steps/transitions تازه بی‌صدا نادیده گرفته می‌شود. **امن‌ترین رفتار:**
+  تاریخچه‌ی یک فرایند هرگز زیر پای instance های واقعی عوض نمی‌شود؛ برای
+  تغییر واقعی گردش‌کار، یک `process_key` جدید بسازید و نسخه‌ی قدیمی را
+  غیرفعال کنید (`is_active` مستقل قابل‌تغییر می‌ماند چون فقط جلوی
+  instance های *تازه* را می‌گیرد). `ProcessDefinitionForm` همین قید را در
+  UI هم منعکس می‌کند (`hasHistory` — همه‌ی فیلدهای ساختاری غیرفعال + یک
+  `x-alert` هشدار).
+
+  **بازدید بصری واقعی** با `php artisan serve` روی `127.0.0.1:8123` (همان
+  محدودیت شبکه‌ی sandbox نسبت به دامنه‌ی Apache، مستندشده در ماژول
+  SiteBuilder) و یک کاربر تستی موقت روی شرکت واقعی `arshaman`: یک فرایند
+  شش‌مرحله‌ای واقعی (start → approval → condition(days_count<=5) →
+  senior_approval → دو end) کاملاً از طریق پنل ساخته و ذخیره شد؛ ساختار
+  دقیق (۶ مرحله، ۷ گذار) مستقیم از دیتابیس واقعی تأیید شد. سپس همان
+  definition (نه یک seed جداگانه) با `ProcessEngine` — بدون هیچ UI بخش
+  تأیید/رد — برای هر سه مسیر واقعاً اجرا شد: مرخصی کوتاه (مستقیم تأیید)،
+  مرخصی بلند (تشدید به تأیید ارشد)، و رد در مرحله‌ی اول؛ هر سه هم وضعیت
+  `ProcessInstance` هم `leaves.leave_status` واقعی (از طریق `ApproveLeave`/
+  `RejectLeave` واقعی) درست تغییر کردند — اثبات این‌که فرایند ساخته‌شده از
+  UI واقعاً قابل‌اجراست، نه فقط ساختاری معتبر. همه‌ی این اجراها داخل یک
+  `DB::beginTransaction()`/`rollBack()` انجام شد (صفر رکورد باقی‌مانده).
+  کاربر تستی و definition ساخته‌شده از UI در پایان کامل حذف شدند (بند ۱۰
+  CLAUDE.md).
+
+  **تست‌ها:** `tests/Feature/Process/ProcessDefinitionDesignerTest.php` —
+  ساخت کامل یک تعریف (definition+steps+transitions در یک تراکنش)، رد
+  گذار ناقص، رد فیلد شرط خارج از whitelist، رد مرحله‌ی یتیم، رد چرخه در
+  گراف، ۴۰۳ برای operator/accountant/viewer روی هر دو مسیر
+  `/processes`|`/processes/create`، و قفل‌شدن ساختار وقتی تعریف حداقل یک
+  instance دارد (فقط name/is_active تغییر می‌کند). کل سوییت پروژه: ۵۶۹
+  سبز، ۱۳ skip (همان CHECKهای mysql-only) — بدون رگرسیون.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): پنل درخواست فرایند
+برای کاربر عادی (شروع instance از UI، نه فقط `ProcessEngine::startInstance`
+مستقیم)، پنل تأیید/رد مرحله برای approver (کارمند اختصاص‌یافته)، فعال‌سازی
+seeder روی شرکت واقعی `arshaman`، جابه‌جایی/چیدمان بصری مراحل (مثل
+drag-and-drop ویجت SiteBuilder — این Session عمداً فقط انتخاب از select بود).
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

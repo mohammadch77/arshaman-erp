@@ -59,6 +59,14 @@
                     <x-menu-item title="سال‌های مالی" :icon="theme_icon('calendar')" link="{{ route('fiscal-periods.index') }}" />
                 @endif
 
+                {{-- طراحی فرایندها — پنل ادمین ماژول Process. عمداً
+                     hasRoleInCompany($activeCompany->id, 'holding_admin') مقید به شرکت
+                     فعال است، دقیقاً همان شرط ProcessDefinitionPolicy::create که
+                     ProcessDefinitionIndex/Form با آن authorize می‌کنند. --}}
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id, 'holding_admin'))
+                    <x-menu-item title="طراحی فرایندها" :icon="theme_icon('process')" link="{{ route('processes.index') }}" />
+                @endif
+
                 {{-- منابع انسانی — پنل ادمین/حسابدار. عمداً hasRoleInCompany($activeCompany->id, [...])
                      مقید به شرکت فعال است، نه hasRole() سراسری — دقیقاً همان شرطی که
                      EmployeePolicy/AttendancePolicy/LeavePolicy/PayrollPolicy::viewAny واقعاً

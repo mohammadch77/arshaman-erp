@@ -1,5 +1,9 @@
 <?php
 
+use App\Modules\HR\Actions\ApproveLeave;
+use App\Modules\HR\Actions\RejectLeave;
+use App\Modules\HR\Models\Leave;
+
 return [
 
     /*
@@ -20,7 +24,21 @@ return [
     */
 
     'subject_types' => [
-        \App\Modules\HR\Models\Leave::class,
+        Leave::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | برچسب فارسی هر subject_type برای پنل طراحی فرایند (holding_admin)
+    |--------------------------------------------------------------------------
+    |
+    | فقط برای نمایش در select پنل ProcessDefinitionForm — خودِ subject_type
+    | ذخیره‌شده در دیتابیس همچنان FQCN خام است، این کلید فقط برچسب است.
+    |
+    */
+
+    'subject_type_labels' => [
+        Leave::class => 'درخواست مرخصی (منابع انسانی)',
     ],
 
     /*
@@ -40,7 +58,7 @@ return [
     */
 
     'condition_fields' => [
-        \App\Modules\HR\Models\Leave::class => ['days_count', 'leave_type'],
+        Leave::class => ['days_count', 'leave_type'],
     ],
 
     /*
@@ -65,9 +83,9 @@ return [
     */
 
     'result_actions' => [
-        \App\Modules\HR\Models\Leave::class => [
-            'approved' => \App\Modules\HR\Actions\ApproveLeave::class,
-            'rejected' => \App\Modules\HR\Actions\RejectLeave::class,
+        Leave::class => [
+            'approved' => ApproveLeave::class,
+            'rejected' => RejectLeave::class,
         ],
     ],
 

@@ -115,6 +115,7 @@ return [
         'footer' => 'o-bars-3-bottom-left',
         'drag-handle' => 'o-arrows-up-down',
         'outline' => 'o-list-bullet',
+        'locked' => 'o-lock-closed',
     ],
 
 ];

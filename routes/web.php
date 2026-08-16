@@ -39,6 +39,8 @@ use App\Livewire\HR\SelfService\MyPayslips;
 use App\Livewire\Inventory\LowStockReport;
 use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
+use App\Livewire\Process\ProcessDefinitionForm;
+use App\Livewire\Process\ProcessDefinitionIndex;
 use App\Livewire\SiteBuilder\LayoutDemoSelector;
 use App\Livewire\SiteBuilder\PageContentEditor;
 use App\Livewire\SiteBuilder\PageCreateFlow;
@@ -149,6 +151,10 @@ Route::livewire('/sitebuilder/pages/{page}/edit', PageContentEditor::class)->mid
 Route::livewire('/sitebuilder/settings', LayoutDemoSelector::class)->middleware('auth')->name('sitebuilder.settings');
 Route::get('/sitebuilder/pages/{page}/preview', [PublicSiteController::class, 'preview'])->middleware('auth')->name('sitebuilder.pages.preview');
 Route::post('/sitebuilder/editor-image-upload', SiteBuilderEditorImageUploadController::class)->middleware('auth')->name('sitebuilder.editor-image-upload');
+
+Route::livewire('/processes', ProcessDefinitionIndex::class)->middleware('auth')->name('processes.index');
+Route::livewire('/processes/create', ProcessDefinitionForm::class)->middleware('auth')->name('processes.create');
+Route::livewire('/processes/{processDefinition}/edit', ProcessDefinitionForm::class)->middleware('auth')->name('processes.edit');
 
 // مسیرهای عمومی سایت‌ساز — بدون middleware auth. پیشوند /site/... با
 // /sitebuilder/... بالا تداخل ندارد (segment اول متفاوت است)، پس نیازی به
