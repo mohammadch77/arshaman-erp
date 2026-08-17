@@ -59,12 +59,20 @@
                     <x-menu-item title="سال‌های مالی" :icon="theme_icon('calendar')" link="{{ route('fiscal-periods.index') }}" />
                 @endif
 
-                {{-- طراحی فرایندها — پنل ادمین ماژول Process. عمداً
-                     hasRoleInCompany($activeCompany->id, 'holding_admin') مقید به شرکت
-                     فعال است، دقیقاً همان شرط ProcessDefinitionPolicy::create که
-                     ProcessDefinitionIndex/Form با آن authorize می‌کنند. --}}
-                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id, 'holding_admin'))
-                    <x-menu-item title="طراحی فرایندها" :icon="theme_icon('process')" link="{{ route('processes.index') }}" />
+                {{-- فرایندها — «کارهای من»/«درخواست جدید»/«درخواست‌های من» در دسترس هر
+                     نقشی در شرکت (بند ۴ صندوق کارهای من)، عمداً hasRoleInCompany($activeCompany->id)
+                     بدون فهرست نقش، دقیقاً همان شرط ProcessDefinitionPolicy::viewAny.
+                     «طراحی فرایندها» زیرمجموعه‌اش می‌ماند ولی با شرط جداگانه‌ی
+                     holding_admin — دقیقاً همان ProcessDefinitionPolicy::create. --}}
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-sub title="فرایندها" :icon="theme_icon('process')">
+                        <x-menu-item title="کارهای من" :icon="theme_icon('inbox')" link="{{ route('processes.tasks') }}" />
+                        <x-menu-item title="درخواست جدید" :icon="theme_icon('add')" link="{{ route('processes.request') }}" />
+                        <x-menu-item title="درخواست‌های من" :icon="theme_icon('history')" link="{{ route('processes.my-requests') }}" />
+                        @if(auth()->user()->hasRoleInCompany($activeCompany->id, 'holding_admin'))
+                            <x-menu-item title="طراحی فرایندها" :icon="theme_icon('template')" link="{{ route('processes.index') }}" />
+                        @endif
+                    </x-menu-sub>
                 @endif
 
                 {{-- منابع انسانی — پنل ادمین/حسابدار. عمداً hasRoleInCompany($activeCompany->id, [...])

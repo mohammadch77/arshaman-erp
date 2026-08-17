@@ -39,6 +39,9 @@ use App\Livewire\HR\SelfService\MyPayslips;
 use App\Livewire\Inventory\LowStockReport;
 use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
+use App\Livewire\Process\MyProcessRequests;
+use App\Livewire\Process\MyProcessTasks;
+use App\Livewire\Process\NewProcessRequest;
 use App\Livewire\Process\ProcessDefinitionForm;
 use App\Livewire\Process\ProcessDefinitionIndex;
 use App\Livewire\SiteBuilder\LayoutDemoSelector;
@@ -155,6 +158,13 @@ Route::post('/sitebuilder/editor-image-upload', SiteBuilderEditorImageUploadCont
 Route::livewire('/processes', ProcessDefinitionIndex::class)->middleware('auth')->name('processes.index');
 Route::livewire('/processes/create', ProcessDefinitionForm::class)->middleware('auth')->name('processes.create');
 Route::livewire('/processes/{processDefinition}/edit', ProcessDefinitionForm::class)->middleware('auth')->name('processes.edit');
+
+// «صندوق کارهای من» — در دسترس هر کاربری با هر نقش (برخلاف /processes بالا
+// که فقط holding_admin است)، پس عمداً segment جدا و بدون تداخل با route های
+// بالا (تعداد segment متفاوت از /processes/{id}/edit است).
+Route::livewire('/processes/tasks', MyProcessTasks::class)->middleware('auth')->name('processes.tasks');
+Route::livewire('/processes/request', NewProcessRequest::class)->middleware('auth')->name('processes.request');
+Route::livewire('/processes/my-requests', MyProcessRequests::class)->middleware('auth')->name('processes.my-requests');
 
 // مسیرهای عمومی سایت‌ساز — بدون middleware auth. پیشوند /site/... با
 // /sitebuilder/... بالا تداخل ندارد (segment اول متفاوت است)، پس نیازی به

@@ -2061,4 +2061,75 @@ PageContentEditor.
 seeder روی شرکت واقعی `arshaman`، جابه‌جایی/چیدمان بصری مراحل (مثل
 drag-and-drop ویجت SiteBuilder — این Session عمداً فقط انتخاب از select بود).
 
+- [x] Session 5: «صندوق کارهای من» — آخرین قطعه‌ی نقشه‌راه اصلی ماژول
+
+  **چه ساخته شد:** سه کامپوننت Livewire جدید، همه در دسترس هر کاربری با هر
+  نقش (برخلاف `/processes` که فقط holding_admin است): `MyProcessTasks`
+  (`/processes/tasks`)، `NewProcessRequest` (`/processes/request`)،
+  `MyProcessRequests` (`/processes/my-requests`). `ProcessInstancePolicy`
+  جدید (`view`/`approve`/`reject`) — `approve`/`reject` هرگز منطق تخصیص را
+  دوباره پیاده نمی‌کنند، فقط `ProcessEngine::assertActorAuthorizedForStep`
+  را به یک بولین بی‌طرف‌شده تبدیل می‌کنند (تنها منبع حقیقت همان می‌ماند).
+  کلاس کمکی مشترک `App\Modules\Process\Support\ProcessSubjectSummary` —
+  هم برای «کارهای من» هم «درخواست‌های من» — خلاصه‌ی سوژه (وصل‌به‌ماژول) یا
+  `request_data` (آزاد) را می‌سازد. منوی سایدبار «طراحی فرایندها» به یک
+  `x-menu-sub` «فرایندها» تبدیل شد که این سه مورد را کنار «طراحی فرایندها»
+  (هنوز holding_admin-فقط) نشان می‌دهد.
+
+  **تصمیم‌های این Session:**
+  - **بند ۴ CLAUDE.md حفظ شد بدون استثنا:** `ProcessSubjectSummary` هرگز
+    مدل HR (`Leave`) را import نمی‌کند. نگاشت «کدام فیلد سوژه نمایش داده
+    شود» یک کلید داده‌محور تازه در `config/processes.php` است
+    (`subject_summary_fields`، مثل `subject_type_labels`/`condition_fields`
+    قبلی — همه در همان فایل config پروژه‌ای که از قبل `Leave::class` را
+    import می‌کرد، نه در کد ماژول Process) و از `data_get()` عمومی
+    (پشتیبان مسیر نقطه‌ای حتی روی رابطه‌ها مثل `employee.full_name`)
+    عبور می‌کند، نه دسترسی مستقیم به پراپرتی.
+  - **کوئری «کارهای من» بدون فیلتر دستی شرکت:** چون `ProcessInstance` از
+    قبل `BelongsToCompany` دارد، global scope خودش کوئری را به شرکت فعال
+    سوییچر محدود می‌کند — نیازی به `where('owner_company_id', ...)` دستی
+    نبود، فقط فهرست نقش‌های کاربر *در همان شرکت* (`companyRoles()->where
+    ('owner_company_id', $companyId)`) برای تطبیق `assignment_type=role`
+    لازم بود. `is_super_admin` مثل خودِ `assertActorAuthorizedForStep`
+    (که از طریق `hasRoleInCompany` بای‌پس سراسری super_admin را می‌گیرد)
+    همه‌ی نقش‌ها را می‌بیند، نه فقط نقش‌های خودش.
+  - **تست ۴۰۳ روی مسیر مستقیم Action** (نه فقط پنهان‌بودن دکمه) با دو لایه
+    تأیید شد: هم فراخوانی مستقیم `ApproveProcessStep`/`RejectProcessStep`
+    با یک actor بدون دسترسی (`toThrow(AuthorizationException::class)`)،
+    هم از طریق خودِ کامپوننت Livewire با `Livewire::test(...)->call('approve')
+    ->assertForbidden()` — چون Livewire در تست، `AuthorizationException`
+    پرتاب‌شده از یک متد کامپوننت را به پاسخ ۴۰۳ واقعی تبدیل می‌کند (نه یک
+    exception قابل `toThrow`)؛ این تفاوت رفتار حین نوشتن تست کشف و اصلاح شد.
+  - `NewProcessRequest` عمداً `whereNull('subject_type')` را در همان
+    computed property فهرست می‌گذارد (نه یک Policy جدا) — فرایند
+    وصل‌به‌ماژول اصلاً نباید اینجا دیده شود، صرف‌نظر از نقش کاربر.
+
+  **بازدید بصری کامل از ابتدا تا انتها، فقط از طریق UI (بدون هیچ tinker
+  برای تأیید/رد)** با کاربر تستی موقت (`process-visual-test@example.com`،
+  نقش `holding_admin` در شرکت واقعی `arshaman`) روی `127.0.0.1:8123`: یک
+  تعریف فرایند آزاد دومرحله‌ای (تأیید ۱ → تأیید ۲ → پایان، هر دو مرحله
+  role=holding_admin) فقط با tinker *ساخته* شد (چون طراحی گرافیکی این
+  زنجیره در Session قبلی این ماژول تست شده بود و اینجا تمرکز روی پنل‌های
+  تازه بود، نه خودِ طراح)، سپس کل چرخه‌ی واقعی از مرورگر طی شد: درخواست از
+  `/processes/request` با فرم پویای واقعی (نام تجهیز + تعداد) → مشاهده در
+  `/processes/my-requests` با وضعیت «در جریان» → تأیید مرحله ۱ از
+  `/processes/tasks` با نظر متنی → بازگشت خودکار همان درخواست به فهرست
+  کارها برای مرحله ۲ → تأیید مرحله ۲ → فهرست کارها خالی شد → «درخواست‌های
+  من» وضعیت «تأیید نهایی» را نشان داد → تاریخچه‌ی کامل (شروع → تأیید ۱ با
+  نظر → تأیید ۲ → تکمیل خودکار سیستم) در مودال تاریخچه تأیید شد. تعریف
+  فرایند تستی (با همه‌ی step/transition/instance/log آن) و کاربر تستی در
+  پایان کامل حذف شدند (بند ۱۰ CLAUDE.md).
+
+  **تست‌ها:** `tests/Feature/Process/MyProcessPanelsTest.php` (۹ تست) —
+  دیدن کار فقط توسط نقش تخصیص‌یافته (نه نقش دیگر)، تأیید/رد واقعی از پنل
+  با پیشرفت واقعی instance، مسدودشدن ۴۰۳ هم در سطح Action هم در سطح
+  کامپوننت Livewire، ثبت درخواست آزاد با `request_data` درست، غیاب
+  فرایندهای وصل‌به‌ماژول از «درخواست جدید»، تاریخچه‌ی «درخواست‌های من»
+  محدود به درخواست‌های خودِ کاربر، و ایزولاسیون شرکت. کل سوییت پروژه: ۵۷۸
+  سبز، ۱۳ skip (همان CHECKهای mysql-only) — بدون رگرسیون.
+
+با این Session، «صندوق کارهای من» — آخرین قطعه‌ی صریحاً باقی‌مانده‌ی نقشه‌راه
+ماژول Process — تکمیل شد. آنچه هنوز باز است (فعال‌سازی seeder روی شرکت واقعی
+`arshaman`، جابه‌جایی بصری مراحل، اعلان هنگام رسیدن نوبت) در `docs/BACKLOG.md` می‌ماند.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.
