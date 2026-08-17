@@ -48,7 +48,7 @@ class UpdateProcessDefinition
             return $definition->fresh(['steps.outgoingTransitions']);
         }
 
-        $this->validator->validate($data['subject_type'], $data['steps'], $data['transitions']);
+        $this->validator->validate($data['subject_type'], $data['steps'], $data['transitions'], $data['request_form_fields'] ?? []);
 
         return DB::transaction(function () use ($definition, $data) {
             $definition->update([
@@ -66,7 +66,7 @@ class UpdateProcessDefinition
 
             $stepIdsByKey = [];
 
-            foreach ($data['steps'] as $step) {
+            foreach ($data['steps'] as $order => $step) {
                 $created = ProcessStep::create([
                     'process_definition_id' => $definition->id,
                     'step_key' => $step['step_key'],
@@ -78,16 +78,19 @@ class UpdateProcessDefinition
                     'condition_field' => $step['condition_field'] ?? null,
                     'condition_operator' => $step['condition_operator'] ?? null,
                     'condition_value' => $step['condition_value'] ?? null,
+                    'step_form_fields' => $step['step_form_fields'] ?? null,
+                    'display_order' => $order,
                 ]);
 
                 $stepIdsByKey[$step['step_key']] = $created->id;
             }
 
-            foreach ($data['transitions'] as $transition) {
+            foreach ($data['transitions'] as $order => $transition) {
                 ProcessTransition::create([
                     'from_step_id' => $stepIdsByKey[$transition['from_step_key']],
                     'to_step_id' => $stepIdsByKey[$transition['to_step_key']],
                     'on_result' => $transition['on_result'],
+                    'display_order' => $order,
                 ]);
             }
 

@@ -33,6 +33,14 @@ class MyProcessTasks extends Component
 
     public string $comment = '';
 
+    /**
+     * مقادیر فرم اضافه‌ی خودِ مرحله (step_form_fields، بخش ۳ Session جاری) —
+     * فقط وقتی مرحله‌ی فعلی چنین فرمی داشته باشد پر می‌شود؛ کلید = field key.
+     *
+     * @var array<string, mixed>
+     */
+    public array $stepDataValues = [];
+
     public ?string $historyInstanceId = null;
 
     public bool $showHistoryModal = false;
@@ -126,6 +134,26 @@ class MyProcessTasks extends Component
     {
         $this->commentInstanceId = $instanceId;
         $this->comment = '';
+        $this->stepDataValues = [];
+
+        foreach ($this->commentStepFormFields as $field) {
+            $this->stepDataValues[$field['key']] = $field['type'] === 'boolean' ? false : null;
+        }
+    }
+
+    /**
+     * فیلدهای فرم اضافه‌ی مرحله‌ی فعلی همان instance که مودال تأیید/رد برایش
+     * باز است — خالی اگر این مرحله فرم اضافه‌ای تعریف نکرده باشد.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getCommentStepFormFieldsProperty(): array
+    {
+        if ($this->commentInstanceId === null) {
+            return [];
+        }
+
+        return ProcessInstance::find($this->commentInstanceId)?->currentStep?->step_form_fields ?? [];
     }
 
     public function approve(ApproveProcessStep $action): void
@@ -185,10 +213,11 @@ class MyProcessTasks extends Component
 
         $this->authorize($ability, $instance);
 
-        $action->handle($instance, auth()->user(), $this->comment !== '' ? $this->comment : null);
+        $action->handle($instance, auth()->user(), $this->comment !== '' ? $this->comment : null, $this->stepDataValues);
 
         $this->commentInstanceId = null;
         $this->comment = '';
+        $this->stepDataValues = [];
 
         $this->success($successMessage);
     }

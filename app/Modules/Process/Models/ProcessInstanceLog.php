@@ -22,6 +22,7 @@ class ProcessInstanceLog extends Model
         'action',
         'comment',
         'reversed_at',
+        'step_data',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class ProcessInstanceLog extends Model
         return [
             'action' => LogAction::class,
             'reversed_at' => 'datetime',
+            'step_data' => 'array',
         ];
     }
 

@@ -7,6 +7,7 @@ use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Enums\TransitionResult;
 use App\Modules\Process\Models\ProcessInstance;
 use App\Modules\Process\Services\ProcessEngine;
+use App\Modules\Process\Support\StepFormValidator;
 use RuntimeException;
 
 /**
@@ -17,7 +18,11 @@ class RejectProcessStep
 {
     public function __construct(private readonly ProcessEngine $engine) {}
 
-    public function handle(ProcessInstance $instance, User $actor, ?string $comment = null): void
+    /**
+     * @param  array<string, mixed>  $stepData  مقادیر فرم اضافه‌ی خودِ این مرحله (بخش ۳
+     *                                            Session جاری، اگر step_form_fields داشته باشد)
+     */
+    public function handle(ProcessInstance $instance, User $actor, ?string $comment = null, array $stepData = []): void
     {
         $step = $instance->currentStep;
 
@@ -27,6 +32,8 @@ class RejectProcessStep
 
         $this->engine->assertActorAuthorizedForStep($instance, $step, $actor);
 
-        $this->engine->advance($instance, TransitionResult::Rejected->value, $actor, $comment);
+        $stepData = StepFormValidator::validate($step, $stepData);
+
+        $this->engine->advance($instance, TransitionResult::Rejected->value, $actor, $comment, $stepData);
     }
 }

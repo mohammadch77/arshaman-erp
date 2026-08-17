@@ -43,8 +43,7 @@
         @if($subjectType === '')
             <x-card title="فرم درخواست (فرایند آزاد)" subtitle="فیلدهایی که درخواست‌دهنده هنگام شروع فرایند پر می‌کند" shadow>
                 @foreach($requestFormFields as $i => $field)
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end border-b border-base-300 pb-3 mb-3">
-                        <x-input label="کلید" wire:model="requestFormFields.{{ $i }}.key" :disabled="$this->hasHistory" />
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end border-b border-base-300 pb-3 mb-3">
                         <x-input label="برچسب" wire:model="requestFormFields.{{ $i }}.label" :disabled="$this->hasHistory" />
                         <x-select
                             label="نوع"
@@ -121,19 +120,61 @@
                                 />
                             @endif
                         </div>
+
+                        <div class="mt-3 border-t border-base-300 pt-3" x-data="{ open: {{ ! empty($step['step_form_fields']) ? 'true' : 'false' }} }">
+                            <x-checkbox
+                                label="این مرحله فرم اضافه دارد؟"
+                                hint="فیلدهایی که مسئول این مرحله هنگام تأیید/رد پر می‌کند — کاملاً اختیاری"
+                                x-model="open"
+                                :disabled="$this->hasHistory"
+                            />
+
+                            <div x-show="open" x-cloak class="mt-2">
+                                @foreach($step['step_form_fields'] ?? [] as $fi => $stepField)
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end border-b border-base-300 pb-3 mb-3">
+                                        <x-input label="برچسب فیلد" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.label" :disabled="$this->hasHistory" />
+                                        <x-select
+                                            label="نوع"
+                                            wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.type"
+                                            :options="[
+                                                ['value' => 'text', 'label' => 'متن کوتاه'],
+                                                ['value' => 'textarea', 'label' => 'متن چندخطی'],
+                                                ['value' => 'number', 'label' => 'عدد'],
+                                                ['value' => 'boolean', 'label' => 'بله/خیر'],
+                                            ]"
+                                            option-value="value"
+                                            option-label="label"
+                                            :disabled="$this->hasHistory"
+                                        />
+                                        @if(! $this->hasHistory)
+                                            <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeStepFormField({{ $i }}, {{ $fi }})" />
+                                        @endif
+                                    </div>
+                                @endforeach
+
+                                @if(! $this->hasHistory)
+                                    <x-button label="افزودن فیلد فرم مرحله" :icon="theme_icon('add')" class="btn-ghost btn-sm" wire:click="addStepFormField({{ $i }})" />
+                                @endif
+                            </div>
+                        </div>
                     @endif
 
                     @if($step['step_type'] === 'condition')
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                            <x-select
-                                label="فیلد شرط"
-                                wire:model="steps.{{ $i }}.condition_field"
-                                :options="array_map(fn ($f) => ['value' => $f, 'label' => $f], $this->conditionFieldOptions)"
-                                option-value="value"
-                                option-label="label"
-                                placeholder="انتخاب کنید"
-                                :disabled="$this->hasHistory"
-                            />
+                            <div>
+                                <x-select
+                                    label="فیلد شرط"
+                                    wire:model.live="steps.{{ $i }}.condition_field"
+                                    :options="$this->conditionFieldOptions"
+                                    option-value="value"
+                                    option-label="label"
+                                    placeholder="انتخاب کنید"
+                                    :disabled="$this->hasHistory"
+                                />
+                                @if($step['condition_field'] !== '' && isset($this->conditionFieldHints[$step['condition_field']]))
+                                    <p class="text-xs text-base-content/60 mt-1">{{ $this->conditionFieldHints[$step['condition_field']] }}</p>
+                                @endif
+                            </div>
                             <x-select
                                 label="عملگر"
                                 wire:model="steps.{{ $i }}.condition_operator"

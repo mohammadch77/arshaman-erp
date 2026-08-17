@@ -147,7 +147,12 @@ class ProcessEngine
      * condition_true/condition_false از یک ارزیابی خودکار دستی‌فراخوانی‌شده) را
      * می‌گیرد، انتقال منطبق را پیدا و اعمال می‌کند.
      */
-    public function advance(ProcessInstance $instance, string $result, ?User $actor = null, ?string $comment = null): void
+    /**
+     * @param  array<string, mixed>  $stepData  مقادیر فرم اضافه‌ی خودِ همین مرحله (بخش ۳
+     *                                            Session جاری، اگر step_form_fields داشته باشد) —
+     *                                            فقط در همین یک رکورد لاگ (تصمیم انسانی) ذخیره می‌شود.
+     */
+    public function advance(ProcessInstance $instance, string $result, ?User $actor = null, ?string $comment = null, array $stepData = []): void
     {
         if ($instance->status !== ProcessStatus::InProgress) {
             throw new RuntimeException('این فرایند دیگر در جریان نیست — قابل انتقال نیست.');
@@ -161,7 +166,7 @@ class ProcessEngine
 
         $resultEnum = TransitionResult::from($result);
 
-        $this->log($instance, $currentStep, $actor, $this->logActionForResult($resultEnum), $comment);
+        $this->log($instance, $currentStep, $actor, $this->logActionForResult($resultEnum), $comment, $stepData !== [] ? $stepData : null);
 
         $this->moveFrom($instance, $currentStep, $resultEnum, [$currentStep->id => true], 0, $actor, $comment);
     }
@@ -421,9 +426,10 @@ class ProcessEngine
 
     /**
      * فقط از فیلدهای whitelist‌شده در config/processes.php (برای فرایند وصل‌شده
-     * به یک subject_type) یا از request_data خودِ فرایند آزاد (که کلیدهایش از
-     * قبل توسط request_form_fields همان تعریف، ساخته‌شده توسط holding_admin،
-     * محدود شده) خوانده می‌شود — هرگز دسترسی آزاد به هر پراپرتی مدل.
+     * به یک subject_type) یا از request_data خودِ فرایند آزاد (که کلیدهایش
+     * دوباره در برابر request_form_fields خودِ همین تعریف — نه یک whitelist
+     * سراسری دیگر — بررسی می‌شود، چون فرایند آزاد فیلد شرط ثابتی در config
+     * ندارد) خوانده می‌شود — هرگز دسترسی آزاد به هر پراپرتی مدل.
      */
     private function resolveConditionFieldValue(ProcessInstance $instance, ProcessStep $step): mixed
     {
@@ -441,6 +447,22 @@ class ProcessEngine
             }
 
             return $this->resolveSubject($instance)?->{$field};
+        }
+
+        // withoutGlobalScopes() عمداً: همان دلیل resolveSubject() — این متد
+        // داخلی موتور ممکن است بدون یک CompanyContext فعال صدا زده شود (مثلاً
+        // از یک تست یا فرآیند خودکار)؛ رابطه‌ی definition() پیش‌فرض تحت
+        // BelongsToCompany همان شرکت فعال session را می‌خواهد، که اینجا اصلاً
+        // تضمینی نیست وجود داشته باشد.
+        $definition = ProcessDefinition::withoutGlobalScopes()->find($instance->process_definition_id);
+
+        $allowedFreeFormFields = array_values(array_filter(array_map(
+            fn ($f) => $f['key'] ?? null,
+            $definition?->request_form_fields ?? []
+        )));
+
+        if (! in_array($field, $allowedFreeFormFields, true)) {
+            throw new RuntimeException("فیلد «{$field}» در فرم این فرایند آزاد تعریف نشده است.");
         }
 
         return data_get($instance->request_data, $field);
@@ -487,7 +509,10 @@ class ProcessEngine
         };
     }
 
-    private function log(ProcessInstance $instance, ProcessStep $step, ?User $actor, LogAction $action, ?string $comment): void
+    /**
+     * @param  array<string, mixed>|null  $stepData
+     */
+    private function log(ProcessInstance $instance, ProcessStep $step, ?User $actor, LogAction $action, ?string $comment, ?array $stepData = null): void
     {
         ProcessInstanceLog::create([
             'owner_company_id' => $instance->owner_company_id,
@@ -496,6 +521,7 @@ class ProcessEngine
             'actor_user_id' => $actor?->id,
             'action' => $action,
             'comment' => $comment,
+            'step_data' => $stepData,
         ]);
     }
 }

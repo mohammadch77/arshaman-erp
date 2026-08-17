@@ -28,6 +28,8 @@ class ProcessStep extends Model
         'condition_field',
         'condition_operator',
         'condition_value',
+        'step_form_fields',
+        'display_order',
     ];
 
     protected function casts(): array
@@ -36,6 +38,8 @@ class ProcessStep extends Model
             'step_type' => StepType::class,
             'assignment_type' => AssignmentType::class,
             'condition_operator' => ConditionOperator::class,
+            'step_form_fields' => 'array',
+            'display_order' => 'integer',
         ];
     }
 
@@ -51,7 +55,7 @@ class ProcessStep extends Model
 
     public function outgoingTransitions(): HasMany
     {
-        return $this->hasMany(ProcessTransition::class, 'from_step_id');
+        return $this->hasMany(ProcessTransition::class, 'from_step_id')->orderBy('display_order');
     }
 
     public function incomingTransitions(): HasMany

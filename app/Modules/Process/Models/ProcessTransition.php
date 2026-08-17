@@ -17,12 +17,14 @@ class ProcessTransition extends Model
         'from_step_id',
         'to_step_id',
         'on_result',
+        'display_order',
     ];
 
     protected function casts(): array
     {
         return [
             'on_result' => TransitionResult::class,
+            'display_order' => 'integer',
         ];
     }
 

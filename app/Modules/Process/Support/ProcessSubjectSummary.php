@@ -3,7 +3,9 @@
 namespace App\Modules\Process\Support;
 
 use App\Modules\Process\Models\ProcessInstance;
+use App\Support\Jalali;
 use BackedEnum;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -79,6 +81,20 @@ class ProcessSubjectSummary
     {
         if ($value instanceof BackedEnum) {
             return method_exists($value, 'label') ? $value->label() : (string) $value->value;
+        }
+
+        // ستون‌های تاریخ/زمان (مثل Leave.start_date/end_date با cast 'date') قبل از این
+        // چک به is_scalar می‌رسیدند که false است (Carbon یک آبجکت است)، پس به شاخه‌ی
+        // json_encode می‌افتادند و میلادی خام با صفرهای اضافی (created_at/timezone) نمایش
+        // داده می‌شد. اینجا با همان تابع تبدیل شمسی موجود پروژه (App\Support\Jalali) نمایش
+        // می‌شود. اگر ساعت دقیقاً نیمه‌شب بود (یعنی یک ستون DATE خالص، نه یک لحظه)، فقط
+        // تاریخ نشان داده می‌شود؛ وگرنه تاریخ و ساعت با «-» جدا می‌شوند.
+        if ($value instanceof DateTimeInterface) {
+            $isDateOnly = $value->format('H:i:s') === '00:00:00';
+
+            return $isDateOnly
+                ? (Jalali::toDisplay($value) ?? '—')
+                : (Jalali::toDisplay($value).' - '.Jalali::toDisplayTime($value));
         }
 
         if (is_bool($value)) {

@@ -37,7 +37,7 @@ class ProcessDefinition extends Model
 
     public function steps(): HasMany
     {
-        return $this->hasMany(ProcessStep::class);
+        return $this->hasMany(ProcessStep::class)->orderBy('display_order');
     }
 
     public function instances(): HasMany

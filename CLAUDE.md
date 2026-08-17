@@ -2205,4 +2205,90 @@ drag-and-drop ویجت SiteBuilder — این Session عمداً فقط انتخ
   (۱۷ تست جدید). کل سوییت پروژه: ۵۹۵ سبز، ۱۳ skip (همان CHECKهای
   mysql-only) — بدون رگرسیون.
 
+- [x] Session 7: رفع باگ تاریخ، شرط روی فرم فرایند آزاد، فرم اختیاری هر
+  مرحله، ایزوله‌سازی خطای موتور، کلید خودکار، ترتیب نمایش، برچسب فارسی شرط
+
+  **بخش ۱ — باگ نمایش تاریخ:** `ProcessSubjectSummary::formatValue()`
+  مقادیر `DateTimeInterface` (مثل `Leave.start_date`/`end_date` با cast
+  `'date'`) را قبلاً چون `is_scalar(Carbon)` false است، به شاخه‌ی
+  `json_encode` می‌فرستاد — دقیقاً همان میلادی خام با صفرهای اضافی گزارش‌شده.
+  حالا از `App\Support\Jalali::toDisplay()`/`toDisplayTime()` عبور می‌کند؛
+  اگر ساعت دقیقاً نیمه‌شب بود (ستون DATE خالص)، فقط تاریخ نشان داده می‌شود.
+
+  **بخش ۲ — شرط روی فرم خودِ فرایند آزاد:** `ProcessGraphValidator::validate()`
+  پارامتر چهارم `$requestFormFields` گرفت — برای فرایند آزاد، whitelist
+  فیلد شرط از کلیدهای همان فرم (نه یک منبع سراسری) می‌آید؛ برای فرایند
+  وصل‌به‌ماژول همان `config('processes.condition_fields')` قبلی. همین دو
+  whitelist موازی در `ProcessEngine::resolveConditionFieldValue()` هم
+  تکرار شد. **کشف حین تست:** این متد داخلی موتور برای خواندن
+  `$instance->definition->request_form_fields` باید حتماً
+  `ProcessDefinition::withoutGlobalScopes()->find(...)` بزند (نه رابطه‌ی
+  Eloquent خام) — دقیقاً همان درسِ `resolveSubject()` قبلی: بدون
+  `CompanyContext` فعال (مثل یک تست یا فرآیند خودکار)، global scope
+  `BelongsToCompany` بی‌صدا `null` برمی‌گرداند.
+
+  **بخش ۳ — فرم اختیاری هر مرحله:** ستون‌های جدید `process_steps.step_form_fields`
+  (JSON nullable، همان ساختار `request_form_fields`) و
+  `process_instance_logs.step_data` (JSON nullable). کلاس جدید و مشترک
+  `App\Modules\Process\Support\StepFormValidator` — هم
+  `ApproveProcessStep` هم `RejectProcessStep` قبل از صدازدن
+  `ProcessEngine::advance()` مقادیر ارسالی را با آن اعتبارسنجی می‌کنند؛
+  `advance()`/`log()` پارامتر `stepData` گرفتند تا فقط در همان یک رکورد
+  لاگ تصمیم (نه لاگ‌های خودکار condition/completed) ذخیره شود. UI: در
+  `ProcessDefinitionForm` یک چک‌باکس «این مرحله فرم اضافه دارد؟» (فقط
+  toggle نمایشی Alpine محلی، بدون نیاز به یک property جدا در Livewire —
+  چون حضور فیلدهای دارای برچسب در `extractPayload()` خودش تعیین‌کننده است)
+  و در `MyProcessTasks` مودال تأیید/رد فیلدهای همان مرحله را پویا نشان
+  می‌دهد (`getCommentStepFormFieldsProperty()`).
+
+  **بخش ۴ — ایزوله‌سازی خطای موتور (بند ۴ Session جاری، حیاتی):**
+  `RequestLeave::handle()` فراخوانی
+  `ProcessEngine::startForSubjectIfActive()` را در یک `try/catch(Throwable)`
+  جدا از بقیه‌ی تراکنش گرفت — خطای موتور فقط `Log::error()` می‌شود، هرگز
+  اجازه نمی‌دهد رکورد `Leave` ثبت‌نشده بماند. **تأیید واقعی در مرورگر:** یک
+  تعریف فرایند فعال برای `Leave` بدون هیچ مرحله‌ی `start` روی دیتابیس واقعی
+  ساخته شد (خطای تضمین‌شده‌ی `ProcessEngine::startInstance()`)، سپس از
+  پنل خودِ کارمند (`/my/leaves`) یک مرخصی واقعی ثبت شد — رکورد با موفقیت
+  در جدول ظاهر شد و خطا دقیقاً در `storage/logs/laravel.log` لاگ شد، بدون
+  هیچ ۵۰۰ یا رکورد ثبت‌نشده.
+
+  **بخش ۵ — کلید خودکار فیلدهای فرم:** ورودی «کلید» از UI فرم درخواست حذف
+  شد؛ `ProcessDefinitionForm::newFieldKey()` دقیقاً همان الگوی
+  `emptyStep()`/`step_key` را برای `requestFormFields` و
+  `step_form_fields` تکرار می‌کند (slug برچسب موجود + پسوند تصادفی، یک‌بار
+  در لحظه‌ی افزودن، نه از روی تایپ کاربر).
+
+  **بخش ۶ — حفظ ترتیب نمایش:** ستون `display_order` (unsigned smallint) به
+  `process_steps`/`process_transitions` اضافه شد؛ `CreateProcessDefinition`/
+  `UpdateProcessDefinition` آن را از روی ترتیب واقعی آرایه‌ی ورودی پر
+  می‌کنند؛ `ProcessDefinition::steps()`/`ProcessStep::outgoingTransitions()`
+  هر دو `orderBy('display_order')` گرفتند — فقط نمایش، بدون اثر روی
+  `ProcessEngine::moveFrom()` که مستقل بر پایه‌ی `from_step_id`/`on_result`
+  کوئری می‌زند.
+
+  **بخش ۷ — برچسب فارسی/راهنمای فیلد شرط ماژول‌محور:** کلید جدید
+  `condition_field_labels` در `config/processes.php` (label+hint فارسی
+  برای `days_count`/`leave_type` مرخصی).
+  `ProcessDefinitionForm::conditionFieldOptions`/`conditionFieldHints`
+  حالا هر دو منبع (فرایند آزاد از خودِ فرم، فرایند وصل‌به‌ماژول از این
+  config) را به‌جای نام انگلیسی خام برمی‌گردانند. **کشف حین بازدید بصری:**
+  select فیلد شرط باید `wire:model.live` باشد (نه `wire:model` ساده) وگرنه
+  راهنمای متنی زیر آن — چون سمت سرور رندر می‌شود — تا یک round-trip دیگر
+  به‌روزرسانی نمی‌شد؛ در مرورگر واقعی انتخاب می‌شد ولی هیچ راهنمایی ظاهر
+  نمی‌شد. رفع شد و دوباره در مرورگر واقعی تأیید شد.
+
+  **بازدید بصری واقعی این Session** با `php artisan serve` روی
+  `127.0.0.1:8123` و یک کاربر تستی موقت روی شرکت واقعی `arshaman`: افزودن
+  فیلد فرم آزاد بدون کلید دستی، دیدن برچسبش در select فیلد شرط، سوییچ به
+  `Leave` و دیدن برچسب/راهنمای فارسی زنده، و کل بخش ۴ طبق بالا. کاربر،
+  پرسنل تستی، مرخصی تستی، و تعریف‌های فرایند تستی در پایان کامل حذف شدند
+  (بند ۱۰ CLAUDE.md).
+
+  **تست‌ها:** `tests/Feature/Process/ProcessSessionFixesTest.php` (۱۳ تست
+  جدید). کل سوییت پروژه: ۶۰۹ سبز، ۱۳ skip (همان CHECKهای mysql-only) —
+  بدون رگرسیون.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): بازطراحی UI
+ویزارد/مرحله‌به‌مرحله، جابه‌جایی درگ‌اند‌دراپ گذارها در UI.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

@@ -29,10 +29,14 @@ class ProcessGraphValidator
     /**
      * @param  array<int, array<string, mixed>>  $steps
      * @param  array<int, array<string, mixed>>  $transitions
+     * @param  array<int, array<string, mixed>>  $requestFormFields  فقط برای فرایند آزاد
+     *                                                                (subjectType===null) استفاده می‌شود —
+     *                                                                whitelist شرط از روی فیلدهای فرم
+     *                                                                خودِ همین تعریف (بخش ۲ Session جاری).
      *
      * @throws ValidationException
      */
-    public function validate(?string $subjectType, array $steps, array $transitions): void
+    public function validate(?string $subjectType, array $steps, array $transitions, array $requestFormFields = []): void
     {
         $errors = [];
 
@@ -87,23 +91,26 @@ class ProcessGraphValidator
             }
 
             if ($type === StepType::Condition->value) {
-                if ($subjectType === null) {
-                    $errors[] = "مرحله‌ی شرط «{$label}» فقط برای فرایند وصل‌شده به یک ماژول مجاز است، نه فرایند آزاد.";
-                } else {
-                    $allowedFields = config("processes.condition_fields.{$subjectType}", []);
-                    $field = $step['condition_field'] ?? null;
+                // دو منبع whitelist موازی برای فیلد شرط: فرایند وصل‌شده به ماژول از
+                // config/processes.php (برنامه‌نویس تعریف کرده)، فرایند آزاد از
+                // فیلدهای فرم خودِ همین تعریف (همان ادمینی که فرم را ساخته، شرط را
+                // هم می‌سازد — بخش ۲ Session جاری، امن است).
+                $allowedFields = $subjectType === null
+                    ? array_values(array_filter(array_map(fn ($f) => $f['key'] ?? null, $requestFormFields)))
+                    : config("processes.condition_fields.{$subjectType}", []);
 
-                    if (! in_array($field, $allowedFields, true)) {
-                        $errors[] = "فیلد شرط مرحله‌ی «{$label}» باید یکی از فیلدهای مجاز همین نوع سوژه باشد.";
-                    }
+                $field = $step['condition_field'] ?? null;
 
-                    if (! in_array($step['condition_operator'] ?? null, array_map(fn ($case) => $case->value, ConditionOperator::cases()), true)) {
-                        $errors[] = "مرحله‌ی شرط «{$label}» باید یک عملگر معتبر داشته باشد.";
-                    }
+                if (! in_array($field, $allowedFields, true)) {
+                    $errors[] = "فیلد شرط مرحله‌ی «{$label}» باید یکی از فیلدهای مجاز همین فرایند باشد.";
+                }
 
-                    if (empty($step['condition_value']) && $step['condition_value'] !== '0') {
-                        $errors[] = "مرحله‌ی شرط «{$label}» باید یک مقدار مقایسه داشته باشد.";
-                    }
+                if (! in_array($step['condition_operator'] ?? null, array_map(fn ($case) => $case->value, ConditionOperator::cases()), true)) {
+                    $errors[] = "مرحله‌ی شرط «{$label}» باید یک عملگر معتبر داشته باشد.";
+                }
+
+                if (empty($step['condition_value']) && $step['condition_value'] !== '0') {
+                    $errors[] = "مرحله‌ی شرط «{$label}» باید یک مقدار مقایسه داشته باشد.";
                 }
             }
         }

@@ -12,7 +12,9 @@ use App\Modules\HR\Services\LeaveScheduler;
 use App\Modules\Process\Services\ProcessEngine;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Throwable;
 
 class RequestLeave
 {
@@ -58,7 +60,19 @@ class RequestLeave
             // اگر شرکت هدف یک فرایند تأیید مرخصی فعال داشته باشد، خودکار وارد
             // آن می‌شود؛ در غیر این صورت null برمی‌گردد و leave_status همان
             // pending عادی می‌ماند — رفتار قبلی (بدون فرایند) دست‌نخورده است.
-            app(ProcessEngine::class)->startForSubjectIfActive($leave, $actor);
+            //
+            // این فراخوانی عمداً از بقیه‌ی این تراکنش ایزوله شده: یک خطای
+            // برنامه‌نویسی داخل موتور فرایند (که هیچ ربطی به خودِ ثبت مرخصی
+            // ندارد) هرگز نباید باعث شود رکورد Leave اصلاً ثبت نشود — بند ۴
+            // Session جاری. اگر واقعاً خطا داد، فقط لاگ می‌شود.
+            try {
+                app(ProcessEngine::class)->startForSubjectIfActive($leave, $actor);
+            } catch (Throwable $e) {
+                Log::error('Process: خطای موتور فرایند هنگام شروع خودکار برای یک درخواست مرخصی — ثبت مرخصی متأثر نشد.', [
+                    'leave_id' => $leave->id,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
 
             return $leave;
         });

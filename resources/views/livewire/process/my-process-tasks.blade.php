@@ -96,6 +96,22 @@
     @endif
 
     <x-modal wire:model="commentInstanceId" title="نظر (اختیاری)" separator>
+        @if($this->commentStepFormFields !== [])
+            <div class="flex flex-col gap-3 mb-3">
+                @foreach($this->commentStepFormFields as $field)
+                    @if($field['type'] === 'boolean')
+                        <x-checkbox :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" />
+                    @elseif($field['type'] === 'number')
+                        <x-input type="number" :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" :icon="theme_icon('site-form')" />
+                    @elseif($field['type'] === 'textarea')
+                        <x-textarea :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" rows="3" />
+                    @else
+                        <x-input :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" :icon="theme_icon('site-form')" />
+                    @endif
+                @endforeach
+            </div>
+        @endif
+
         <x-textarea
             label="نظر شما"
             wire:model="comment"
@@ -133,6 +149,18 @@
 
                         @if($event->comment)
                             <p class="text-sm text-base-content/70 mt-1 whitespace-pre-line">{{ $event->comment }}</p>
+                        @endif
+
+                        @if($event->step_data)
+                            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
+                                @foreach($event->step_data as $key => $value)
+                                    @php($fieldLabel = collect($event->step->step_form_fields ?? [])->firstWhere('key', $key)['label'] ?? $key)
+                                    <div class="flex gap-2">
+                                        <dt class="text-base-content/60">{{ $fieldLabel }}:</dt>
+                                        <dd class="font-medium">{{ is_bool($value) ? ($value ? 'بله' : 'خیر') : $value }}</dd>
+                                    </div>
+                                @endforeach
+                            </dl>
                         @endif
 
                         <div class="text-xs text-base-content/60 mt-1">

@@ -39,7 +39,9 @@ class ProcessDefinitionForm extends Component
     /**
      * فقط برای فرایند آزاد — همان الگوی مفهومی editable_fields ماژول
      * SiteBuilder (کلید + برچسب + نوع)، ساده‌شده چون اینجا فقط یک فرم
-     * درخواست تخت لازم است، نه ساختار تودرتوی ویجت.
+     * درخواست تخت لازم است، نه ساختار تودرتوی ویجت. کلید (key) هرگز از کاربر
+     * گرفته نمی‌شود (بخش ۵ Session جاری) — دقیقاً مثل process_key/step_key
+     * یک‌بار در لحظه‌ی افزودن فیلد تولید می‌شود (نگاه کن newFieldKey()).
      *
      * @var array<int, array{key: string, label: string, type: string}>
      */
@@ -83,6 +85,7 @@ class ProcessDefinitionForm extends Component
                     'condition_field' => $step->condition_field ?? '',
                     'condition_operator' => $step->condition_operator?->value ?? '',
                     'condition_value' => $step->condition_value ?? '',
+                    'step_form_fields' => $step->step_form_fields ?? [],
                 ];
 
                 foreach ($step->outgoingTransitions as $transition) {
@@ -111,18 +114,20 @@ class ProcessDefinitionForm extends Component
         $this->steps[] = $this->emptyStep(StepType::Start->value, 'شروع');
     }
 
+    /**
+     * منبع فیلدهای مجاز شرط با تعویض subjectType کاملاً عوض می‌شود (از
+     * config('processes.condition_fields') به فیلدهای فرم خودِ فرایند آزاد،
+     * یا برعکس — بخش ۲ Session جاری) — مرحله‌ی شرط دیگر مثل قبل به approval
+     * تبدیل نمی‌شود (فرایند آزاد هم حالا شرط را پشتیبانی می‌کند)، فقط انتخاب
+     * قبلی فیلد/عملگر/مقدار که دیگر معتبر نیست پاک می‌شود.
+     */
     public function updatedSubjectType(): void
     {
-        // مرحله‌ی شرط فقط برای فرایند وصل‌شده به ماژول مجاز است — با تعویض به
-        // فرایند آزاد، هر مرحله‌ی شرط موجود دیگر معنا ندارد و پاک می‌شود.
-        if ($this->subjectType === '') {
-            foreach ($this->steps as $index => $step) {
-                if ($step['step_type'] === StepType::Condition->value) {
-                    $this->steps[$index]['step_type'] = StepType::Approval->value;
-                    $this->steps[$index]['condition_field'] = '';
-                    $this->steps[$index]['condition_operator'] = '';
-                    $this->steps[$index]['condition_value'] = '';
-                }
+        foreach ($this->steps as $index => $step) {
+            if ($step['step_type'] === StepType::Condition->value) {
+                $this->steps[$index]['condition_field'] = '';
+                $this->steps[$index]['condition_operator'] = '';
+                $this->steps[$index]['condition_value'] = '';
             }
         }
     }
@@ -146,13 +151,28 @@ class ProcessDefinitionForm extends Component
 
     public function addRequestField(): void
     {
-        $this->requestFormFields[] = ['key' => '', 'label' => '', 'type' => 'text'];
+        $this->requestFormFields[] = ['key' => $this->newFieldKey(''), 'label' => '', 'type' => 'text'];
     }
 
     public function removeRequestField(int $index): void
     {
         unset($this->requestFormFields[$index]);
         $this->requestFormFields = array_values($this->requestFormFields);
+    }
+
+    /**
+     * فرم اضافه‌ی اختیاری خودِ یک مرحله‌ی approval (بخش ۳ Session جاری) —
+     * همان الگوی requestFormFields، فقط سطح مرحله.
+     */
+    public function addStepFormField(int $stepIndex): void
+    {
+        $this->steps[$stepIndex]['step_form_fields'][] = ['key' => $this->newFieldKey(''), 'label' => '', 'type' => 'text'];
+    }
+
+    public function removeStepFormField(int $stepIndex, int $fieldIndex): void
+    {
+        unset($this->steps[$stepIndex]['step_form_fields'][$fieldIndex]);
+        $this->steps[$stepIndex]['step_form_fields'] = array_values($this->steps[$stepIndex]['step_form_fields']);
     }
 
     /**
@@ -169,15 +189,47 @@ class ProcessDefinitionForm extends Component
     }
 
     /**
-     * @return array<int, string>
+     * دو منبع موازی (بخش ۲ Session جاری): فرایند آزاد از فیلدهای فرم درخواست
+     * خودِ همین تعریف (برچسب = همان چیزی که ادمین در فرم تایپ کرده)، فرایند
+     * وصل‌به‌ماژول از config('processes.condition_fields') + برچسب فارسی
+     * بخش ۷ (config('processes.condition_field_labels')).
+     *
+     * @return array<int, array{value: string, label: string}>
      */
     public function getConditionFieldOptionsProperty(): array
+    {
+        if ($this->subjectType === '') {
+            return collect($this->requestFormFields)
+                ->filter(fn ($field) => ($field['key'] ?? '') !== '' && ($field['label'] ?? '') !== '')
+                ->map(fn ($field) => ['value' => $field['key'], 'label' => $field['label']])
+                ->values()
+                ->all();
+        }
+
+        $labels = config("processes.condition_field_labels.{$this->subjectType}", []);
+
+        return collect(config("processes.condition_fields.{$this->subjectType}", []))
+            ->map(fn ($field) => ['value' => $field, 'label' => $labels[$field]['label'] ?? $field])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * راهنمای توضیحی فارسی هر فیلد شرط (بخش ۷ Session جاری) — فقط برای
+     * فرایند وصل‌به‌ماژول معنا دارد؛ فرایند آزاد برچسبش را از خودِ فرم می‌گیرد،
+     * راهنمای اضافه لازم نیست.
+     *
+     * @return array<string, string>
+     */
+    public function getConditionFieldHintsProperty(): array
     {
         if ($this->subjectType === '') {
             return [];
         }
 
-        return config("processes.condition_fields.{$this->subjectType}", []);
+        $labels = config("processes.condition_field_labels.{$this->subjectType}", []);
+
+        return collect($labels)->map(fn ($meta) => $meta['hint'] ?? null)->filter()->all();
     }
 
     /**
@@ -264,6 +316,11 @@ class ProcessDefinitionForm extends Component
             $isRoleAssignment = $isApproval && $step['assignment_type'] === AssignmentType::Role->value;
             $isUserAssignment = $isApproval && $step['assignment_type'] === AssignmentType::SpecificUser->value;
 
+            $stepFormFields = array_values(array_filter(
+                $step['step_form_fields'] ?? [],
+                fn ($field) => ($field['label'] ?? '') !== ''
+            ));
+
             $steps[] = [
                 'step_key' => $step['step_key'],
                 'name' => $step['name'],
@@ -274,6 +331,7 @@ class ProcessDefinitionForm extends Component
                 'condition_field' => $isCondition && $step['condition_field'] !== '' ? $step['condition_field'] : null,
                 'condition_operator' => $isCondition && $step['condition_operator'] !== '' ? $step['condition_operator'] : null,
                 'condition_value' => $isCondition && $step['condition_value'] !== '' ? $step['condition_value'] : null,
+                'step_form_fields' => $isApproval && $stepFormFields !== [] ? $stepFormFields : null,
             ];
         }
 
@@ -337,6 +395,7 @@ class ProcessDefinitionForm extends Component
             'condition_field' => '',
             'condition_operator' => '',
             'condition_value' => '',
+            'step_form_fields' => [],
         ];
     }
 
@@ -345,6 +404,18 @@ class ProcessDefinitionForm extends Component
         $slug = Str::slug($source);
 
         return $slug !== '' ? $slug : Str::slug(Str::random(6));
+    }
+
+    /**
+     * کلید یک فیلد فرم (requestFormFields/step_form_fields) — دقیقاً همان
+     * الگوی emptyStep() برای step_key: یک‌بار در لحظه‌ی افزودن، از روی برچسب
+     * موجود (اغلب هنوز خالی) + پسوند تصادفی، نه از روی ورودی دستی کاربر
+     * (بخش ۵ Session جاری). چون پسوند همیشه تصادفی است، یکتایی درون همان
+     * آرایه تضمین‌شده است.
+     */
+    private function newFieldKey(string $label): string
+    {
+        return $this->generateKey($label !== '' ? $label : 'field').'-'.substr((string) Str::uuid(), 0, 4);
     }
 
     /**
@@ -388,15 +459,14 @@ class ProcessDefinitionForm extends Component
         return array_map(fn ($case) => ['value' => $case->value, 'label' => $case->label()], ConditionOperator::cases());
     }
 
+    /**
+     * مرحله‌ی شرط برای هر دو نوع فرایند مجاز است (بخش ۲ Session جاری):
+     * فرایند وصل‌به‌ماژول از config('processes.condition_fields')، فرایند
+     * آزاد از فیلدهای فرم خودش — نگاه کن getConditionFieldOptionsProperty.
+     */
     public function getStepTypeOptionsProperty(): array
     {
-        $cases = StepType::cases();
-
-        if ($this->subjectType === '') {
-            $cases = array_filter($cases, fn ($case) => $case !== StepType::Condition);
-        }
-
-        return array_map(fn ($case) => ['value' => $case->value, 'label' => $case->label()], $cases);
+        return array_map(fn ($case) => ['value' => $case->value, 'label' => $case->label()], StepType::cases());
     }
 
     public function getAssignmentTypeOptionsProperty(): array
