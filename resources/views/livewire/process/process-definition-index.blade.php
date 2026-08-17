@@ -51,6 +51,15 @@
                     wire:click="toggleActive('{{ $definition->id }}')"
                     spinner="toggleActive('{{ $definition->id }}')"
                 />
+
+                <x-button
+                    :icon="theme_icon('delete')"
+                    tooltip-left="حذف"
+                    class="btn-circle btn-ghost btn-sm text-error"
+                    wire:click="delete('{{ $definition->id }}')"
+                    wire:confirm="{{ $definition->instances_count > 0 ? 'این فرایند سابقه‌ی اجرا دارد — به‌جای حذف کامل، بایگانی می‌شود (داده‌ی تاریخی/لاگ محفوظ می‌ماند و از فهرست فعال مخفی می‌شود). ادامه می‌دهید؟' : 'این فرایند هرگز اجرا نشده — کاملاً و برای همیشه حذف خواهد شد. ادامه می‌دهید؟' }}"
+                    spinner="delete('{{ $definition->id }}')"
+                />
             @endscope
         </x-table>
     </x-card>

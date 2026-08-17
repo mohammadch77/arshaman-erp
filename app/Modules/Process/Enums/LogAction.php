@@ -9,6 +9,11 @@ enum LogAction: string
     case ConditionEvaluated = 'condition_evaluated';
     case Started = 'started';
     case Completed = 'completed';
+    // یادآوری ادمین به مسئول مرحله‌ی فعلی — بدون تغییر current_step/status.
+    case Reminder = 'reminder';
+    // علامت‌گذاری یک تصمیم تأیید/رد قبلی به‌عنوان بازگردانی‌شده (بند ۴ Session جاری) —
+    // رکورد لاگ اصلی هرگز حذف/ویرایش نمی‌شود، این یک ورودی جدید در تاریخچه است.
+    case Reversed = 'reversed';
 
     public function label(): string
     {
@@ -18,6 +23,8 @@ enum LogAction: string
             self::ConditionEvaluated => 'شرط ارزیابی شد',
             self::Started => 'شروع شد',
             self::Completed => 'تکمیل شد',
+            self::Reminder => 'یادآوری ادمین',
+            self::Reversed => 'تصمیم بازگردانی شد',
         };
     }
 }

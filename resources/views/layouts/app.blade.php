@@ -71,6 +71,7 @@
                         <x-menu-item title="درخواست‌های من" :icon="theme_icon('history')" link="{{ route('processes.my-requests') }}" />
                         @if(auth()->user()->hasRoleInCompany($activeCompany->id, 'holding_admin'))
                             <x-menu-item title="طراحی فرایندها" :icon="theme_icon('template')" link="{{ route('processes.index') }}" />
+                            <x-menu-item title="نظارت بر فرایندها" :icon="theme_icon('oversight')" link="{{ route('processes.oversight') }}" />
                         @endif
                     </x-menu-sub>
                 @endif

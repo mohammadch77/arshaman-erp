@@ -3,6 +3,8 @@
 namespace App\Modules\Process\Policies;
 
 use App\Modules\Core\Models\User;
+use App\Modules\Core\Services\CompanyContext;
+use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Models\ProcessInstance;
 use App\Modules\Process\Services\ProcessEngine;
@@ -12,7 +14,8 @@ class ProcessInstancePolicy
 {
     /**
      * درخواست‌دهنده، هر کسی که در زنجیره‌ی تصمیم واقعاً اقدامی ثبت کرده
-     * (اعم از تأیید/رد یک مرحله‌ی قبلی)، یا holding_admin همان شرکت.
+     * (اعم از تأیید/رد یک مرحله‌ی قبلی)، مسئول فعلی مرحله‌ی در جریان (تا بتواند
+     * تاریخچه را قبل از تصمیم‌گیری هم ببیند)، یا holding_admin همان شرکت.
      */
     public function view(User $user, ProcessInstance $instance): bool
     {
@@ -24,7 +27,11 @@ class ProcessInstancePolicy
             return true;
         }
 
-        return $instance->logs()->where('actor_user_id', $user->id)->exists();
+        if ($instance->logs()->where('actor_user_id', $user->id)->exists()) {
+            return true;
+        }
+
+        return $this->canActOnCurrentStep($user, $instance);
     }
 
     public function approve(User $user, ProcessInstance $instance): bool
@@ -35,6 +42,36 @@ class ProcessInstancePolicy
     public function reject(User $user, ProcessInstance $instance): bool
     {
         return $this->canActOnCurrentStep($user, $instance);
+    }
+
+    /**
+     * فهرست نظارتی کل شرکت (ProcessOversight) — فقط holding_admin، مستقل از
+     * این‌که خودش در زنجیره‌ی تصمیم شرکت داشته یا نه.
+     */
+    public function oversight(User $user): bool
+    {
+        $companyId = app(CompanyContext::class)->id();
+
+        return $companyId !== null && $user->hasRoleInCompany($companyId, 'holding_admin');
+    }
+
+    /**
+     * یادآوری فقط روی یک instance واقعاً «در جریان» و فقط توسط holding_admin
+     * همان شرکت — دقیقاً همان نقشی که به ProcessOversight دسترسی دارد.
+     */
+    public function remind(User $user, ProcessInstance $instance): bool
+    {
+        return $instance->status === ProcessStatus::InProgress
+            && $user->hasRoleInCompany($instance->owner_company_id, 'holding_admin');
+    }
+
+    /**
+     * تنها منبع واحد حقیقت برای «آیا این actor مجاز بازگردانی آخرین تصمیم
+     * خودش است؟» همان ProcessEngine::canReverseLastDecision است.
+     */
+    public function reverseLastDecision(User $user, ProcessInstance $instance): bool
+    {
+        return app(ProcessEngine::class)->canReverseLastDecision($instance, $user);
     }
 
     /**

@@ -126,7 +126,7 @@ class ProcessEngine
      * مستقیم کوئری کند (بند ۴ CLAUDE.md)، همه‌چیز از طریق همین سرویس.
      *
      * @param  array<int, string>  $subjectIds
-     * @return array<int, string>  زیرمجموعه‌ای از $subjectIds که واقعاً یک instance «در جریان» دارند
+     * @return array<int, string> زیرمجموعه‌ای از $subjectIds که واقعاً یک instance «در جریان» دارند
      */
     public function activeInstanceSubjectIds(string $subjectType, array $subjectIds): array
     {
@@ -185,6 +185,75 @@ class ProcessEngine
         if (! $authorized) {
             throw new AuthorizationException('شما مجاز به تأیید یا رد این مرحله نیستید.');
         }
+    }
+
+    /**
+     * یادآوری holding_admin به مسئول مرحله‌ی فعلی — فقط یک لاگ جدید، هیچ تغییری
+     * در current_step_id/status. authorize واقعی (ProcessInstancePolicy::remind)
+     * در Action صدا زده می‌شود؛ این متد فقط رکورد را می‌نویسد.
+     */
+    public function remind(ProcessInstance $instance, User $actor, string $comment): void
+    {
+        $step = $instance->currentStep;
+
+        if ($step === null) {
+            throw new RuntimeException('این فرایند مرحله‌ی فعلی معتبری ندارد.');
+        }
+
+        $this->log($instance, $step, $actor, LogAction::Reminder, $comment);
+    }
+
+    /**
+     * آخرین لاگ instance اگر و فقط اگر یک تصمیم انسانی (تأیید/رد) بازگردانی‌نشده
+     * باشد — یعنی از آن لحظه هیچ اتفاق دیگری (ارزیابی شرط خودکار، تصمیم بعدی، یا
+     * تکمیل فرایند) رخ نداده. چون moveFrom/advance هر رویداد را همان لحظه لاگ
+     * می‌کند، «آخرین لاگ instance دقیقاً همین تصمیم است» به‌تنهایی یعنی «هیچ‌چیز
+     * بعد از آن اتفاق نیفتاده» — نیازی به بررسی جداگانه‌ی مرحله‌ی بعدی نیست.
+     */
+    public function lastReversibleDecisionLog(ProcessInstance $instance): ?ProcessInstanceLog
+    {
+        $lastLog = $this->lastLog($instance);
+
+        if ($lastLog === null || $lastLog->reversed_at !== null) {
+            return null;
+        }
+
+        if (! in_array($lastLog->action, [LogAction::Approved, LogAction::Rejected], true)) {
+            return null;
+        }
+
+        return $lastLog;
+    }
+
+    public function canReverseLastDecision(ProcessInstance $instance, User $actor): bool
+    {
+        $log = $this->lastReversibleDecisionLog($instance);
+
+        return $log !== null && $log->actor_user_id === $actor->id;
+    }
+
+    /**
+     * تصمیم اخیر خودِ $actor را بازمی‌گرداند: instance به همان مرحله‌ای که تصمیم
+     * رویش گرفته شده بود برمی‌گردد (دوباره منتظر تصمیم انسانی)، و رکورد لاگ اصلی
+     * فقط با یک مهر زمانی (reversed_at) علامت می‌خورد — محتوایش هرگز تغییر
+     * نمی‌کند. یک لاگ جدید (action=reversed) هم برای تاریخچه ثبت می‌شود.
+     */
+    public function reverseLastDecision(ProcessInstance $instance, User $actor): void
+    {
+        if (! $this->canReverseLastDecision($instance, $actor)) {
+            throw new AuthorizationException('این تصمیم قابل بازگردانی نیست — یا مال شما نیست، یا مرحله‌ی بعدی از قبل اقدامی داشته.');
+        }
+
+        $decisionLog = $this->lastReversibleDecisionLog($instance);
+
+        $decisionLog->update(['reversed_at' => now()]);
+
+        $instance->current_step_id = $decisionLog->step_id;
+        $instance->status = ProcessStatus::InProgress;
+        $instance->completed_at = null;
+        $instance->save();
+
+        $this->log($instance, $decisionLog->step, $actor, LogAction::Reversed, null);
     }
 
     /**
@@ -394,6 +463,19 @@ class ProcessEngine
         $subjectClass = $instance->subject_type;
 
         return $subjectClass::withoutGlobalScopes()->find($instance->subject_id);
+    }
+
+    /**
+     * آخرین لاگ واقعی instance — created_at با دقت ثانیه است و در اجرای سریع
+     * (تست‌ها، یا دو رویداد در یک لحظه) می‌تواند تساوی بخورد؛ HasUuids پیش‌فرض
+     * پروژه از Str::orderedUuid() استفاده می‌کند (UUID زمان‌محور)، پس id
+     * به‌عنوان تای‌برک دوم واقعاً هم‌ترتیب زمانی است، نه یک ترتیب دلخواه. عمومی
+     * است تا MyProcessTasks (بنر یادآوری)/ProcessOversight (مدت‌زمان مرحله)
+     * همین منبع واحد را به‌جای کوئری تکراری استفاده کنند.
+     */
+    public function lastLog(ProcessInstance $instance): ?ProcessInstanceLog
+    {
+        return $instance->logs()->orderByDesc('created_at')->orderByDesc('id')->first();
     }
 
     private function logActionForResult(TransitionResult $result): LogAction

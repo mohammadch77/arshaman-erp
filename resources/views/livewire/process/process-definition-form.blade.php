@@ -27,7 +27,6 @@
     <x-form wire:submit="save" class="gap-5">
         <x-card title="اطلاعات پایه" shadow>
             <x-input label="نام فرایند" wire:model="name" :icon="theme_icon('process')" required />
-            <x-input label="کلید فرایند" wire:model="processKey" hint="لاتین، خودکار از روی نام ساخته می‌شود؛ قابل ویرایش" required />
 
             <x-select
                 label="نوع"
@@ -75,15 +74,8 @@
         <x-card title="مراحل" subtitle="هر فرایند دقیقاً یک مرحله‌ی شروع و حداقل یک مرحله‌ی پایان لازم دارد" shadow>
             @foreach($steps as $i => $step)
                 <div class="border border-base-300 rounded-lg p-4 mb-4">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <x-input label="نام مرحله" wire:model="steps.{{ $i }}.name" :disabled="$this->hasHistory" />
-
-                        <div>
-                            <x-input label="کلید مرحله" wire:model="steps.{{ $i }}.step_key" :disabled="$this->hasHistory" />
-                            @if(! $this->hasHistory)
-                                <x-button label="تولید از نام" class="btn-ghost btn-xs mt-1" wire:click="generateStepKey({{ $i }})" />
-                            @endif
-                        </div>
 
                         <x-select
                             label="نوع مرحله"

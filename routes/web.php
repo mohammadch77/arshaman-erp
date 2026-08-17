@@ -44,6 +44,7 @@ use App\Livewire\Process\MyProcessTasks;
 use App\Livewire\Process\NewProcessRequest;
 use App\Livewire\Process\ProcessDefinitionForm;
 use App\Livewire\Process\ProcessDefinitionIndex;
+use App\Livewire\Process\ProcessOversight;
 use App\Livewire\SiteBuilder\LayoutDemoSelector;
 use App\Livewire\SiteBuilder\PageContentEditor;
 use App\Livewire\SiteBuilder\PageCreateFlow;
@@ -165,6 +166,7 @@ Route::livewire('/processes/{processDefinition}/edit', ProcessDefinitionForm::cl
 Route::livewire('/processes/tasks', MyProcessTasks::class)->middleware('auth')->name('processes.tasks');
 Route::livewire('/processes/request', NewProcessRequest::class)->middleware('auth')->name('processes.request');
 Route::livewire('/processes/my-requests', MyProcessRequests::class)->middleware('auth')->name('processes.my-requests');
+Route::livewire('/processes/oversight', ProcessOversight::class)->middleware('auth')->name('processes.oversight');
 
 // مسیرهای عمومی سایت‌ساز — بدون middleware auth. پیشوند /site/... با
 // /sitebuilder/... بالا تداخل ندارد (segment اول متفاوت است)، پس نیازی به

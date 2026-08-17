@@ -116,6 +116,9 @@ return [
         'drag-handle' => 'o-arrows-up-down',
         'outline' => 'o-list-bullet',
         'locked' => 'o-lock-closed',
+        'oversight' => 'o-clipboard-document-check',
+        'reminder' => 'o-bell-alert',
+        'undo' => 'o-arrow-uturn-left',
     ],
 
 ];

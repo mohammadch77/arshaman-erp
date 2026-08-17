@@ -31,10 +31,6 @@ class ProcessDefinitionForm extends Component
 
     public string $name = '';
 
-    public string $processKey = '';
-
-    public bool $processKeyManuallyEdited = false;
-
     /** '' یعنی فرایند آزاد (بدون subject_type). */
     public string $subjectType = '';
 
@@ -72,8 +68,6 @@ class ProcessDefinitionForm extends Component
             $this->authorize('update', $this->record);
 
             $this->name = $this->record->name;
-            $this->processKey = $this->record->process_key;
-            $this->processKeyManuallyEdited = true;
             $this->subjectType = (string) ($this->record->subject_type ?? '');
             $this->isActive = $this->record->is_active;
             $this->requestFormFields = $this->record->request_form_fields ?? [];
@@ -117,18 +111,6 @@ class ProcessDefinitionForm extends Component
         $this->steps[] = $this->emptyStep(StepType::Start->value, 'شروع');
     }
 
-    public function updatedName(): void
-    {
-        if (! $this->processKeyManuallyEdited) {
-            $this->processKey = $this->generateKey($this->name);
-        }
-    }
-
-    public function updatedProcessKey(): void
-    {
-        $this->processKeyManuallyEdited = true;
-    }
-
     public function updatedSubjectType(): void
     {
         // مرحله‌ی شرط فقط برای فرایند وصل‌شده به ماژول مجاز است — با تعویض به
@@ -160,11 +142,6 @@ class ProcessDefinitionForm extends Component
         if ($removedKey !== null) {
             unset($this->transitionSelections[$removedKey]);
         }
-    }
-
-    public function generateStepKey(int $index): void
-    {
-        $this->steps[$index]['step_key'] = $this->generateKey($this->steps[$index]['name'] ?? '').'-'.substr((string) Str::uuid(), 0, 4);
     }
 
     public function addRequestField(): void
@@ -231,27 +208,32 @@ class ProcessDefinitionForm extends Component
 
     protected function rules(): array
     {
-        $companyId = $this->record?->owner_company_id ?? app(CompanyContext::class)->id();
-
         return [
             'name' => ['required', 'string', 'max:100'],
-            'processKey' => [
-                'required', 'string', 'max:50', 'alpha_dash',
-                Rule::unique('process_definitions', 'process_key')
-                    ->where('owner_company_id', $companyId)
-                    ->ignore($this->record?->id),
-            ],
             'subjectType' => ['nullable', Rule::in(array_merge([''], config('processes.subject_types', [])))],
         ];
     }
 
+    /**
+     * process_key هرگز از کاربر گرفته نمی‌شود (بخش ۵ Session جاری) — همیشه از
+     * روی نام تولید می‌شود، با پسوند عددی در صورت تصادم (همان الگوی autosave
+     * اسلاگ ماژول Blog). برای تعریفی که سابقه دارد، UpdateProcessDefinition
+     * اصلاً process_key را دست نمی‌زند (نگاه کن bend hasHistory آن Action)، پس
+     * کلید موجود بدون تغییر می‌ماند.
+     */
     public function save(CreateProcessDefinition $createAction, UpdateProcessDefinition $updateAction): void
     {
         $this->graphErrors = [];
 
         $this->validate();
 
-        $payload = $this->extractPayload();
+        $companyId = $this->record?->owner_company_id ?? app(CompanyContext::class)->id();
+
+        $processKey = $this->hasHistory
+            ? $this->record->process_key
+            : $this->resolveUniqueProcessKey($this->name, $companyId, $this->record?->id);
+
+        $payload = $this->extractPayload($processKey);
 
         try {
             if ($this->record === null) {
@@ -272,7 +254,7 @@ class ProcessDefinitionForm extends Component
     /**
      * @return array<string, mixed>
      */
-    private function extractPayload(): array
+    private function extractPayload(string $processKey): array
     {
         $steps = [];
 
@@ -331,7 +313,7 @@ class ProcessDefinitionForm extends Component
 
         return [
             'name' => $this->name,
-            'process_key' => $this->processKey,
+            'process_key' => $processKey,
             'subject_type' => $this->subjectType !== '' ? $this->subjectType : null,
             'request_form_fields' => $this->subjectType === '' && $requestFormFields !== [] ? $requestFormFields : null,
             'is_active' => $this->isActive,
@@ -363,6 +345,30 @@ class ProcessDefinitionForm extends Component
         $slug = Str::slug($source);
 
         return $slug !== '' ? $slug : Str::slug(Str::random(6));
+    }
+
+    /**
+     * process_key کاربر را هرگز نمی‌بیند/تایپ نمی‌کند — همیشه از روی نام
+     * تولید می‌شود، با پسوند عددی در صورت تصادم درون همان شرکت (uq_process_definitions_company_key).
+     */
+    private function resolveUniqueProcessKey(string $name, ?string $companyId, ?string $excludeId): string
+    {
+        $base = $this->generateKey($name);
+        $key = $base;
+        $suffix = 1;
+
+        while (
+            ProcessDefinition::withoutGlobalScope('owner_company')
+                ->where('owner_company_id', $companyId)
+                ->where('process_key', $key)
+                ->when($excludeId !== null, fn ($query) => $query->where('id', '!=', $excludeId))
+                ->exists()
+        ) {
+            $suffix++;
+            $key = $base.'-'.$suffix;
+        }
+
+        return $key;
     }
 
     public function getConditionOperatorOptionsProperty(): array

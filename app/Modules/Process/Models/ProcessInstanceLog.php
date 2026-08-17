@@ -21,12 +21,14 @@ class ProcessInstanceLog extends Model
         'actor_user_id',
         'action',
         'comment',
+        'reversed_at',
     ];
 
     protected function casts(): array
     {
         return [
             'action' => LogAction::class,
+            'reversed_at' => 'datetime',
         ];
     }
 

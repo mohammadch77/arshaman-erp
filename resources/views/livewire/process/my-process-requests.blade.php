@@ -73,6 +73,9 @@
                             <x-icon :name="theme_icon('history')" class="w-4 h-4 text-base-content/60" />
                             <span class="font-medium">{{ $event->step->name }}</span>
                             <span class="badge badge-ghost badge-sm">{{ $event->action->label() }}</span>
+                            @if($event->reversed_at)
+                                <span class="badge badge-warning badge-sm">بازگردانی‌شده</span>
+                            @endif
                         </div>
 
                         <div class="text-sm mt-1 text-base-content/70">

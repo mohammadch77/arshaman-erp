@@ -48,4 +48,9 @@ class ProcessDefinitionPolicy
     {
         return $user->hasRoleInCompany($definition->owner_company_id, 'holding_admin');
     }
+
+    public function delete(User $user, ProcessDefinition $definition): bool
+    {
+        return $user->hasRoleInCompany($definition->owner_company_id, 'holding_admin');
+    }
 }

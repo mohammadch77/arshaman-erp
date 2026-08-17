@@ -2132,4 +2132,77 @@ drag-and-drop ویجت SiteBuilder — این Session عمداً فقط انتخ
 ماژول Process — تکمیل شد. آنچه هنوز باز است (فعال‌سازی seeder روی شرکت واقعی
 `arshaman`، جابه‌جایی بصری مراحل، اعلان هنگام رسیدن نوبت) در `docs/BACKLOG.md` می‌ماند.
 
+- [x] Session 6: محدودسازی واقعی تأیید/رد + نظارت هلدینگ + حذف واقعی +
+  ویرایش تصمیم اخیر + کلید خودکار
+
+  **بخش ۱ — بررسی «bypass» اولیه:** تأیید شد که `hasRoleInCompany` هیچ
+  بای‌پس مخصوص `holding_admin` ندارد — تنها بای‌پس واقعی `is_super_admin`
+  است (مستند در `User::hasRoleInCompany`). یعنی اگر یک holding_admin واقعی
+  توانسته مرحله‌ای واگذارشده به نقش دیگری را تأیید کند، یا آن کاربر واقعاً
+  `is_super_admin` بوده، یا (که در این schema اصلاً ممکن نیست چون
+  `user_company_roles` یک نقش در هر شرکت را UNIQUE می‌کند) نقش دوم را هم
+  داشته. هیچ تغییری در `ProcessInstancePolicy`/`ProcessEngine::assertActorAuthorizedForStep`
+  لازم نبود — فقط با تست مستقیم (کاربر holding_admin بدون نقش دیگر → رد
+  می‌شود؛ کاربر با نقش واقعاً واگذارشده → مجاز) تأیید و مستند شد.
+
+  **چه ساخته شد (بخش‌های ۱، ۳، ۴، ۵):**
+  - `ProcessOversight` (`/processes/oversight`، فقط holding_admin — Policy
+    جدید `ProcessInstancePolicy::oversight`): فهرست کل instance های شرکت
+    (در جریان + تمام‌شده)، مدت‌زمان مرحله‌ی فعلی (از `ProcessEngine::lastLog()`
+    عمومی جدید، نه یک ستون تازه)، تاریخچه، و «یادآوری» (Action
+    `RecordProcessReminder` → `ProcessEngine::remind()`، فقط یک لاگ جدید
+    `LogAction::Reminder`، بدون تغییر current_step/status). یادآوری در
+    `MyProcessTasks` به‌صورت یک `x-alert` برجسته بالای کار نشان داده
+    می‌شود اگر آخرین لاگ instance دقیقاً همان یادآوری باشد.
+  - **کشف واقعی حین پیاده‌سازی:** `created_at` با دقت ثانیه یعنی دو لاگ
+    پشت‌سرهم (مثل started و reminder بلافاصله بعدش) در `latest('created_at')`
+    خام تساوی می‌خورند و ترتیب غیرقطعی می‌شود. چون `HasUuids` پیش‌فرض پروژه
+    از `Str::orderedUuid()` (UUID زمان‌محور) استفاده می‌کند، `id` یک
+    تای‌برک واقعاً هم‌ترتیب زمانی است — متد عمومی جدید
+    `ProcessEngine::lastLog()` با `orderByDesc('created_at')->orderByDesc('id')`
+    این را حل کرد و به‌جای تکرار کوئری، هم `MyProcessTasks` (بنر یادآوری)
+    هم `ProcessOversight` (مدت‌زمان مرحله) هم خودِ موتور (تشخیص آخرین
+    تصمیم قابل‌بازگردانی) از همین یک متد استفاده می‌کنند.
+  - حذف واقعی: ستون `deleted_at` (`SoftDeletes`) روی `process_definitions`.
+    Action جدید `DeleteProcessDefinition` — بدون هیچ instance (حتی
+    تاریخی) → حذف کامل (مراحل+گذارها+خودِ تعریف در یک تراکنش، چون
+    RESTRICT FK اجازه نمی‌داد)؛ با حداقل یک instance → فقط soft-delete
+    (تاریخچه/لاگ دست‌نخورده). دکمه‌ی حذف در `ProcessDefinitionIndex` با
+    `wire:confirm` که پیام‌اش بسته به `instances_count` فرق می‌کند.
+  - ویرایش تصمیم اخیر: `ProcessEngine::reverseLastDecision()` — فقط اگر
+    آخرین لاگ instance دقیقاً همان تصمیم (approved/rejected) actor باشد
+    (یعنی هیچ اتفاقی — حتی ارزیابی خودکار شرط یا تکمیل فرایند — بعدش
+    نیفتاده). رکورد لاگ اصلی هرگز حذف/محتوایش ویرایش نمی‌شود؛ فقط یک
+    ستون متادیتای جدید `reversed_at` روی همان رکورد ست می‌شود و یک لاگ
+    جدید (`LogAction::Reversed`) اضافه می‌شود. `current_step_id` به همان
+    مرحله برمی‌گردد. دکمه‌ی «تاریخچه» هم به `MyProcessTasks` اضافه شد
+    (نیازمند گسترش `ProcessInstancePolicy::view` تا مسئول فعلی مرحله را
+    هم — نه فقط کسی که قبلاً اقدام کرده — قبل از تصمیم‌گیری مجاز کند).
+  - تولید خودکار `process_key`/`step_key`: هر دو فیلد کامل از UI حذف
+    شدند. `process_key` سمت سرور در لحظه‌ی `save()` از روی نام تولید
+    می‌شود (`resolveUniqueProcessKey` — پسوند عددی در تصادم، دقیقاً الگوی
+    autosave اسلاگ ماژول Blog)؛ `step_key` از قبل در `emptyStep()` همین
+    الگو را داشت (فقط UI‌اش حذف شد). تأیید شد اتصال HR/مرخصی
+    (`ProcessEngine::startForSubjectIfActive`) فقط با `subject_type` کار
+    می‌کند، نه `process_key` — بدون رگرسیون.
+
+  **بازدید بصری واقعی** با `php artisan serve` روی `127.0.0.1:8123` و دو
+  کاربر تستی موقت (holding_admin + accountant) روی شرکت واقعی `arshaman`:
+  ساخت یک فرایند از UI بدون هیچ فیلد کلید، درخواست و مشاهده‌ی آن در
+  نظارت، ارسال یادآوری واقعی و دیدن بنرش در «کارهای من»، تأیید یک زنجیره‌ی
+  دومرحله‌ای و بازگردانی واقعی تصمیم (تأیید شد در دیتابیس: `reversed_at`
+  ست شد، لاگ `reversed` اضافه شد، `current_step_id` برگشت، کار دوباره در
+  فهرست ظاهر شد)، و حذف واقعی یک تعریف با سابقه (soft-delete، پنهان از
+  فهرست فعال). **محدودیت شناخته‌شده:** دکمه‌های `wire:confirm` (حذف/
+  بازگردانی) با کلیک ساده در این محیط sandbox قابل تأیید نبودند (دیالوگ
+  `confirm()` بومی مرورگر)؛ برای اثبات مسیر واقعی سرور، `window.confirm`
+  موقتاً override و متد Livewire مستقیم از کنسول صدا زده شد — نه یک
+  میان‌بر تست، بلکه دور زدن محدودیت خودِ ابزار خودکارسازی مرورگر برای
+  دیدن نتیجه‌ی واقعی روی دیتابیس. کاربران/تعاریف/instance های تستی در
+  پایان کامل حذف شدند (بند ۱۰ CLAUDE.md).
+
+  **تست‌ها:** `tests/Feature/Process/ProcessOversightAndControlsTest.php`
+  (۱۷ تست جدید). کل سوییت پروژه: ۵۹۵ سبز، ۱۳ skip (همان CHECKهای
+  mysql-only) — بدون رگرسیون.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

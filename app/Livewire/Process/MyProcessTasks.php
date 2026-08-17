@@ -6,10 +6,14 @@ use App\Modules\Core\Models\Role;
 use App\Modules\Core\Services\CompanyContext;
 use App\Modules\Process\Actions\ApproveProcessStep;
 use App\Modules\Process\Actions\RejectProcessStep;
+use App\Modules\Process\Actions\ReverseProcessDecision;
 use App\Modules\Process\Enums\AssignmentType;
+use App\Modules\Process\Enums\LogAction;
 use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Models\ProcessInstance;
+use App\Modules\Process\Models\ProcessInstanceLog;
+use App\Modules\Process\Services\ProcessEngine;
 use App\Modules\Process\Support\ProcessSubjectSummary;
 use Illuminate\Support\Collection;
 use Livewire\Component;
@@ -28,6 +32,10 @@ class MyProcessTasks extends Component
     public ?string $commentInstanceId = null;
 
     public string $comment = '';
+
+    public ?string $historyInstanceId = null;
+
+    public bool $showHistoryModal = false;
 
     /**
      * @return Collection<int, array<string, mixed>>
@@ -67,7 +75,51 @@ class MyProcessTasks extends Component
             ->map(fn (ProcessInstance $instance) => [
                 'instance' => $instance,
                 'summary' => ProcessSubjectSummary::forInstance($instance),
+                'reminder' => $this->latestReminder($instance),
             ]);
+    }
+
+    /**
+     * تصمیم‌های اخیر خودِ این کاربر که هنوز قابل بازگردانی‌اند — یعنی مرحله‌ی
+     * بعدی از قبل هیچ اقدامی نداشته. تنها منبع حقیقتِ این شرط
+     * ProcessEngine::canReverseLastDecision است (بند ۴ Session جاری).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function getReversibleDecisionsProperty(): Collection
+    {
+        $user = auth()->user();
+        $companyId = app(CompanyContext::class)->id();
+
+        if ($companyId === null) {
+            return collect();
+        }
+
+        $engine = app(ProcessEngine::class);
+
+        $candidateInstanceIds = ProcessInstanceLog::query()
+            ->where('owner_company_id', $companyId)
+            ->where('actor_user_id', $user->id)
+            ->whereIn('action', [LogAction::Approved->value, LogAction::Rejected->value])
+            ->whereNull('reversed_at')
+            ->pluck('process_instance_id')
+            ->unique();
+
+        if ($candidateInstanceIds->isEmpty()) {
+            return collect();
+        }
+
+        return ProcessInstance::query()
+            ->whereIn('id', $candidateInstanceIds)
+            ->where('status', ProcessStatus::InProgress->value)
+            ->with(['definition', 'currentStep'])
+            ->get()
+            ->filter(fn (ProcessInstance $instance) => $engine->canReverseLastDecision($instance, $user))
+            ->map(fn (ProcessInstance $instance) => [
+                'instance' => $instance,
+                'summary' => ProcessSubjectSummary::forInstance($instance),
+            ])
+            ->values();
     }
 
     public function openComment(string $instanceId): void
@@ -86,6 +138,43 @@ class MyProcessTasks extends Component
         $this->act($action, 'reject', 'درخواست رد شد.');
     }
 
+    public function openHistory(string $instanceId): void
+    {
+        $instance = ProcessInstance::findOrFail($instanceId);
+
+        $this->authorize('view', $instance);
+
+        $this->historyInstanceId = $instanceId;
+        $this->showHistoryModal = true;
+    }
+
+    /**
+     * @return Collection<int, ProcessInstanceLog>
+     */
+    public function getHistoryProperty(): Collection
+    {
+        if ($this->historyInstanceId === null) {
+            return collect();
+        }
+
+        return ProcessInstance::findOrFail($this->historyInstanceId)
+            ->logs()
+            ->with(['step', 'actor'])
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    public function reverseDecision(string $instanceId, ReverseProcessDecision $action): void
+    {
+        $instance = ProcessInstance::findOrFail($instanceId);
+
+        $this->authorize('reverseLastDecision', $instance);
+
+        $action->handle($instance, auth()->user());
+
+        $this->success('تصمیم شما بازگردانی شد — دوباره در فهرست کارهای منتظر تصمیم قرار گرفت.');
+    }
+
     private function act(ApproveProcessStep|RejectProcessStep $action, string $ability, string $successMessage): void
     {
         if ($this->commentInstanceId === null) {
@@ -102,6 +191,13 @@ class MyProcessTasks extends Component
         $this->comment = '';
 
         $this->success($successMessage);
+    }
+
+    private function latestReminder(ProcessInstance $instance): ?ProcessInstanceLog
+    {
+        $lastLog = app(ProcessEngine::class)->lastLog($instance);
+
+        return $lastLog?->action === LogAction::Reminder ? $lastLog : null;
     }
 
     /**
