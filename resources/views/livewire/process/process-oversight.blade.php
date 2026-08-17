@@ -14,7 +14,12 @@
             with-pagination
         >
             @scope('cell_definition', $instance)
-                {{ $instance->definition->name }}
+                <span class="inline-flex items-center gap-2">
+                    {{ $instance->definition->name }}
+                    @if($instance->definition->trashed())
+                        <x-badge value="بایگانی‌شده" class="badge-ghost badge-sm" :icon="theme_icon('archive')" />
+                    @endif
+                </span>
             @endscope
 
             @scope('cell_started_by', $instance)

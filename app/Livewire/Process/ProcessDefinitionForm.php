@@ -350,6 +350,17 @@ class ProcessDefinitionForm extends Component
     /**
      * process_key کاربر را هرگز نمی‌بیند/تایپ نمی‌کند — همیشه از روی نام
      * تولید می‌شود، با پسوند عددی در صورت تصادم درون همان شرکت (uq_process_definitions_company_key).
+     *
+     * withTrashed() عمداً: uq_process_definitions_company_key یک UNIQUE
+     * سطح دیتابیس روی ردیف فیزیکی است و بایگانی‌شدن (soft-delete) ردیف را
+     * پاک نمی‌کند، فقط deleted_at را پر می‌کند — پس یک کلید بایگانی‌شده
+     * همچنان برای همیشه رزرو می‌ماند. بدون withTrashed() اینجا، این تابع
+     * چنین کلیدی را «آزاد» تشخیص می‌داد (چون SoftDeletes به‌صورت پیش‌فرض
+     * بایگانی‌شده‌ها را از کوئری کنار می‌گذارد) و insert با یک
+     * QueryException خام رد می‌شد. تصمیم: کلید برای همیشه رزرو می‌ماند
+     * (نه آزادسازی بعد از بایگانی) — ساده‌تر، بدون نیاز به تغییر schema
+     * ایندکس یکتا، و ابهام تاریخی بین دو تعریف با کلید یکسان را از بین
+     * می‌برد؛ فرایند جدید با همان نام به‌جایش پسوند عددی می‌گیرد.
      */
     private function resolveUniqueProcessKey(string $name, ?string $companyId, ?string $excludeId): string
     {
@@ -359,6 +370,7 @@ class ProcessDefinitionForm extends Component
 
         while (
             ProcessDefinition::withoutGlobalScope('owner_company')
+                ->withTrashed()
                 ->where('owner_company_id', $companyId)
                 ->where('process_key', $key)
                 ->when($excludeId !== null, fn ($query) => $query->where('id', '!=', $excludeId))

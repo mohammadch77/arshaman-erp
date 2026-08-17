@@ -40,9 +40,15 @@ class ProcessInstance extends Model
         ];
     }
 
+    /**
+     * withTrashed() عمداً: نظارت (ProcessOversight) باید بتواند instance های
+     * متعلق به یک تعریف بایگانی‌شده (soft-deleted، بند ۳ Session ۶ ماژول
+     * Process) را هم نشان دهد — بدون آن، global scope پیش‌فرض SoftDeletes
+     * این رابطه را برای هر تعریف بایگانی‌شده null برمی‌گرداند.
+     */
     public function definition(): BelongsTo
     {
-        return $this->belongsTo(ProcessDefinition::class, 'process_definition_id');
+        return $this->belongsTo(ProcessDefinition::class, 'process_definition_id')->withTrashed();
     }
 
     public function currentStep(): BelongsTo
