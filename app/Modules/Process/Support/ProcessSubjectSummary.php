@@ -31,12 +31,12 @@ class ProcessSubjectSummary
     }
 
     /**
-     * @return array<int, array{label: string, value: string}>
+     * @return array<int, array{label: string, value: string, is_file: bool}>
      */
     private static function forSubject(string $subjectType, ?Model $subject): array
     {
         if ($subject === null) {
-            return [['label' => 'سوژه', 'value' => 'یافت نشد (احتمالاً حذف شده)']];
+            return [['label' => 'سوژه', 'value' => 'یافت نشد (احتمالاً حذف شده)', 'is_file' => false]];
         }
 
         $fields = config("processes.subject_summary_fields.{$subjectType}", []);
@@ -45,14 +45,14 @@ class ProcessSubjectSummary
 
         foreach ($fields as $path => $label) {
             $value = data_get($subject, $path);
-            $summary[] = ['label' => $label, 'value' => self::formatValue($value)];
+            $summary[] = ['label' => $label, 'value' => self::formatValue($value), 'is_file' => false];
         }
 
         return $summary;
     }
 
     /**
-     * @return array<int, array{label: string, value: string}>
+     * @return array<int, array{label: string, value: string, is_file: bool}>
      */
     private static function forRequestData(ProcessInstance $instance): array
     {
@@ -68,9 +68,15 @@ class ProcessSubjectSummary
                 continue;
             }
 
+            $isFile = ($field['type'] ?? null) === 'file';
+            $rawValue = $data[$key] ?? null;
+
             $summary[] = [
                 'label' => $field['label'] ?? $key,
-                'value' => self::formatValue($data[$key] ?? null),
+                // فیلد file مسیر خام ذخیره‌شده را حمل می‌کند (نه یک متن نمایشی)
+                // تا blade بتواند لینک دانلود واقعی بسازد — نگاه کن is_file پایین.
+                'value' => $isFile ? (string) ($rawValue ?? '') : self::formatValue($rawValue),
+                'is_file' => $isFile,
             ];
         }
 

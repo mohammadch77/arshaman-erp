@@ -57,6 +57,13 @@
                                                 label="{{ $field['label'] }}"
                                                 wire:model="formValues.{{ $field['key'] }}"
                                             />
+                                        @elseif($field['type'] === 'file')
+                                            <x-file
+                                                label="{{ $field['label'] }}"
+                                                wire:model="fileUploads.{{ $field['key'] }}"
+                                                :icon="theme_icon('file')"
+                                                hint="فرمت‌های مجاز: {{ implode('، ', config('processes.file_upload.allowed_extensions')) }} — حداکثر {{ round(config('processes.file_upload.max_kilobytes') / 1024, 1) }} مگابایت"
+                                            />
                                         @else
                                             <x-input
                                                 label="{{ $field['label'] }}"

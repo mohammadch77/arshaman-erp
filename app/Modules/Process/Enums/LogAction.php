@@ -16,6 +16,11 @@ enum LogAction: string
     case Reversed = 'reversed';
     // فرستنده‌ی اصلی instance فرم مرحله‌ی requester_input را ارسال کرد.
     case RequesterInput = 'requester_input';
+    // فرستنده‌ی اصلی request_data فرایند آزاد را ویرایش کرد (بخش ۳ Session جاری) —
+    // فقط قبل از این‌که مرحله‌ی فعلی هیچ اقدامی داشته باشد.
+    case RequestUpdated = 'request_updated';
+    // فرستنده‌ی اصلی کل instance را لغو کرد (بخش ۳ Session جاری).
+    case Cancelled = 'cancelled';
 
     public function label(): string
     {
@@ -28,6 +33,8 @@ enum LogAction: string
             self::Reminder => 'یادآوری ادمین',
             self::Reversed => 'تصمیم بازگردانی شد',
             self::RequesterInput => 'اطلاعات توسط درخواست‌دهنده تکمیل شد',
+            self::RequestUpdated => 'درخواست توسط فرستنده ویرایش شد',
+            self::Cancelled => 'توسط فرستنده لغو شد',
         };
     }
 }

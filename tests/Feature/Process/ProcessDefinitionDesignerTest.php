@@ -6,6 +6,7 @@ use App\Modules\Core\Models\User;
 use App\Modules\Core\Models\UserCompanyRole;
 use App\Modules\HR\Models\Leave;
 use App\Modules\Process\Actions\CreateProcessDefinition;
+use App\Modules\Process\Actions\CreateProcessDefinitionVersion;
 use App\Modules\Process\Actions\UpdateProcessDefinition;
 use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
@@ -163,7 +164,7 @@ it('allows holding_admin to access the designer panel', function () {
     test()->get('/processes/create')->assertOk();
 });
 
-it('blocks structural edits once a definition has any instance, but still allows renaming/toggling', function () {
+it('blocks structural edits once a definition has an in-progress instance, but still allows renaming/toggling', function () {
     [$admin, $company] = designerActingAs('holding_admin');
 
     $definition = app(CreateProcessDefinition::class)->handle($admin, $company->id, designerValidLeavePayload());
@@ -177,10 +178,9 @@ it('blocks structural edits once a definition has any instance, but still allows
         'subject_type' => null,
         'subject_id' => null,
         'current_step_id' => $startStep->id,
-        'status' => ProcessStatus::Approved->value,
+        'status' => ProcessStatus::InProgress->value,
         'started_by_user_id' => $admin->id,
         'started_at' => now(),
-        'completed_at' => now(),
     ]);
 
     $attemptedPayload = designerValidLeavePayload();
@@ -196,4 +196,51 @@ it('blocks structural edits once a definition has any instance, but still allows
     expect($updated->name)->toBe('نام تغییریافته')
         ->and($updated->is_active)->toBeFalse()
         ->and($updated->steps()->count())->toBe($originalStepCount);
+});
+
+/**
+ * بخش ۴.۲ Session جاری — وقتی تعریف فقط instance تمام‌شده دارد (بدون هیچ
+ * در‌جریان)، UpdateProcessDefinition دیگر صدا زده نمی‌شود؛ CreateProcessDefinitionVersion
+ * یک رکورد کاملاً جدید می‌سازد و نسخه‌ی قدیمی را is_current_version=false می‌کند،
+ * بدون این‌که تاریخچه‌ی نسخه‌ی قدیمی (instance/logsش) تغییر کند.
+ */
+it('creates a brand-new version when a definition only has finished instances, leaving the old version and its history untouched', function () {
+    [$admin, $company] = designerActingAs('holding_admin');
+
+    $definition = app(CreateProcessDefinition::class)->handle($admin, $company->id, designerValidLeavePayload());
+    $originalStepCount = $definition->steps()->count();
+
+    $startStep = $definition->steps()->where('step_type', StepType::Start->value)->first();
+
+    $finishedInstance = ProcessInstance::create([
+        'owner_company_id' => $company->id,
+        'process_definition_id' => $definition->id,
+        'subject_type' => null,
+        'subject_id' => null,
+        'current_step_id' => $startStep->id,
+        'status' => ProcessStatus::Approved->value,
+        'started_by_user_id' => $admin->id,
+        'started_at' => now(),
+        'completed_at' => now(),
+    ]);
+
+    $newPayload = designerValidLeavePayload();
+    $newPayload['name'] = 'نام نسخه‌ی جدید';
+
+    $newVersion = app(CreateProcessDefinitionVersion::class)->handle($admin, $definition->fresh(), $newPayload);
+
+    expect($newVersion->id)->not->toBe($definition->id)
+        ->and($newVersion->process_key)->toBe($definition->process_key)
+        ->and($newVersion->version)->toBe(2)
+        ->and($newVersion->is_current_version)->toBeTrue()
+        ->and($newVersion->name)->toBe('نام نسخه‌ی جدید');
+
+    $definition->refresh();
+    expect($definition->is_current_version)->toBeFalse()
+        ->and($definition->version)->toBe(1)
+        ->and($definition->steps()->count())->toBe($originalStepCount);
+
+    $finishedInstance->refresh();
+    expect($finishedInstance->process_definition_id)->toBe($definition->id)
+        ->and($finishedInstance->current_step_id)->toBe($startStep->id);
 });

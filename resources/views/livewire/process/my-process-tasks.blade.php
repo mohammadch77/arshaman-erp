@@ -68,7 +68,16 @@
                                     @foreach($task['summary'] as $item)
                                         <div class="flex gap-2">
                                             <dt class="text-base-content/60">{{ $item['label'] }}:</dt>
-                                            <dd class="font-medium">{{ $item['value'] }}</dd>
+                                            @if($item['is_file'] && $item['value'] !== '')
+                                                <dd>
+                                                    <a href="{{ \App\Modules\Process\Support\ProcessFileUploader::url($item['value']) }}" target="_blank" class="link link-primary inline-flex items-center gap-1">
+                                                        <x-icon :name="theme_icon('download')" class="w-4 h-4" />
+                                                        {{ \App\Modules\Process\Support\ProcessFileUploader::originalNameFromPath($item['value']) }}
+                                                    </a>
+                                                </dd>
+                                            @else
+                                                <dd class="font-medium">{{ $item['value'] }}</dd>
+                                            @endif
                                         </div>
                                     @endforeach
                                 </dl>
@@ -105,6 +114,13 @@
                         <x-input type="number" :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" :icon="theme_icon('site-form')" />
                     @elseif($field['type'] === 'textarea')
                         <x-textarea :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" rows="3" />
+                    @elseif($field['type'] === 'file')
+                        <x-file
+                            :label="$field['label']"
+                            wire:model="fileUploads.{{ $field['key'] }}"
+                            :icon="theme_icon('file')"
+                            hint="فرمت‌های مجاز: {{ implode('، ', config('processes.file_upload.allowed_extensions')) }} — حداکثر {{ round(config('processes.file_upload.max_kilobytes') / 1024, 1) }} مگابایت"
+                        />
                     @else
                         <x-input :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" :icon="theme_icon('site-form')" />
                     @endif
@@ -154,10 +170,19 @@
                         @if($event->step_data)
                             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
                                 @foreach($event->step_data as $key => $value)
-                                    @php($fieldLabel = collect($event->step->step_form_fields ?? [])->firstWhere('key', $key)['label'] ?? $key)
+                                    @php($stepField = collect($event->step->step_form_fields ?? [])->firstWhere('key', $key))
                                     <div class="flex gap-2">
-                                        <dt class="text-base-content/60">{{ $fieldLabel }}:</dt>
-                                        <dd class="font-medium">{{ is_bool($value) ? ($value ? 'بله' : 'خیر') : $value }}</dd>
+                                        <dt class="text-base-content/60">{{ $stepField['label'] ?? $key }}:</dt>
+                                        @if(($stepField['type'] ?? null) === 'file')
+                                            <dd>
+                                                <a href="{{ \App\Modules\Process\Support\ProcessFileUploader::url($value) }}" target="_blank" class="link link-primary inline-flex items-center gap-1">
+                                                    <x-icon :name="theme_icon('download')" class="w-4 h-4" />
+                                                    {{ \App\Modules\Process\Support\ProcessFileUploader::originalNameFromPath($value) }}
+                                                </a>
+                                            </dd>
+                                        @else
+                                            <dd class="font-medium">{{ is_bool($value) ? ($value ? 'بله' : 'خیر') : $value }}</dd>
+                                        @endif
                                     </div>
                                 @endforeach
                             </dl>

@@ -38,6 +38,13 @@
 
             @scope('actions', $definition)
                 <x-button
+                    :icon="theme_icon('flowchart')"
+                    tooltip-left="مشاهده فلوچارت"
+                    class="btn-circle btn-ghost btn-sm"
+                    wire:click="showFlowchart('{{ $definition->id }}')"
+                />
+
+                <x-button
                     :icon="theme_icon('edit')"
                     tooltip-left="ویرایش"
                     class="btn-circle btn-ghost btn-sm"
@@ -63,4 +70,18 @@
             @endscope
         </x-table>
     </x-card>
+
+    <x-modal wire:model="showFlowchartModal" title="فلوچارت فرایند" separator :box-class="'w-11/12 max-w-4xl'">
+        <div
+            x-data
+            x-on:process-flowchart-ready.window="window.renderProcessFlowchart($refs.flowchartContainer, $event.detail.mermaid)"
+            class="overflow-x-auto"
+        >
+            <div x-ref="flowchartContainer" class="flex justify-center min-h-[200px]"></div>
+        </div>
+
+        <x-slot:actions>
+            <x-button label="بستن" @click="$wire.showFlowchartModal = false" />
+        </x-slot:actions>
+    </x-modal>
 </div>

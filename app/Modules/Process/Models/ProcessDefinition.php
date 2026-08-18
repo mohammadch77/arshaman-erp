@@ -21,6 +21,8 @@ class ProcessDefinition extends Model
         'owner_company_id',
         'name',
         'process_key',
+        'version',
+        'is_current_version',
         'subject_type',
         'request_form_fields',
         'is_active',
@@ -32,6 +34,8 @@ class ProcessDefinition extends Model
         return [
             'request_form_fields' => 'array',
             'is_active' => 'boolean',
+            'is_current_version' => 'boolean',
+            'version' => 'integer',
         ];
     }
 

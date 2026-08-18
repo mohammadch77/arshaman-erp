@@ -235,7 +235,7 @@ it('drag reordering transitions only changes display_order, never the actual exe
     expect($startTransition->to_step_id)->toBe($approvalStep->id);
 });
 
-it('shows the simple locked form (no wizard) when editing a definition with history, and the full wizard when editing one without history', function () {
+it('shows the simple locked form (no wizard) when editing a definition with an in-progress instance, and the full wizard when editing one without any instance', function () {
     [$company, $admin] = pdwActingAsHoldingAdmin();
 
     $definitionWithoutHistory = app(CreateProcessDefinition::class)->handle($admin, $company->id, [
@@ -255,7 +255,7 @@ it('shows the simple locked form (no wizard) when editing a definition with hist
 
     Livewire::test(ProcessDefinitionForm::class, ['processDefinition' => $definitionWithoutHistory->id])
         ->assertSee('۱. اطلاعات پایه')
-        ->assertDontSee('این فرایند سابقه‌ی اجرا دارد');
+        ->assertDontSee('این فرایند instance «در جریان» دارد');
 
     $definitionWithHistory = app(CreateProcessDefinition::class)->handle($admin, $company->id, [
         'name' => 'فرایند دارای سابقه',
@@ -274,9 +274,47 @@ it('shows the simple locked form (no wizard) when editing a definition with hist
 
     $startStep = $definitionWithHistory->steps()->where('step_type', StepType::Start->value)->first();
 
+    // فقط instance «در جریان» است که ساختار را قفل می‌کند (بخش ۴.۲ Session جاری).
     ProcessInstance::create([
         'owner_company_id' => $company->id,
         'process_definition_id' => $definitionWithHistory->id,
+        'subject_type' => null,
+        'subject_id' => null,
+        'current_step_id' => $startStep->id,
+        'status' => ProcessStatus::InProgress->value,
+        'started_by_user_id' => $admin->id,
+        'started_at' => now(),
+    ]);
+
+    Livewire::test(ProcessDefinitionForm::class, ['processDefinition' => $definitionWithHistory->id])
+        ->assertSee('این فرایند instance «در جریان» دارد')
+        ->assertDontSee('۱. اطلاعات پایه')
+        ->assertDontSee('۳. مراحل');
+});
+
+it('shows the full wizard (not the locked form) with a version-creation notice when editing a definition that only has finished instances', function () {
+    [$company, $admin] = pdwActingAsHoldingAdmin();
+
+    $definition = app(CreateProcessDefinition::class)->handle($admin, $company->id, [
+        'name' => 'فرایند فقط تمام‌شده',
+        'process_key' => 'pdw_finished_only_'.uniqid(),
+        'subject_type' => null,
+        'request_form_fields' => null,
+        'is_active' => true,
+        'steps' => [
+            ['step_key' => 'start', 'name' => 'شروع', 'step_type' => StepType::Start->value],
+            ['step_key' => 'end', 'name' => 'پایان', 'step_type' => StepType::End->value],
+        ],
+        'transitions' => [
+            ['from_step_key' => 'start', 'to_step_key' => 'end', 'on_result' => TransitionResult::Approved->value],
+        ],
+    ]);
+
+    $startStep = $definition->steps()->where('step_type', StepType::Start->value)->first();
+
+    ProcessInstance::create([
+        'owner_company_id' => $company->id,
+        'process_definition_id' => $definition->id,
         'subject_type' => null,
         'subject_id' => null,
         'current_step_id' => $startStep->id,
@@ -286,10 +324,10 @@ it('shows the simple locked form (no wizard) when editing a definition with hist
         'completed_at' => now(),
     ]);
 
-    Livewire::test(ProcessDefinitionForm::class, ['processDefinition' => $definitionWithHistory->id])
-        ->assertSee('این فرایند سابقه‌ی اجرا دارد')
-        ->assertDontSee('۱. اطلاعات پایه')
-        ->assertDontSee('۳. مراحل');
+    Livewire::test(ProcessDefinitionForm::class, ['processDefinition' => $definition->id])
+        ->assertSee('۱. اطلاعات پایه')
+        ->assertDontSee('این فرایند instance «در جریان» دارد')
+        ->assertSee('ذخیره یک نسخه‌ی جدید می‌سازد');
 });
 
 it('pre-fills the full wizard with existing values when editing a definition without history', function () {

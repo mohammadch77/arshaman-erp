@@ -14,9 +14,12 @@ use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Models\ProcessInstance;
 use App\Modules\Process\Models\ProcessInstanceLog;
 use App\Modules\Process\Services\ProcessEngine;
+use App\Modules\Process\Support\ProcessFileUploader;
 use App\Modules\Process\Support\ProcessSubjectSummary;
 use Illuminate\Support\Collection;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 use Mary\Traits\Toast;
 
 /**
@@ -27,7 +30,7 @@ use Mary\Traits\Toast;
  */
 class MyProcessTasks extends Component
 {
-    use Toast;
+    use Toast, WithFileUploads;
 
     public ?string $commentInstanceId = null;
 
@@ -40,6 +43,15 @@ class MyProcessTasks extends Component
      * @var array<string, mixed>
      */
     public array $stepDataValues = [];
+
+    /**
+     * فقط فیلدهای نوع file از همان step_form_fields — کلید = field key، مقدار
+     * = TemporaryUploadedFile تا انتخاب شود؛ در act() به مسیر ذخیره‌شده تبدیل
+     * می‌شود (همان الگوی NewProcessRequest::fileUploads).
+     *
+     * @var array<string, mixed>
+     */
+    public array $fileUploads = [];
 
     public ?string $historyInstanceId = null;
 
@@ -135,9 +147,13 @@ class MyProcessTasks extends Component
         $this->commentInstanceId = $instanceId;
         $this->comment = '';
         $this->stepDataValues = [];
+        $this->fileUploads = [];
 
         foreach ($this->commentStepFormFields as $field) {
             $this->stepDataValues[$field['key']] = $field['type'] === 'boolean' ? false : null;
+            if ($field['type'] === 'file') {
+                $this->fileUploads[$field['key']] = null;
+            }
         }
     }
 
@@ -213,11 +229,18 @@ class MyProcessTasks extends Component
 
         $this->authorize($ability, $instance);
 
+        foreach ($this->fileUploads as $key => $file) {
+            if ($file instanceof TemporaryUploadedFile) {
+                $this->stepDataValues[$key] = ProcessFileUploader::store($file);
+            }
+        }
+
         $action->handle($instance, auth()->user(), $this->comment !== '' ? $this->comment : null, $this->stepDataValues);
 
         $this->commentInstanceId = null;
         $this->comment = '';
         $this->stepDataValues = [];
+        $this->fileUploads = [];
 
         $this->success($successMessage);
     }

@@ -69,19 +69,47 @@
                                     @foreach($row['summary'] as $item)
                                         <div class="flex gap-2">
                                             <dt class="text-base-content/60">{{ $item['label'] }}:</dt>
-                                            <dd class="font-medium">{{ $item['value'] }}</dd>
+                                            @if($item['is_file'] && $item['value'] !== '')
+                                                <dd>
+                                                    <a href="{{ \App\Modules\Process\Support\ProcessFileUploader::url($item['value']) }}" target="_blank" class="link link-primary inline-flex items-center gap-1">
+                                                        <x-icon :name="theme_icon('download')" class="w-4 h-4" />
+                                                        {{ \App\Modules\Process\Support\ProcessFileUploader::originalNameFromPath($item['value']) }}
+                                                    </a>
+                                                </dd>
+                                            @else
+                                                <dd class="font-medium">{{ $item['value'] }}</dd>
+                                            @endif
                                         </div>
                                     @endforeach
                                 </dl>
                             @endif
                         </div>
 
-                        <x-button
-                            :icon="theme_icon('history')"
-                            tooltip-left="تاریخچه"
-                            class="btn-circle btn-ghost btn-sm shrink-0"
-                            wire:click="openHistory('{{ $instance->id }}')"
-                        />
+                        <div class="flex gap-2 shrink-0">
+                            @if($row['can_edit'])
+                                <x-button
+                                    :icon="theme_icon('edit')"
+                                    tooltip-left="ویرایش درخواست"
+                                    class="btn-circle btn-ghost btn-sm"
+                                    wire:click="openEditForm('{{ $instance->id }}')"
+                                />
+                            @endif
+                            @if($row['can_cancel'])
+                                <x-button
+                                    :icon="theme_icon('cancel')"
+                                    tooltip-left="لغو درخواست"
+                                    class="btn-circle btn-ghost btn-sm text-error"
+                                    wire:click="cancelInstance('{{ $instance->id }}')"
+                                    wire:confirm="این درخواست لغو می‌شود و دیگر ادامه پیدا نمی‌کند. مطمئنید؟"
+                                />
+                            @endif
+                            <x-button
+                                :icon="theme_icon('history')"
+                                tooltip-left="تاریخچه"
+                                class="btn-circle btn-ghost btn-sm"
+                                wire:click="openHistory('{{ $instance->id }}')"
+                            />
+                        </div>
                     </div>
                 </x-card>
             @endforeach
@@ -111,6 +139,13 @@
                             label="{{ $field['label'] }}"
                             wire:model="inputStepDataValues.{{ $field['key'] }}"
                         />
+                    @elseif($field['type'] === 'file')
+                        <x-file
+                            label="{{ $field['label'] }}"
+                            wire:model="inputFileUploads.{{ $field['key'] }}"
+                            :icon="theme_icon('file')"
+                            hint="فرمت‌های مجاز: {{ implode('، ', config('processes.file_upload.allowed_extensions')) }} — حداکثر {{ round(config('processes.file_upload.max_kilobytes') / 1024, 1) }} مگابایت"
+                        />
                     @else
                         <x-input
                             label="{{ $field['label'] }}"
@@ -124,6 +159,61 @@
         <x-slot:actions>
             <x-button label="انصراف" @click="$wire.showInputModal = false" />
             <x-button label="ارسال" :icon="theme_icon('send')" class="btn-primary" wire:click="submitInput" spinner="submitInput" />
+        </x-slot:actions>
+    </x-modal>
+
+    <x-modal wire:model="showEditModal" title="ویرایش درخواست" subtitle="فقط تا قبل از اقدام مسئول مرحله‌ی فعلی قابل‌ویرایش است" separator>
+        @if($this->editFormFields === [])
+            <p class="text-base-content/60">این فرایند فیلد درخواستی ندارد.</p>
+        @else
+            <div class="flex flex-col gap-4">
+                @foreach($this->editFormFields as $field)
+                    @if($field['type'] === 'textarea')
+                        <x-textarea
+                            label="{{ $field['label'] }}"
+                            wire:model="editFormValues.{{ $field['key'] }}"
+                            rows="3"
+                        />
+                    @elseif($field['type'] === 'number')
+                        <x-input
+                            type="number"
+                            label="{{ $field['label'] }}"
+                            wire:model="editFormValues.{{ $field['key'] }}"
+                        />
+                    @elseif($field['type'] === 'boolean')
+                        <x-checkbox
+                            label="{{ $field['label'] }}"
+                            wire:model="editFormValues.{{ $field['key'] }}"
+                        />
+                    @elseif($field['type'] === 'file')
+                        @php($existingPath = $this->editExistingFiles[$field['key']] ?? null)
+                        @if($existingPath)
+                            <div class="text-sm">
+                                <span class="text-base-content/60">فایل فعلی:</span>
+                                <a href="{{ \App\Modules\Process\Support\ProcessFileUploader::url($existingPath) }}" target="_blank" class="link link-primary">
+                                    {{ \App\Modules\Process\Support\ProcessFileUploader::originalNameFromPath($existingPath) }}
+                                </a>
+                            </div>
+                        @endif
+                        <x-file
+                            label="{{ $field['label'] }} (برای تعویض، فایل جدید انتخاب کنید)"
+                            wire:model="editFileUploads.{{ $field['key'] }}"
+                            :icon="theme_icon('file')"
+                            hint="فرمت‌های مجاز: {{ implode('، ', config('processes.file_upload.allowed_extensions')) }} — حداکثر {{ round(config('processes.file_upload.max_kilobytes') / 1024, 1) }} مگابایت"
+                        />
+                    @else
+                        <x-input
+                            label="{{ $field['label'] }}"
+                            wire:model="editFormValues.{{ $field['key'] }}"
+                        />
+                    @endif
+                @endforeach
+            </div>
+        @endif
+
+        <x-slot:actions>
+            <x-button label="انصراف" @click="$wire.showEditModal = false" />
+            <x-button label="ذخیره تغییرات" :icon="theme_icon('save')" class="btn-primary" wire:click="saveEditRequest" spinner="saveEditRequest" />
         </x-slot:actions>
     </x-modal>
 
@@ -154,10 +244,19 @@
                         @if($event->step_data)
                             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
                                 @foreach($event->step_data as $key => $value)
-                                    @php($fieldLabel = collect($event->step->step_form_fields ?? [])->firstWhere('key', $key)['label'] ?? $key)
+                                    @php($stepField = collect($event->step->step_form_fields ?? [])->firstWhere('key', $key))
                                     <div class="flex gap-2">
-                                        <dt class="text-base-content/60">{{ $fieldLabel }}:</dt>
-                                        <dd class="font-medium">{{ is_bool($value) ? ($value ? 'بله' : 'خیر') : $value }}</dd>
+                                        <dt class="text-base-content/60">{{ $stepField['label'] ?? $key }}:</dt>
+                                        @if(($stepField['type'] ?? null) === 'file')
+                                            <dd>
+                                                <a href="{{ \App\Modules\Process\Support\ProcessFileUploader::url($value) }}" target="_blank" class="link link-primary inline-flex items-center gap-1">
+                                                    <x-icon :name="theme_icon('download')" class="w-4 h-4" />
+                                                    {{ \App\Modules\Process\Support\ProcessFileUploader::originalNameFromPath($value) }}
+                                                </a>
+                                            </dd>
+                                        @else
+                                            <dd class="font-medium">{{ is_bool($value) ? ($value ? 'بله' : 'خیر') : $value }}</dd>
+                                        @endif
                                     </div>
                                 @endforeach
                             </dl>

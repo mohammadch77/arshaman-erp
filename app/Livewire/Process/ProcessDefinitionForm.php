@@ -5,6 +5,7 @@ namespace App\Livewire\Process;
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Services\CompanyContext;
 use App\Modules\Process\Actions\CreateProcessDefinition;
+use App\Modules\Process\Actions\CreateProcessDefinitionVersion;
 use App\Modules\Process\Actions\UpdateProcessDefinition;
 use App\Modules\Process\Enums\AssignmentType;
 use App\Modules\Process\Enums\ConditionOperator;
@@ -73,9 +74,9 @@ class ProcessDefinitionForm extends Component
     public array $stepErrors = [];
 
     /**
-     * شماره‌ی مرحله‌ی فعلی ویزارد (۱ تا ۵). فقط برای تعریف بدون سابقه‌ی اجرا
-     * معنا دارد — تعریف دارای سابقه (hasHistory) اصلاً ویزارد نمی‌بیند، یک
-     * فرم ساده‌ی نام/فعال جایگزینش می‌شود.
+     * شماره‌ی مرحله‌ی فعلی ویزارد (۱ تا ۵). فقط وقتی hasActiveInstances=false
+     * معنا دارد — تعریفی با instance «در جریان» اصلاً ویزارد نمی‌بیند، یک فرم
+     * ساده‌ی نام جایگزینش می‌شود.
      */
     public int $currentStep = 1;
 
@@ -140,9 +141,11 @@ class ProcessDefinitionForm extends Component
                 }
             }
 
-            // تعریف دارای سابقه اصلاً ویزارد نمی‌بیند (فقط فرم ساده‌ی نام/فعال)،
-            // پس ماندن روی مرحله‌ی ۱ برایش بی‌اثر است؛ برای تعریف بدون سابقه در
-            // حال ویرایش، کل ویزارد از ابتدا با مقادیر موجود قابل‌عبور است.
+            // تعریف با instance «در جریان» اصلاً ویزارد نمی‌بیند (فقط فرم ساده‌ی
+            // نام/فعال)، پس ماندن روی مرحله‌ی ۱ برایش بی‌اثر است؛ برای تعریف
+            // بدون instance یا فقط instance تمام‌شده، کل ویزارد از ابتدا با
+            // مقادیر موجود قابل‌عبور است (بخش ۴.۲ Session جاری: حالت دوم روی
+            // save() یک نسخه‌ی جدید می‌سازد، نه رونویسی رکورد جاری).
             $this->maxReachedStep = 5;
             $this->syncTransitionOrder();
 
@@ -176,8 +179,8 @@ class ProcessDefinitionForm extends Component
     }
 
     // ===================================================================
-    // ناوبری ویزارد — فقط برای تعریف بدون سابقه (hasHistory=false) معنا
-    // دارد؛ blade برای hasHistory=true اصلاً این متدها را صدا نمی‌زند.
+    // ناوبری ویزارد — فقط وقتی hasActiveInstances=false معنا دارد؛ blade برای
+    // hasActiveInstances=true اصلاً این متدها را صدا نمی‌زند.
     // ===================================================================
 
     /**
@@ -688,9 +691,28 @@ class ProcessDefinitionForm extends Component
         return array_map(fn ($step) => ['value' => $step['step_key'], 'label' => $step['name'] ?: $step['step_key']], $this->steps);
     }
 
-    public function getHasHistoryProperty(): bool
+    /**
+     * فقط instance «در جریان» ساختار را کاملاً قفل می‌کند (بخش ۴.۲ Session
+     * جاری) — فرم ساده‌ی name/is_active به‌جای ویزارد نشان داده می‌شود.
+     */
+    public function getHasActiveInstancesProperty(): bool
     {
-        return $this->record !== null && $this->record->instances()->withoutGlobalScope('owner_company')->exists();
+        return $this->record !== null
+            && $this->record->instances()->withoutGlobalScope('owner_company')->where('status', 'in_progress')->exists();
+    }
+
+    /**
+     * حداقل یک instance دارد ولی هیچ‌کدام «در جریان» نیست — ویزارد کامل و
+     * قابل‌ویرایش نشان داده می‌شود، ولی save() به‌جای رونویسی رکورد موجود یک
+     * نسخه‌ی جدید (CreateProcessDefinitionVersion) می‌سازد.
+     */
+    public function getHasFinishedInstancesOnlyProperty(): bool
+    {
+        if ($this->record === null || $this->hasActiveInstances) {
+            return false;
+        }
+
+        return $this->record->instances()->withoutGlobalScope('owner_company')->exists();
     }
 
     protected function rules(): array
@@ -704,12 +726,15 @@ class ProcessDefinitionForm extends Component
     /**
      * process_key هرگز از کاربر گرفته نمی‌شود (بخش ۵ Session جاری) — همیشه از
      * روی نام تولید می‌شود، با پسوند عددی در صورت تصادم (همان الگوی autosave
-     * اسلاگ ماژول Blog). برای تعریفی که سابقه دارد، UpdateProcessDefinition
-     * اصلاً process_key را دست نمی‌زند (نگاه کن bend hasHistory آن Action)، پس
-     * کلید موجود بدون تغییر می‌ماند.
+     * اسلاگ ماژول Blog). برای هر ویرایش تعریف موجود (چه قفل‌شده چه نسخه‌ی
+     * جدید) process_key از رکورد فعلی/قبلی به ارث می‌رسد، هرگز دوباره تولید
+     * نمی‌شود — فقط ساخت یک تعریف کاملاً تازه کلید جدید می‌گیرد.
      */
-    public function save(CreateProcessDefinition $createAction, UpdateProcessDefinition $updateAction): void
-    {
+    public function save(
+        CreateProcessDefinition $createAction,
+        UpdateProcessDefinition $updateAction,
+        CreateProcessDefinitionVersion $versionAction,
+    ): void {
         $this->graphErrors = [];
         $this->stepErrors = [];
 
@@ -727,15 +752,17 @@ class ProcessDefinitionForm extends Component
 
         $companyId = $this->record?->owner_company_id ?? app(CompanyContext::class)->id();
 
-        $processKey = $this->hasHistory
+        $processKey = $this->record !== null
             ? $this->record->process_key
-            : $this->resolveUniqueProcessKey($this->name, $companyId, $this->record?->id);
+            : $this->resolveUniqueProcessKey($this->name, $companyId, null);
 
         $payload = $this->extractPayload($processKey);
 
         try {
             if ($this->record === null) {
                 $createAction->handle(auth()->user(), app(CompanyContext::class)->id(), $payload);
+            } elseif ($this->hasFinishedInstancesOnly) {
+                $versionAction->handle(auth()->user(), $this->record, $payload);
             } else {
                 $updateAction->handle(auth()->user(), $this->record, $payload);
             }

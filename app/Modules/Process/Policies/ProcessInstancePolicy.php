@@ -4,6 +4,7 @@ namespace App\Modules\Process\Policies;
 
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Services\CompanyContext;
+use App\Modules\Process\Enums\LogAction;
 use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Models\ProcessInstance;
@@ -54,6 +55,49 @@ class ProcessInstancePolicy
         return $instance->status === ProcessStatus::InProgress
             && $instance->currentStep?->step_type === StepType::RequesterInput
             && $instance->started_by_user_id === $user->id;
+    }
+
+    /**
+     * فرستنده‌ی اصلی قبل از این‌که مرحله‌ی فعلی هیچ اقدامی داشته باشد می‌تواند
+     * request_data فرایند آزاد را ویرایش کند (بخش ۳ Session جاری) — فقط فرایند
+     * آزاد (subject_type===null، چون سوژه‌ی وصل‌به‌ماژول از فرم اصلی همان ماژول
+     * ویرایش می‌شود، نه اینجا).
+     */
+    public function updateRequest(User $user, ProcessInstance $instance): bool
+    {
+        return $instance->status === ProcessStatus::InProgress
+            && $instance->subject_type === null
+            && $instance->started_by_user_id === $user->id
+            && $instance->current_step_id !== null
+            && ! $this->currentStepHasBeenActedOn($instance);
+    }
+
+    /**
+     * فرستنده‌ی اصلی قبل از این‌که مرحله‌ی فعلی هیچ اقدامی داشته باشد می‌تواند
+     * کل instance را لغو کند (بخش ۳ Session جاری) — برخلاف updateRequest، هم
+     * برای فرایند آزاد هم وصل‌به‌ماژول.
+     */
+    public function cancel(User $user, ProcessInstance $instance): bool
+    {
+        return $instance->status === ProcessStatus::InProgress
+            && $instance->started_by_user_id === $user->id
+            && $instance->current_step_id !== null
+            && ! $this->currentStepHasBeenActedOn($instance);
+    }
+
+    /**
+     * «اقدام» یعنی تصمیم واقعی مسئول مرحله (approved/rejected) — نه لاگ‌های
+     * خودِ فرستنده روی همین مرحله (مثل request_updated وقتی خودش قبلاً یک‌بار
+     * ویرایش کرده). اگر هر لاگی را «اقدام» حساب می‌کردیم، اولین ویرایش خودِ
+     * فرستنده بلافاصله دکمه‌ی ویرایش/لغو را برای همیشه قفل می‌کرد — دقیقاً
+     * برخلاف هدف این قابلیت (ویرایش/لغو چندباره تا قبل از تصمیم واقعی).
+     */
+    private function currentStepHasBeenActedOn(ProcessInstance $instance): bool
+    {
+        return $instance->logs()
+            ->where('step_id', $instance->current_step_id)
+            ->whereIn('action', [LogAction::Approved->value, LogAction::Rejected->value])
+            ->exists();
     }
 
     /**

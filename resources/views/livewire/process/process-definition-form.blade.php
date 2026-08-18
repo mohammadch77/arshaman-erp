@@ -1,14 +1,23 @@
 <div>
     <x-header
         title="{{ $record ? 'ویرایش فرایند' : 'فرایند جدید' }}"
-        subtitle="{{ $this->hasHistory ? 'فقط نام و وضعیت فعال/غیرفعال' : 'مرحله‌به‌مرحله جلو بروید — هر مرحله فقط با تکمیل معتبر همان مرحله باز می‌شود' }}"
+        subtitle="{{ $this->hasActiveInstances ? 'فقط نام قابل ویرایش است' : 'مرحله‌به‌مرحله جلو بروید — هر مرحله فقط با تکمیل معتبر همان مرحله باز می‌شود' }}"
         separator
     />
 
-    @if($this->hasHistory)
+    @if($this->hasFinishedInstancesOnly)
         <x-alert
-            title="این فرایند سابقه‌ی اجرا دارد"
-            description="چون حداقل یک بار اجرا شده (در جریان یا تمام‌شده)، ساختار مراحل/گذارها دیگر قابل‌ویرایش نیست — تاریخچه‌ی واقعی نباید زیر پایش عوض شود. فقط نام و وضعیت فعال/غیرفعال قابل‌تغییر است. برای تغییر واقعی گردش‌کار، یک فرایند جدید بسازید و این را غیرفعال کنید."
+            title="ذخیره یک نسخه‌ی جدید می‌سازد"
+            description="این فرایند instance تمام‌شده دارد (بدون هیچ در‌جریان) — تاریخچه‌ی همان‌ها هرگز عوض نمی‌شود. با ذخیره، یک نسخه‌ی جدید از این فرایند ساخته می‌شود (نسخه {{ \App\Support\Farsi::toDigits((string) ($record->version + 1)) }})؛ درخواست‌های تازه از این پس روی نسخه‌ی جدید می‌روند، از دید فهرست همچنان همین یک فرایند دیده می‌شود."
+            :icon="theme_icon('version')"
+            class="alert-info mb-4"
+        />
+    @endif
+
+    @if($this->hasActiveInstances)
+        <x-alert
+            title="این فرایند instance «در جریان» دارد"
+            description="چون حداقل یک instance هنوز در جریان است، ساختار مراحل/گذارها قابل‌ویرایش نیست — تاریخچه‌ی واقعی نباید زیر پایش عوض شود. فقط نام قابل‌تغییر است. فعال/غیرفعال‌کردن از دکمه‌ی فهرست تعاریف انجام می‌شود. برای تغییر واقعی گردش‌کار، یک فرایند جدید بسازید و این را غیرفعال کنید."
             :icon="theme_icon('locked')"
             class="alert-warning mb-4"
         />
@@ -24,7 +33,11 @@
                     option-label="label"
                     disabled
                 />
-                <x-checkbox label="فعال" wire:model="isActive" hint="غیرفعال یعنی فرایندهای تازه از این تعریف شروع نمی‌شوند" />
+                <x-alert
+                    description="فعال/غیرفعال‌کردن فقط از دکمه‌ی مربوطه در فهرست تعاریف فرایند انجام می‌شود."
+                    :icon="theme_icon('info')"
+                    class="alert-info"
+                />
             </x-card>
 
             <x-slot:actions>
@@ -83,8 +96,6 @@
                 option-label="label"
                 hint="فرایند وصل‌به‌ماژول روی رکورد واقعی همان ماژول (مثل درخواست مرخصی) اجرا می‌شود؛ فرایند آزاد فرم درخواست خودش را دارد."
             />
-
-            <x-checkbox label="فعال" wire:model="isActive" hint="غیرفعال یعنی فرایندهای تازه از این تعریف شروع نمی‌شوند" />
         </x-card>
 
         <div class="flex justify-end mt-4">
@@ -108,6 +119,7 @@
                             ['value' => 'textarea', 'label' => 'متن چندخطی'],
                             ['value' => 'number', 'label' => 'عدد'],
                             ['value' => 'boolean', 'label' => 'بله/خیر'],
+                            ['value' => 'file', 'label' => 'فایل ضمیمه (PDF/تصویر)'],
                         ]"
                         option-value="value"
                         option-label="label"
@@ -205,6 +217,7 @@
                                                 ['value' => 'textarea', 'label' => 'متن چندخطی'],
                                                 ['value' => 'number', 'label' => 'عدد'],
                                                 ['value' => 'boolean', 'label' => 'بله/خیر'],
+                                                ['value' => 'file', 'label' => 'فایل ضمیمه (PDF/تصویر)'],
                                             ]"
                                             option-value="value"
                                             option-label="label"
@@ -238,6 +251,7 @@
                                             ['value' => 'textarea', 'label' => 'متن چندخطی'],
                                             ['value' => 'number', 'label' => 'عدد'],
                                             ['value' => 'boolean', 'label' => 'بله/خیر'],
+                                            ['value' => 'file', 'label' => 'فایل ضمیمه (PDF/تصویر)'],
                                         ]"
                                         option-value="value"
                                         option-label="label"
@@ -455,10 +469,10 @@
         <div class="flex justify-between mt-4">
             <x-button label="مرحله قبل" class="btn-ghost" wire:click="prevStep" />
             <x-button
-                label="{{ $record ? 'ذخیره تغییرات' : 'ساخت فرایند' }}"
+                label="{{ $this->hasFinishedInstancesOnly ? 'ساخت نسخه‌ی جدید' : ($record ? 'ذخیره تغییرات' : 'ساخت فرایند') }}"
                 type="button"
                 class="btn-primary"
-                :icon="theme_icon('save')"
+                :icon="theme_icon($this->hasFinishedInstancesOnly ? 'version' : 'save')"
                 wire:click="save"
                 spinner="save"
             />

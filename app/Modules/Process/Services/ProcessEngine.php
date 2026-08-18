@@ -96,6 +96,7 @@ class ProcessEngine
             ->where('owner_company_id', $subject->owner_company_id)
             ->where('subject_type', $subject::class)
             ->where('is_active', true)
+            ->where('is_current_version', true)
             ->first();
 
         if ($definition === null) {

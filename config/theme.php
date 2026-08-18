@@ -120,6 +120,12 @@ return [
         'oversight' => 'o-clipboard-document-check',
         'reminder' => 'o-bell-alert',
         'undo' => 'o-arrow-uturn-left',
+        'info' => 'o-information-circle',
+        'file' => 'o-paper-clip',
+        'download' => 'o-arrow-down-tray',
+        'flowchart' => 'o-share',
+        'version' => 'o-code-bracket-square',
+        'cancel' => 'o-x-circle',
     ],
 
 ];
