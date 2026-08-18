@@ -63,6 +63,41 @@ class ProcessDefinitionForm extends Component
     /** @var array<int, string> */
     public array $graphErrors = [];
 
+    /**
+     * خطاهای همان مرحله‌ی جاری ویزارد (بخش «هر مرحله فقط با تکمیل معتبر آن
+     * مرحله اجازه‌ی بعدی بدهد» — پیام‌ها فقط تا رفع‌شدن روی همان مرحله می‌مانند،
+     * برخلاف graphErrors که خروجی نهایی ProcessGraphValidator است).
+     *
+     * @var array<int, string>
+     */
+    public array $stepErrors = [];
+
+    /**
+     * شماره‌ی مرحله‌ی فعلی ویزارد (۱ تا ۵). فقط برای تعریف بدون سابقه‌ی اجرا
+     * معنا دارد — تعریف دارای سابقه (hasHistory) اصلاً ویزارد نمی‌بیند، یک
+     * فرم ساده‌ی نام/فعال جایگزینش می‌شود.
+     */
+    public int $currentStep = 1;
+
+    /**
+     * بالاترین مرحله‌ای که کاربر تا این لحظه با اعتبارسنجی موفق به آن رسیده —
+     * برگشت به عقب همیشه آزاد است، پرش به جلو بدون تکمیل مراحل قبلی مجاز
+     * نیست (goToStep این را چک می‌کند).
+     */
+    public int $maxReachedStep = 1;
+
+    /**
+     * ترتیب نمایش ردیف‌های «گذارها» در مرحله ۴ (کلید = step_key هر مرحله‌ی
+     * start/approval/condition) — فقط نمایش/display_order، مستقل از ترتیب
+     * واقعی $steps و بدون هیچ اثر روی نتیجه‌ی اجرای ProcessEngine (که همیشه
+     * از روی from_step_id/on_result کار می‌کند، نه ترتیب). با درگ‌اند‌دراپ
+     * (moveTransitionRow) قابل‌تغییر است؛ با syncTransitionOrder() همیشه با
+     * مجموعه‌ی واقعی مراحل شرط‌پذیر هماهنگ نگه داشته می‌شود.
+     *
+     * @var array<int, string>
+     */
+    public array $transitionOrder = [];
+
     public function mount(?string $processDefinition = null): void
     {
         if ($processDefinition !== null) {
@@ -104,6 +139,12 @@ class ProcessDefinitionForm extends Component
                 }
             }
 
+            // تعریف دارای سابقه اصلاً ویزارد نمی‌بیند (فقط فرم ساده‌ی نام/فعال)،
+            // پس ماندن روی مرحله‌ی ۱ برایش بی‌اثر است؛ برای تعریف بدون سابقه در
+            // حال ویرایش، کل ویزارد از ابتدا با مقادیر موجود قابل‌عبور است.
+            $this->maxReachedStep = 5;
+            $this->syncTransitionOrder();
+
             return;
         }
 
@@ -112,6 +153,7 @@ class ProcessDefinitionForm extends Component
         // یک مرحله‌ی شروع پیش‌فرض — هر فرایند دقیقاً یک مرحله‌ی شروع لازم دارد،
         // شروع خالی سردرگم‌کننده بود.
         $this->steps[] = $this->emptyStep(StepType::Start->value, 'شروع');
+        $this->syncTransitionOrder();
     }
 
     /**
@@ -130,6 +172,383 @@ class ProcessDefinitionForm extends Component
                 $this->steps[$index]['condition_value'] = '';
             }
         }
+    }
+
+    // ===================================================================
+    // ناوبری ویزارد — فقط برای تعریف بدون سابقه (hasHistory=false) معنا
+    // دارد؛ blade برای hasHistory=true اصلاً این متدها را صدا نمی‌زند.
+    // ===================================================================
+
+    /**
+     * مرحله ۲ (فرم درخواست) فقط برای فرایند آزاد معنا دارد — فرایند
+     * وصل‌به‌ماژول کامل از آن رد می‌شود (نگاه کن nextStep/prevStep).
+     */
+    public function getIsStep2ApplicableProperty(): bool
+    {
+        return $this->subjectType === '';
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function getWizardStepLabelsProperty(): array
+    {
+        return [
+            1 => 'اطلاعات پایه',
+            2 => 'فرم درخواست',
+            3 => 'مراحل',
+            4 => 'گذارها',
+            5 => 'بازبینی و ذخیره',
+        ];
+    }
+
+    /**
+     * برگشت به هر مرحله‌ی قبلاً دیده‌شده آزاد است؛ پرش به جلو بدون تکمیل
+     * مراحل قبلی مجاز نیست (maxReachedStep این را تضمین می‌کند).
+     */
+    public function goToStep(int $step): void
+    {
+        if ($step < 1 || $step > 5 || $step > $this->maxReachedStep) {
+            return;
+        }
+
+        if ($step === 2 && ! $this->isStep2Applicable) {
+            return;
+        }
+
+        $this->currentStep = $step;
+    }
+
+    public function nextStep(): void
+    {
+        $this->stepErrors = $this->validateCurrentStep();
+
+        if ($this->stepErrors !== []) {
+            return;
+        }
+
+        $next = $this->currentStep + 1;
+
+        if ($next === 2 && ! $this->isStep2Applicable) {
+            $next = 3;
+        }
+
+        if ($next > 5) {
+            return;
+        }
+
+        $this->currentStep = $next;
+        $this->maxReachedStep = max($this->maxReachedStep, $next);
+    }
+
+    public function prevStep(): void
+    {
+        $this->stepErrors = [];
+
+        $prev = $this->currentStep - 1;
+
+        if ($prev === 2 && ! $this->isStep2Applicable) {
+            $prev = 1;
+        }
+
+        if ($prev < 1) {
+            return;
+        }
+
+        $this->currentStep = $prev;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function validateCurrentStep(): array
+    {
+        return match ($this->currentStep) {
+            1 => $this->validateStep1(),
+            2 => $this->validateStep2(),
+            3 => $this->validateStep3(),
+            4 => $this->validateStep4(),
+            default => [],
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function validateStep1(): array
+    {
+        $errors = [];
+
+        if (trim($this->name) === '') {
+            $errors[] = 'نام فرایند نمی‌تواند خالی باشد.';
+        }
+
+        if ($this->subjectType !== '' && ! in_array($this->subjectType, config('processes.subject_types', []), true)) {
+            $errors[] = 'نوع انتخاب‌شده معتبر نیست.';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * برچسب تکراری بین فیلدهای فرم درخواست همین‌جا رد می‌شود، نه در پایان
+     * (وگرنه دو فیلد هم‌نام بعداً در فیلد شرط مرحله ۳ قابل‌تفکیک نیستند).
+     *
+     * @return array<int, string>
+     */
+    private function validateStep2(): array
+    {
+        $errors = [];
+        $seenLabels = [];
+
+        foreach ($this->requestFormFields as $field) {
+            $label = trim($field['label'] ?? '');
+
+            if ($label === '') {
+                $errors[] = 'همه‌ی فیلدهای فرم درخواست باید برچسب داشته باشند.';
+
+                continue;
+            }
+
+            if (in_array($label, $seenLabels, true)) {
+                $errors[] = "برچسب «{$label}» در فرم درخواست تکراری است.";
+
+                continue;
+            }
+
+            $seenLabels[] = $label;
+        }
+
+        return $errors;
+    }
+
+    /**
+     * فقط بررسی‌های ساختاری سطح مرحله (تعداد start/end، فیلدهای اختصاصی هر
+     * نوع مرحله) — بررسی کامل گراف (گذارها/دسترس‌پذیری/چرخه) در مرحله ۴ و
+     * نهایتاً ProcessGraphValidator در save() انجام می‌شود.
+     *
+     * @return array<int, string>
+     */
+    private function validateStep3(): array
+    {
+        $errors = [];
+
+        $startCount = collect($this->steps)->where('step_type', StepType::Start->value)->count();
+        $endCount = collect($this->steps)->where('step_type', StepType::End->value)->count();
+
+        if ($startCount !== 1) {
+            $errors[] = 'فرایند باید دقیقاً یک مرحله‌ی «شروع» داشته باشد.';
+        }
+
+        if ($endCount < 1) {
+            $errors[] = 'فرایند باید حداقل یک مرحله‌ی «پایان» داشته باشد.';
+        }
+
+        foreach ($this->steps as $step) {
+            $label = ($step['name'] ?? '') !== '' ? $step['name'] : $step['step_key'];
+
+            if ($step['step_type'] === StepType::Approval->value) {
+                if (! in_array($step['assignment_type'], [AssignmentType::Role->value, AssignmentType::SpecificUser->value], true)) {
+                    $errors[] = "مرحله‌ی تأیید «{$label}» باید نوع واگذاری (نقش یا کاربر مشخص) داشته باشد.";
+                } elseif ($step['assignment_type'] === AssignmentType::Role->value && $step['assigned_role'] === '') {
+                    $errors[] = "مرحله‌ی تأیید «{$label}» باید یک نقش برای واگذاری داشته باشد.";
+                } elseif ($step['assignment_type'] === AssignmentType::SpecificUser->value && $step['assigned_user_id'] === '') {
+                    $errors[] = "مرحله‌ی تأیید «{$label}» باید یک کاربر مشخص برای واگذاری داشته باشد.";
+                }
+            }
+
+            if ($step['step_type'] === StepType::Condition->value) {
+                if ($step['condition_field'] === '') {
+                    $errors[] = "مرحله‌ی شرط «{$label}» باید یک فیلد شرط انتخاب‌شده داشته باشد.";
+                }
+
+                if ($step['condition_operator'] === '') {
+                    $errors[] = "مرحله‌ی شرط «{$label}» باید یک عملگر انتخاب‌شده داشته باشد.";
+                }
+
+                if ($step['condition_value'] === '') {
+                    $errors[] = "مرحله‌ی شرط «{$label}» باید یک مقدار مقایسه داشته باشد.";
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function validateStep4(): array
+    {
+        $errors = [];
+
+        foreach ($this->steps as $step) {
+            $key = $step['step_key'];
+            $label = ($step['name'] ?? '') !== '' ? $step['name'] : $key;
+            $selection = $this->transitionSelections[$key] ?? [];
+
+            if ($step['step_type'] === StepType::Start->value && empty($selection['next'])) {
+                $errors[] = "مرحله‌ی شروع «{$label}» باید مرحله‌ی بعد مشخص شود.";
+            }
+
+            if ($step['step_type'] === StepType::Approval->value) {
+                if (empty($selection['approved'])) {
+                    $errors[] = "مرحله‌ی تأیید «{$label}» مقصد «اگر تأیید شد» ندارد.";
+                }
+                if (empty($selection['rejected'])) {
+                    $errors[] = "مرحله‌ی تأیید «{$label}» مقصد «اگر رد شد» ندارد.";
+                }
+            }
+
+            if ($step['step_type'] === StepType::Condition->value) {
+                if (empty($selection['true'])) {
+                    $errors[] = "مرحله‌ی شرط «{$label}» مقصد «اگر شرط درست بود» ندارد.";
+                }
+                if (empty($selection['false'])) {
+                    $errors[] = "مرحله‌ی شرط «{$label}» مقصد «اگر نادرست بود» ندارد.";
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * پیام‌های ProcessGraphValidator را بر اساس واژه‌ی کلیدی به مرحله‌ی
+     * دقیق مسئول (۳ = ساختار مراحل، ۴ = گذارها/دسترس‌پذیری/چرخه) نگاشت
+     * می‌دهد تا save() بتواند کاربر را مستقیم به همان مرحله برگرداند، نه
+     * فقط یک پیام کلی نشان بدهد.
+     */
+    private function graphErrorStep(string $message): int
+    {
+        foreach (['گذار', 'یتیم', 'چرخه'] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return 4;
+            }
+        }
+
+        return 3;
+    }
+
+    // ===================================================================
+    // ترتیب نمایش ردیف‌های «گذارها» (مرحله ۴) — فقط display_order، بدون
+    // اثر روی نتیجه‌ی اجرای واقعی (بخش «جابه‌جایی گذارها» Session جاری).
+    // ===================================================================
+
+    /**
+     * مجموعه‌ی کلیدهای مراحلی که واقعاً به تعریف گذار نیاز دارند
+     * (start/approval/condition — end هرگز گذار خروجی ندارد).
+     *
+     * @return array<int, string>
+     */
+    private function transitionableStepKeys(): array
+    {
+        return collect($this->steps)
+            ->filter(fn ($step) => in_array($step['step_type'], [
+                StepType::Start->value, StepType::Approval->value, StepType::Condition->value,
+            ], true))
+            ->pluck('step_key')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * transitionOrder را با مجموعه‌ی واقعی مراحل شرط‌پذیر هماهنگ نگه
+     * می‌دارد: ترتیب موجود برای کلیدهای باقی‌مانده حفظ می‌شود، کلیدهای
+     * تازه (مرحله‌ی جدید) به انتها اضافه، کلیدهای حذف‌شده کنار گذاشته
+     * می‌شوند. در mount() و ابتدای render() صدا زده می‌شود تا همیشه، حتی
+     * بدون عبور از ویزارد (مثل تست‌هایی که مستقیم save() را صدا می‌زنند)،
+     * synced بماند.
+     */
+    private function syncTransitionOrder(): void
+    {
+        $relevant = $this->transitionableStepKeys();
+        $existing = array_values(array_intersect($this->transitionOrder, $relevant));
+        $missing = array_values(array_diff($relevant, $existing));
+
+        $this->transitionOrder = array_merge($existing, $missing);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getOrderedTransitionStepsProperty(): array
+    {
+        $stepsByKey = collect($this->steps)->keyBy('step_key');
+
+        return collect($this->transitionOrder)
+            ->map(fn ($key) => $stepsByKey[$key] ?? null)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * فراخوانی سمت کلاینت از resources/js/process-sortable.js بعد از
+     * رهاشدن یک ردیف — فقط ترتیب $transitionOrder را عوض می‌کند، هرگز
+     * transitionSelections/steps (یعنی مقصد واقعی هر نتیجه) را دست نمی‌زند.
+     */
+    public function moveTransitionRow(string $stepKey, int $newIndex): void
+    {
+        $order = array_values(array_filter($this->transitionOrder, fn ($key) => $key !== $stepKey));
+        $newIndex = max(0, min($newIndex, count($order)));
+
+        array_splice($order, $newIndex, 0, [$stepKey]);
+
+        $this->transitionOrder = $order;
+    }
+
+    /**
+     * خلاصه‌ی خوانای کل گراف برای مرحله ۵ (بازبینی) — یک ردیف به‌ازای هر
+     * مرحله‌ی شرط‌پذیر با مقصد هر نتیجه‌ی ممکنش، به همان ترتیب transitionOrder.
+     *
+     * @return array<int, array{label: string, type: string, targets: array<int, array{label: string, to_label: string}>}>
+     */
+    public function getReviewFlowProperty(): array
+    {
+        $stepsByKey = collect($this->steps)->keyBy('step_key');
+
+        return collect($this->orderedTransitionSteps)->map(function ($step) use ($stepsByKey) {
+            $key = $step['step_key'];
+            $label = ($step['name'] ?? '') !== '' ? $step['name'] : $key;
+            $selection = $this->transitionSelections[$key] ?? [];
+
+            $targets = match ($step['step_type']) {
+                StepType::Start->value => [
+                    ['label' => 'مرحله‌ی بعد', 'to' => $selection['next'] ?? null],
+                ],
+                StepType::Approval->value => [
+                    ['label' => 'اگر تأیید شد', 'to' => $selection['approved'] ?? null],
+                    ['label' => 'اگر رد شد', 'to' => $selection['rejected'] ?? null],
+                ],
+                StepType::Condition->value => [
+                    ['label' => 'اگر شرط درست بود', 'to' => $selection['true'] ?? null],
+                    ['label' => 'اگر نادرست بود', 'to' => $selection['false'] ?? null],
+                ],
+                default => [],
+            };
+
+            return [
+                'label' => $label,
+                'type' => StepType::from($step['step_type'])->label(),
+                'targets' => array_map(function ($target) use ($stepsByKey) {
+                    $toStep = $target['to'] ? ($stepsByKey[$target['to']] ?? null) : null;
+
+                    return [
+                        'label' => $target['label'],
+                        'to_label' => $toStep ? (($toStep['name'] ?? '') !== '' ? $toStep['name'] : $toStep['step_key']) : '—',
+                    ];
+                }, $targets),
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getReviewEndStepsProperty(): array
+    {
+        return collect($this->steps)->where('step_type', StepType::End->value)->values()->all();
     }
 
     public function addStep(): void
@@ -276,8 +695,19 @@ class ProcessDefinitionForm extends Component
     public function save(CreateProcessDefinition $createAction, UpdateProcessDefinition $updateAction): void
     {
         $this->graphErrors = [];
+        $this->stepErrors = [];
 
-        $this->validate();
+        try {
+            $this->validate();
+        } catch (ValidationException $e) {
+            // خطای نام/نوع همیشه مربوط به مرحله‌ی ۱ است — کاربر را همان‌جا
+            // نگه می‌داریم تا x-input/x-select مرحله‌ی ۱ (که فقط وقتی
+            // currentStep===1 رندر می‌شود) پیام inline را نشان بدهد.
+            $this->currentStep = 1;
+            $this->maxReachedStep = max($this->maxReachedStep, 1);
+
+            throw $e;
+        }
 
         $companyId = $this->record?->owner_company_id ?? app(CompanyContext::class)->id();
 
@@ -294,8 +724,17 @@ class ProcessDefinitionForm extends Component
                 $updateAction->handle(auth()->user(), $this->record, $payload);
             }
         } catch (ValidationException $e) {
-            $this->graphErrors = array_merge(...array_values($e->errors()));
-            $this->error('ساختار فرایند نامعتبر است — پایین صفحه را ببینید.');
+            $messages = array_merge(...array_values($e->errors()));
+            $this->graphErrors = $messages;
+
+            // کاربر را مستقیم به اولین مرحله‌ی دارای خطا برمی‌گردانیم — مراحل
+            // ساختاری (۳) بر گذارها (۴) اولویت دارند چون تا وقتی مراحل خودشان
+            // ناقص‌اند، خطای گذار معمولاً پیامد همان مشکل عمیق‌تر است.
+            $targetStep = collect($messages)->contains(fn ($m) => $this->graphErrorStep($m) === 3) ? 3 : 4;
+            $this->currentStep = $targetStep;
+            $this->maxReachedStep = max($this->maxReachedStep, $targetStep);
+
+            $this->error('ساختار فرایند نامعتبر است — به مرحله‌ی مشکل‌دار برگشتید.');
 
             return;
         }
@@ -308,6 +747,8 @@ class ProcessDefinitionForm extends Component
      */
     private function extractPayload(string $processKey): array
     {
+        $this->syncTransitionOrder();
+
         $steps = [];
 
         foreach ($this->steps as $step) {
@@ -337,7 +778,10 @@ class ProcessDefinitionForm extends Component
 
         $transitions = [];
 
-        foreach ($this->steps as $step) {
+        // ترتیب تکرار از transitionOrder می‌آید (نه $this->steps خام) تا
+        // display_order گذارها بازتاب ترتیب واقعی درگ‌شده در مرحله ۴ ویزارد
+        // باشد — مقصد هر نتیجه (transitionSelections) کاملاً مستقل می‌ماند.
+        foreach ($this->orderedTransitionSteps as $step) {
             $key = $step['step_key'];
             $selection = $this->transitionSelections[$key] ?? [];
 
@@ -483,6 +927,8 @@ class ProcessDefinitionForm extends Component
 
     public function render()
     {
+        $this->syncTransitionOrder();
+
         return view('livewire.process.process-definition-form');
     }
 }

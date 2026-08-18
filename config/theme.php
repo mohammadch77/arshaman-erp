@@ -107,6 +107,7 @@ return [
         'image' => 'o-photo',
         'reading-time' => 'o-clock',
         'back' => 'o-arrow-right',
+        'next' => 'o-arrow-left',
         'preview' => 'o-eye',
         'site-builder' => 'o-window',
         'page' => 'o-document',
