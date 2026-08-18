@@ -5,6 +5,32 @@
         </x-slot:actions>
     </x-header>
 
+    @if($this->needsInput->isNotEmpty())
+        <x-card title="نیاز به تکمیل اطلاعات شما" subtitle="فرایند منتظر شماست — این مرحله را فقط شما (فرستنده‌ی اصلی درخواست) می‌توانید تکمیل کنید" shadow class="mb-4">
+            <div class="flex flex-col gap-3">
+                @foreach($this->needsInput as $row)
+                    @php($instance = $row['instance'])
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-base-300 pb-3 last:border-b-0 last:pb-0">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <x-icon :name="theme_icon('process')" class="w-4 h-4 text-primary" />
+                                <span class="font-medium">{{ $instance->definition->name }}</span>
+                            </div>
+                            <p class="text-xs text-base-content/60 mt-1">مرحله: {{ $instance->currentStep->name }}</p>
+                        </div>
+
+                        <x-button
+                            label="تکمیل اطلاعات"
+                            :icon="theme_icon('site-form')"
+                            class="btn-primary btn-sm"
+                            wire:click="openInputForm('{{ $instance->id }}')"
+                        />
+                    </div>
+                @endforeach
+            </div>
+        </x-card>
+    @endif
+
     @if($this->requests->isEmpty())
         <x-card shadow>
             <div class="flex flex-col items-center gap-2 py-10 text-base-content/60">
@@ -61,6 +87,45 @@
             @endforeach
         </div>
     @endif
+
+    <x-modal wire:model="showInputModal" title="تکمیل اطلاعات" separator>
+        @if($this->inputStepFormFields === [])
+            <p class="text-base-content/60">این مرحله فیلدی برای تکمیل ندارد — همین که ارسال کنید کافی است.</p>
+        @else
+            <div class="flex flex-col gap-4">
+                @foreach($this->inputStepFormFields as $field)
+                    @if($field['type'] === 'textarea')
+                        <x-textarea
+                            label="{{ $field['label'] }}"
+                            wire:model="inputStepDataValues.{{ $field['key'] }}"
+                            rows="3"
+                        />
+                    @elseif($field['type'] === 'number')
+                        <x-input
+                            type="number"
+                            label="{{ $field['label'] }}"
+                            wire:model="inputStepDataValues.{{ $field['key'] }}"
+                        />
+                    @elseif($field['type'] === 'boolean')
+                        <x-checkbox
+                            label="{{ $field['label'] }}"
+                            wire:model="inputStepDataValues.{{ $field['key'] }}"
+                        />
+                    @else
+                        <x-input
+                            label="{{ $field['label'] }}"
+                            wire:model="inputStepDataValues.{{ $field['key'] }}"
+                        />
+                    @endif
+                @endforeach
+            </div>
+        @endif
+
+        <x-slot:actions>
+            <x-button label="انصراف" @click="$wire.showInputModal = false" />
+            <x-button label="ارسال" :icon="theme_icon('send')" class="btn-primary" wire:click="submitInput" spinner="submitInput" />
+        </x-slot:actions>
+    </x-modal>
 
     <x-modal wire:model="showHistoryModal" title="تاریخچه‌ی فرایند" separator>
         @if($this->history->isEmpty())

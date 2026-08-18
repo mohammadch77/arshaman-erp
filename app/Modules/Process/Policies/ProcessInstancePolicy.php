@@ -45,6 +45,18 @@ class ProcessInstancePolicy
     }
 
     /**
+     * تکمیل فرم مرحله‌ی requester_input — فقط فرستنده‌ی اصلی همین instance و
+     * فقط وقتی مرحله‌ی فعلی واقعاً از همین نوع باشد. تنها منبع حقیقت همان
+     * ProcessEngine::assertActorIsRequester است.
+     */
+    public function submitRequesterInput(User $user, ProcessInstance $instance): bool
+    {
+        return $instance->status === ProcessStatus::InProgress
+            && $instance->currentStep?->step_type === StepType::RequesterInput
+            && $instance->started_by_user_id === $user->id;
+    }
+
+    /**
      * فهرست نظارتی کل شرکت (ProcessOversight) — فقط holding_admin، مستقل از
      * این‌که خودش در زنجیره‌ی تصمیم شرکت داشته یا نه.
      */

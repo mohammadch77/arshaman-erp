@@ -14,6 +14,8 @@ enum LogAction: string
     // علامت‌گذاری یک تصمیم تأیید/رد قبلی به‌عنوان بازگردانی‌شده (بند ۴ Session جاری) —
     // رکورد لاگ اصلی هرگز حذف/ویرایش نمی‌شود، این یک ورودی جدید در تاریخچه است.
     case Reversed = 'reversed';
+    // فرستنده‌ی اصلی instance فرم مرحله‌ی requester_input را ارسال کرد.
+    case RequesterInput = 'requester_input';
 
     public function label(): string
     {
@@ -25,6 +27,7 @@ enum LogAction: string
             self::Completed => 'تکمیل شد',
             self::Reminder => 'یادآوری ادمین',
             self::Reversed => 'تصمیم بازگردانی شد',
+            self::RequesterInput => 'اطلاعات توسط درخواست‌دهنده تکمیل شد',
         };
     }
 }

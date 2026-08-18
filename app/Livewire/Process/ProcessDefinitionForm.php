@@ -134,6 +134,7 @@ class ProcessDefinitionForm extends Component
                         StepType::Condition => $this->transitionSelections[$step->step_key][
                             $transition->on_result === TransitionResult::ConditionTrue ? 'true' : 'false'
                         ] = $toKey,
+                        StepType::RequesterInput => $this->transitionSelections[$step->step_key]['default'] = $toKey,
                         default => null,
                     };
                 }
@@ -370,6 +371,14 @@ class ProcessDefinitionForm extends Component
                     $errors[] = "مرحله‌ی شرط «{$label}» باید یک مقدار مقایسه داشته باشد.";
                 }
             }
+
+            if ($step['step_type'] === StepType::RequesterInput->value) {
+                $fields = array_filter($step['step_form_fields'] ?? [], fn ($field) => ($field['label'] ?? '') !== '');
+
+                if ($fields === []) {
+                    $errors[] = "مرحله‌ی «{$label}» باید حداقل یک فیلد فرم داشته باشد.";
+                }
+            }
         }
 
         return $errors;
@@ -408,6 +417,10 @@ class ProcessDefinitionForm extends Component
                     $errors[] = "مرحله‌ی شرط «{$label}» مقصد «اگر نادرست بود» ندارد.";
                 }
             }
+
+            if ($step['step_type'] === StepType::RequesterInput->value && empty($selection['default'])) {
+                $errors[] = "مرحله‌ی «{$label}» باید مرحله‌ی بعد (بعد از ارسال) مشخص شود.";
+            }
         }
 
         return $errors;
@@ -445,7 +458,7 @@ class ProcessDefinitionForm extends Component
     {
         return collect($this->steps)
             ->filter(fn ($step) => in_array($step['step_type'], [
-                StepType::Start->value, StepType::Approval->value, StepType::Condition->value,
+                StepType::Start->value, StepType::Approval->value, StepType::Condition->value, StepType::RequesterInput->value,
             ], true))
             ->pluck('step_key')
             ->values()
@@ -524,6 +537,9 @@ class ProcessDefinitionForm extends Component
                 StepType::Condition->value => [
                     ['label' => 'اگر شرط درست بود', 'to' => $selection['true'] ?? null],
                     ['label' => 'اگر نادرست بود', 'to' => $selection['false'] ?? null],
+                ],
+                StepType::RequesterInput->value => [
+                    ['label' => 'بعد از ارسال', 'to' => $selection['default'] ?? null],
                 ],
                 default => [],
             };
@@ -754,6 +770,7 @@ class ProcessDefinitionForm extends Component
         foreach ($this->steps as $step) {
             $isApproval = $step['step_type'] === StepType::Approval->value;
             $isCondition = $step['step_type'] === StepType::Condition->value;
+            $isRequesterInput = $step['step_type'] === StepType::RequesterInput->value;
             $isRoleAssignment = $isApproval && $step['assignment_type'] === AssignmentType::Role->value;
             $isUserAssignment = $isApproval && $step['assignment_type'] === AssignmentType::SpecificUser->value;
 
@@ -772,7 +789,7 @@ class ProcessDefinitionForm extends Component
                 'condition_field' => $isCondition && $step['condition_field'] !== '' ? $step['condition_field'] : null,
                 'condition_operator' => $isCondition && $step['condition_operator'] !== '' ? $step['condition_operator'] : null,
                 'condition_value' => $isCondition && $step['condition_value'] !== '' ? $step['condition_value'] : null,
-                'step_form_fields' => $isApproval && $stepFormFields !== [] ? $stepFormFields : null,
+                'step_form_fields' => ($isApproval || $isRequesterInput) && $stepFormFields !== [] ? $stepFormFields : null,
             ];
         }
 
@@ -805,6 +822,10 @@ class ProcessDefinitionForm extends Component
                 if (! empty($selection['false'])) {
                     $transitions[] = ['from_step_key' => $key, 'to_step_key' => $selection['false'], 'on_result' => TransitionResult::ConditionFalse->value];
                 }
+            }
+
+            if ($step['step_type'] === StepType::RequesterInput->value && ! empty($selection['default'])) {
+                $transitions[] = ['from_step_key' => $key, 'to_step_key' => $selection['default'], 'on_result' => TransitionResult::Default->value];
             }
         }
 

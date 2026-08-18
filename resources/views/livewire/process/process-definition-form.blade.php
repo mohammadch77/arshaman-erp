@@ -218,6 +218,38 @@
                         </div>
                     @endif
 
+                    @if($step['step_type'] === 'requester_input')
+                        <div class="mt-3 border-t border-base-300 pt-3">
+                            <x-alert
+                                title="فرم این مرحله را فرستنده‌ی اصلی درخواست پر می‌کند"
+                                description="هیچ نقش یا شخص مشخصی به این مرحله واگذار نمی‌شود — همیشه همان کسی که فرایند را شروع کرده. حداقل یک فیلد فرم الزامی است."
+                                :icon="theme_icon('site-form')"
+                                class="alert-info mb-3"
+                            />
+
+                            @foreach($step['step_form_fields'] ?? [] as $fi => $stepField)
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end border-b border-base-300 pb-3 mb-3">
+                                    <x-input label="برچسب فیلد" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.label" />
+                                    <x-select
+                                        label="نوع"
+                                        wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.type"
+                                        :options="[
+                                            ['value' => 'text', 'label' => 'متن کوتاه'],
+                                            ['value' => 'textarea', 'label' => 'متن چندخطی'],
+                                            ['value' => 'number', 'label' => 'عدد'],
+                                            ['value' => 'boolean', 'label' => 'بله/خیر'],
+                                        ]"
+                                        option-value="value"
+                                        option-label="label"
+                                    />
+                                    <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeStepFormField({{ $i }}, {{ $fi }})" />
+                                </div>
+                            @endforeach
+
+                            <x-button label="افزودن فیلد فرم" :icon="theme_icon('add')" class="btn-ghost btn-sm" wire:click="addStepFormField({{ $i }})" />
+                        </div>
+                    @endif
+
                     @if($step['step_type'] === 'condition')
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                             <div>
@@ -331,6 +363,17 @@
                                 <x-select
                                     label="اگر نادرست بود"
                                     wire:model="transitionSelections.{{ $step['step_key'] }}.false"
+                                    :options="$this->selectableSteps"
+                                    option-value="value"
+                                    option-label="label"
+                                    placeholder="انتخاب کنید"
+                                />
+                            </div>
+                        @elseif($step['step_type'] === 'requester_input')
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <x-select
+                                    label="بعد از ارسال، برو به مرحله..."
+                                    wire:model="transitionSelections.{{ $step['step_key'] }}.default"
                                     :options="$this->selectableSteps"
                                     option-value="value"
                                     option-label="label"

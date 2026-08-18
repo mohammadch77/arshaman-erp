@@ -193,6 +193,41 @@ class ProcessEngine
     }
 
     /**
+     * تنها مجاز به تکمیل مرحله‌ی requester_input: کسی که این instance را
+     * started_by_user_id شروع کرده — هرگز یک نقش/شخص واگذارشده مثل approval.
+     */
+    public function assertActorIsRequester(ProcessInstance $instance, User $actor): void
+    {
+        if ($instance->started_by_user_id !== $actor->id) {
+            throw new AuthorizationException('فقط درخواست‌دهنده‌ی اصلی این فرایند می‌تواند این مرحله را تکمیل کند.');
+        }
+    }
+
+    /**
+     * فرستنده‌ی اصلی instance فرم مرحله‌ی requester_input فعلی را ارسال می‌کند —
+     * دقیقاً مثل condition، بلافاصله (بدون نیاز به اقدام اضافه) با تنها نتیجه‌ی
+     * ممکن (on_result='default') به مرحله‌ی بعد می‌رود.
+     *
+     * @param  array<string, mixed>  $stepData  از قبل با StepFormValidator اعتبارسنجی‌شده (در Action)
+     */
+    public function submitRequesterInput(ProcessInstance $instance, User $actor, array $stepData): void
+    {
+        if ($instance->status !== ProcessStatus::InProgress) {
+            throw new RuntimeException('این فرایند دیگر در جریان نیست — قابل انتقال نیست.');
+        }
+
+        $currentStep = $instance->currentStep;
+
+        if ($currentStep === null || $currentStep->step_type !== StepType::RequesterInput) {
+            throw new RuntimeException('مرحله‌ی فعلی این فرایند یک مرحله‌ی تکمیل اطلاعات نیست.');
+        }
+
+        $this->log($instance, $currentStep, $actor, LogAction::RequesterInput, null, $stepData !== [] ? $stepData : null);
+
+        $this->moveFrom($instance, $currentStep, TransitionResult::Default, [$currentStep->id => true], 0, $actor, null);
+    }
+
+    /**
      * یادآوری holding_admin به مسئول مرحله‌ی فعلی — فقط یک لاگ جدید، هیچ تغییری
      * در current_step_id/status. authorize واقعی (ProcessInstancePolicy::remind)
      * در Action صدا زده می‌شود؛ این متد فقط رکورد را می‌نویسد.

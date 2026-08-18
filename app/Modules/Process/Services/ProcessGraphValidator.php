@@ -113,6 +113,14 @@ class ProcessGraphValidator
                     $errors[] = "مرحله‌ی شرط «{$label}» باید یک مقدار مقایسه داشته باشد.";
                 }
             }
+
+            if ($type === StepType::RequesterInput->value) {
+                $fields = $step['step_form_fields'] ?? [];
+
+                if ($fields === []) {
+                    $errors[] = "مرحله‌ی «{$label}» (تکمیل اطلاعات توسط درخواست‌دهنده) باید حداقل یک فیلد فرم داشته باشد.";
+                }
+            }
         }
 
         // نگاشت گذارها بر اساس مرحله‌ی مبدا + بررسی معتبربودن مقصد.
@@ -165,6 +173,9 @@ class ProcessGraphValidator
                     "مرحله‌ی شرط «{$label}» باید دقیقاً دو گذار خروجی داشته باشد: «اگر شرط درست بود» و «اگر نادرست بود».",
                     $errors,
                 ),
+                StepType::RequesterInput->value => count($outgoing) === 1 && $results === [TransitionResult::Default->value]
+                    ? null
+                    : $errors[] = "مرحله‌ی «{$label}» باید دقیقاً یک گذار خروجی (بعد از ارسال) داشته باشد.",
                 StepType::End->value => count($outgoing) === 0
                     ? null
                     : $errors[] = "مرحله‌ی پایان «{$label}» نباید هیچ گذار خروجی داشته باشد.",
