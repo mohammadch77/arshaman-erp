@@ -4,29 +4,24 @@ namespace App\Modules\Process\Actions;
 
 use App\Modules\Core\Models\User;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use App\Modules\Process\Services\ProcessGraphValidator;
+use App\Modules\Process\Support\ProcessFormFieldWriter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
  * ویرایش یک تعریف فرایند موجود — فقط دو حالت را مدیریت می‌کند:
  * ۱. بدون هیچ instance: ویرایش کامل ساختار در همان رکورد (امن، چون هیچ
- *    FK ای هنوز به مراحل قدیمی این تعریف اشاره نمی‌کند).
+ *    FK ای هنوز به مراحل/فیلدهای قدیمی این تعریف اشاره نمی‌کند).
  * ۲. حداقل یک instance «در جریان»: قفل کامل ساختار — فقط name/is_active.
  *
  * حالت سوم (فقط instance تمام‌شده، بدون هیچ در‌جریان) دیگر اینجا مدیریت
- * نمی‌شود — بخش ۴.۲ Session جاری این حالت را به یک نسخه‌ی جدید
- * (CreateProcessDefinitionVersion) منتقل کرد، چون رونویسی ساختار زیر پای
- * یک instance تمام‌شده (حتی سال‌ها پیش) تاریخچه‌ی واقعی را عوض می‌کند.
- *
- * تصمیم طراحی — چرا حالت «در جریان» قفل می‌شود: process_instances.current_step_id
- * و process_instance_logs.step_id هر دو FK با RESTRICT (بدون CASCADE) به
- * process_steps دارند — یعنی حذف مراحل قدیمی برای بازسازی ساختار، وقتی یک
- * instance واقعاً هنوز به آن‌ها اشاره دارد، در سطح دیتابیس با QueryException
- * شکست می‌خورد. is_active مستقل قابل‌تغییر می‌ماند چون فقط جلوی instance های
- * *تازه* را می‌گیرد، به سابقه دست نمی‌زند.
+ * نمی‌شود — به یک نسخه‌ی جدید (CreateProcessDefinitionVersion) منتقل شده،
+ * چون رونویسی ساختار زیر پای یک instance تمام‌شده (حتی سال‌ها پیش)
+ * تاریخچه‌ی واقعی را عوض می‌کند.
  */
 class UpdateProcessDefinition
 {
@@ -60,14 +55,23 @@ class UpdateProcessDefinition
                 'name' => $data['name'],
                 'process_key' => $data['process_key'],
                 'subject_type' => $data['subject_type'],
-                'request_form_fields' => $data['subject_type'] === null ? $data['request_form_fields'] : null,
                 'is_active' => $data['is_active'],
             ]);
 
-            // بدون سابقه (چک بالا)، پس هیچ FK دیگری به مراحل قدیمی اشاره
-            // نمی‌کند — حذف کامل و بازسازی امن است.
+            // بدون سابقه (چک بالا)، پس هیچ FK دیگری به مراحل/فیلدهای قدیمی
+            // اشاره نمی‌کند — حذف کامل و بازسازی امن است.
             ProcessTransition::whereIn('from_step_id', $definition->steps()->pluck('id'))->delete();
+            ProcessFormField::where('formable_type', ProcessFormField::FORMABLE_STEP)
+                ->whereIn('formable_id', $definition->steps()->pluck('id'))
+                ->delete();
             $definition->steps()->delete();
+            ProcessFormField::where('formable_type', ProcessFormField::FORMABLE_DEFINITION)
+                ->where('formable_id', $definition->id)
+                ->delete();
+
+            $requestFieldIdsByKey = $data['subject_type'] === null
+                ? ProcessFormFieldWriter::write(ProcessFormField::FORMABLE_DEFINITION, $definition->id, $data['request_form_fields'] ?? [])
+                : [];
 
             $stepIdsByKey = [];
 
@@ -80,14 +84,22 @@ class UpdateProcessDefinition
                     'assignment_type' => $step['assignment_type'] ?? null,
                     'assigned_role' => $step['assigned_role'] ?? null,
                     'assigned_user_id' => $step['assigned_user_id'] ?? null,
-                    'condition_field' => $step['condition_field'] ?? null,
+                    'condition_field_id' => ($data['subject_type'] === null && ! empty($step['condition_field']))
+                        ? ($requestFieldIdsByKey[$step['condition_field']] ?? null)
+                        : null,
+                    'condition_module_field' => ($data['subject_type'] !== null && ! empty($step['condition_field']))
+                        ? $step['condition_field']
+                        : null,
                     'condition_operator' => $step['condition_operator'] ?? null,
                     'condition_value' => $step['condition_value'] ?? null,
-                    'step_form_fields' => $step['step_form_fields'] ?? null,
                     'display_order' => $order,
                 ]);
 
                 $stepIdsByKey[$step['step_key']] = $created->id;
+
+                if (! empty($step['step_form_fields'])) {
+                    ProcessFormFieldWriter::write(ProcessFormField::FORMABLE_STEP, $created->id, $step['step_form_fields']);
+                }
             }
 
             foreach ($data['transitions'] as $order => $transition) {

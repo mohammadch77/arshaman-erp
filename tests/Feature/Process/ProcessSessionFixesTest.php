@@ -13,16 +13,22 @@ use App\Modules\HR\Enums\RecordedBy;
 use App\Modules\HR\Models\Employee;
 use App\Modules\HR\Models\Leave;
 use App\Modules\Process\Actions\ApproveProcessStep;
+use App\Modules\Process\Actions\CreateProcessDefinition;
 use App\Modules\Process\Enums\AssignmentType;
 use App\Modules\Process\Enums\ConditionOperator;
+use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Enums\TransitionResult;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessInstance;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use App\Modules\Process\Services\ProcessEngine;
+use App\Modules\Process\Services\ProcessFormFieldResolver;
+use App\Modules\Process\Services\ProcessGraphValidator;
 use App\Modules\Process\Support\ProcessSubjectSummary;
+use App\Support\Jalali;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -79,7 +85,7 @@ it('formats a date-cast Carbon value through Jalali instead of raw json_encode',
         'subject_type' => Leave::class,
         'subject_id' => $leave->id,
         'current_step_id' => null,
-        'status' => \App\Modules\Process\Enums\ProcessStatus::InProgress,
+        'status' => ProcessStatus::InProgress,
         'started_by_user_id' => $admin->id,
         'started_at' => now(),
     ]);
@@ -92,7 +98,7 @@ it('formats a date-cast Carbon value through Jalali instead of raw json_encode',
     expect($startDateItem['value'])->not->toContain('{');
     // باید دقیقاً همان چیزی باشد که تابع تبدیل شمسی موجود پروژه تولید می‌کند،
     // نه میلادی خام json_encode شده.
-    expect($startDateItem['value'])->toBe(\App\Support\Jalali::toDisplay($leave->start_date));
+    expect($startDateItem['value'])->toBe(Jalali::toDisplay($leave->start_date));
 });
 
 function psfLeaveDefinition(Company $company, User $admin): ProcessDefinition
@@ -119,11 +125,17 @@ it('evaluates a condition on a free-form process using its own request_form_fiel
         'name' => 'درخواست آزاد با شرط (تستی)',
         'process_key' => 'free_condition_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => [
-            ['key' => 'amount', 'type' => 'text', 'label' => 'مبلغ'],
-        ],
         'is_active' => true,
         'created_by_user_id' => $admin->id,
+    ]);
+
+    $amountField = ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'amount',
+        'label' => 'مبلغ',
+        'field_type' => 'text',
+        'is_required' => true,
     ]);
 
     $start = ProcessStep::create(['process_definition_id' => $definition->id, 'step_key' => 'start', 'name' => 'شروع', 'step_type' => StepType::Start]);
@@ -132,7 +144,7 @@ it('evaluates a condition on a free-form process using its own request_form_fiel
         'step_key' => 'check_amount',
         'name' => 'بررسی مبلغ',
         'step_type' => StepType::Condition,
-        'condition_field' => 'amount',
+        'condition_field_id' => $amountField->id,
         'condition_operator' => ConditionOperator::GreaterThan,
         'condition_value' => '1000',
     ]);
@@ -186,7 +198,7 @@ it('rejects a free-form condition field that is not in the definition own reques
 });
 
 it('rejects a graph where a free-form condition step points to a field outside its own request_form_fields, at design time', function () {
-    $validator = app(\App\Modules\Process\Services\ProcessGraphValidator::class);
+    $validator = app(ProcessGraphValidator::class);
 
     $steps = [
         ['step_key' => 'start', 'name' => 'شروع', 'step_type' => StepType::Start->value],
@@ -216,9 +228,17 @@ it('stores step_form_fields on the step and persists submitted values into the l
         'name' => 'فرایند با فرم مرحله (تستی)',
         'process_key' => 'step_form_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => [['key' => 'title', 'label' => 'عنوان', 'type' => 'text']],
         'is_active' => true,
         'created_by_user_id' => $admin->id,
+    ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'title',
+        'label' => 'عنوان',
+        'field_type' => 'text',
+        'is_required' => true,
     ]);
 
     $start = ProcessStep::create(['process_definition_id' => $definition->id, 'step_key' => 'start', 'name' => 'شروع', 'step_type' => StepType::Start]);
@@ -229,10 +249,17 @@ it('stores step_form_fields on the step and persists submitted values into the l
         'step_type' => StepType::Approval,
         'assignment_type' => AssignmentType::Role,
         'assigned_role' => 'holding_admin',
-        'step_form_fields' => [
-            ['key' => 'approved_amount', 'label' => 'مبلغ تأییدشده', 'type' => 'number'],
-        ],
     ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_STEP,
+        'formable_id' => $approval->id,
+        'field_key' => 'approved_amount',
+        'label' => 'مبلغ تأییدشده',
+        'field_type' => 'number',
+        'is_required' => true,
+    ]);
+
     $end = ProcessStep::create(['process_definition_id' => $definition->id, 'step_key' => 'end', 'name' => 'پایان', 'step_type' => StepType::End]);
 
     ProcessTransition::create(['from_step_id' => $start->id, 'to_step_id' => $approval->id, 'on_result' => TransitionResult::Approved]);
@@ -245,8 +272,12 @@ it('stores step_form_fields on the step and persists submitted values into the l
 
     $log = $instance->logs()->where('step_id', $approval->id)->where('action', 'approved')->first();
 
-    expect($log)->not->toBeNull()
-        ->and($log->step_data)->toBe(['approved_amount' => '250000']);
+    expect($log)->not->toBeNull();
+
+    $storedValues = app(ProcessFormFieldResolver::class)->fieldsFor(ProcessFormField::FORMABLE_STEP, $approval->id);
+    $fieldValue = $log->fieldValues()->where('process_form_field_id', $storedValues->get('approved_amount')->id)->first();
+
+    expect($fieldValue?->value)->toBe('250000');
 });
 
 it('rejects submitting step data that fails validation against step_form_fields', function () {
@@ -257,9 +288,17 @@ it('rejects submitting step data that fails validation against step_form_fields'
         'name' => 'فرایند با فرم مرحله نامعتبر (تستی)',
         'process_key' => 'step_form_invalid_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => [['key' => 'title', 'label' => 'عنوان', 'type' => 'text']],
         'is_active' => true,
         'created_by_user_id' => $admin->id,
+    ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'title',
+        'label' => 'عنوان',
+        'field_type' => 'text',
+        'is_required' => true,
     ]);
 
     $start = ProcessStep::create(['process_definition_id' => $definition->id, 'step_key' => 'start', 'name' => 'شروع', 'step_type' => StepType::Start]);
@@ -270,8 +309,17 @@ it('rejects submitting step data that fails validation against step_form_fields'
         'step_type' => StepType::Approval,
         'assignment_type' => AssignmentType::Role,
         'assigned_role' => 'holding_admin',
-        'step_form_fields' => [['key' => 'approved_amount', 'label' => 'مبلغ تأییدشده', 'type' => 'number']],
     ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_STEP,
+        'formable_id' => $approval->id,
+        'field_key' => 'approved_amount',
+        'label' => 'مبلغ تأییدشده',
+        'field_type' => 'number',
+        'is_required' => true,
+    ]);
+
     $end = ProcessStep::create(['process_definition_id' => $definition->id, 'step_key' => 'end', 'name' => 'پایان', 'step_type' => StepType::End]);
 
     ProcessTransition::create(['from_step_id' => $start->id, 'to_step_id' => $approval->id, 'on_result' => TransitionResult::Approved]);
@@ -281,7 +329,7 @@ it('rejects submitting step data that fails validation against step_form_fields'
     $instance = app(ProcessEngine::class)->startInstance($definition, $admin, requestData: ['title' => 'درخواست']);
 
     expect(fn () => app(ApproveProcessStep::class)->handle($instance, $admin, null, ['approved_amount' => 'not-a-number']))
-        ->toThrow(\Illuminate\Validation\ValidationException::class);
+        ->toThrow(ValidationException::class);
 });
 
 it('shows step-form values in the MyProcessTasks comment modal fields for the current step', function () {
@@ -292,9 +340,17 @@ it('shows step-form values in the MyProcessTasks comment modal fields for the cu
         'name' => 'فرایند با فرم مرحله (پنل)',
         'process_key' => 'step_form_panel_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => [['key' => 'title', 'label' => 'عنوان', 'type' => 'text']],
         'is_active' => true,
         'created_by_user_id' => $admin->id,
+    ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'title',
+        'label' => 'عنوان',
+        'field_type' => 'text',
+        'is_required' => true,
     ]);
 
     $start = ProcessStep::create(['process_definition_id' => $definition->id, 'step_key' => 'start', 'name' => 'شروع', 'step_type' => StepType::Start]);
@@ -305,8 +361,17 @@ it('shows step-form values in the MyProcessTasks comment modal fields for the cu
         'step_type' => StepType::Approval,
         'assignment_type' => AssignmentType::Role,
         'assigned_role' => 'holding_admin',
-        'step_form_fields' => [['key' => 'note_field', 'label' => 'یادداشت مخصوص', 'type' => 'text']],
     ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_STEP,
+        'formable_id' => $approval->id,
+        'field_key' => 'note_field',
+        'label' => 'یادداشت مخصوص',
+        'field_type' => 'text',
+        'is_required' => true,
+    ]);
+
     $end = ProcessStep::create(['process_definition_id' => $definition->id, 'step_key' => 'end', 'name' => 'پایان', 'step_type' => StepType::End]);
 
     ProcessTransition::create(['from_step_id' => $start->id, 'to_step_id' => $approval->id, 'on_result' => TransitionResult::Approved]);
@@ -428,7 +493,7 @@ it('persists display_order matching creation order and reloads steps in that ord
         ],
     ];
 
-    $definition = app(\App\Modules\Process\Actions\CreateProcessDefinition::class)->handle($admin, $company->id, $payload);
+    $definition = app(CreateProcessDefinition::class)->handle($admin, $company->id, $payload);
 
     $orderedKeys = $definition->fresh()->steps()->pluck('step_key')->all();
 

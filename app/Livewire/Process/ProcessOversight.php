@@ -84,7 +84,7 @@ class ProcessOversight extends Component
 
         return ProcessInstance::findOrFail($this->historyInstanceId)
             ->logs()
-            ->with(['step', 'actor'])
+            ->with(['step', 'actor', 'fieldValues.formField'])
             ->orderBy('created_at')
             ->get();
     }

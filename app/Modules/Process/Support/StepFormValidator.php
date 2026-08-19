@@ -18,6 +18,6 @@ class StepFormValidator
      */
     public static function validate(ProcessStep $step, array $stepData): array
     {
-        return FormFieldValidator::validate($step->step_form_fields ?? [], $stepData);
+        return FormFieldValidator::validate($step->formFields, $stepData);
     }
 }

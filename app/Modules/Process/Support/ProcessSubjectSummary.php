@@ -3,6 +3,7 @@
 namespace App\Modules\Process\Support;
 
 use App\Modules\Process\Models\ProcessInstance;
+use App\Modules\Process\Services\ProcessFormFieldResolver;
 use App\Support\Jalali;
 use BackedEnum;
 use DateTimeInterface;
@@ -56,26 +57,28 @@ class ProcessSubjectSummary
      */
     private static function forRequestData(ProcessInstance $instance): array
     {
-        $fields = $instance->definition?->request_form_fields ?? [];
-        $data = $instance->request_data ?? [];
+        $fields = $instance->definition?->formFields ?? collect();
+        $data = app(ProcessFormFieldResolver::class)->valuesForInstance($instance);
 
         $summary = [];
 
         foreach ($fields as $field) {
-            $key = $field['key'] ?? null;
+            $isFile = $field->field_type === 'file';
+            $rawValue = $data[$field->field_key] ?? null;
 
-            if ($key === null) {
-                continue;
+            // فیلد select مقدار خام (value) را ذخیره می‌کند، نه برچسب نمایشی —
+            // اینجا با options خودِ فیلد به برچسب واقعی نگاشت می‌شود.
+            $displayValue = $rawValue;
+            if ($field->field_type === 'select' && $rawValue !== null) {
+                $option = collect($field->options ?? [])->firstWhere('value', $rawValue);
+                $displayValue = $option['label'] ?? $rawValue;
             }
 
-            $isFile = ($field['type'] ?? null) === 'file';
-            $rawValue = $data[$key] ?? null;
-
             $summary[] = [
-                'label' => $field['label'] ?? $key,
+                'label' => $field->label,
                 // فیلد file مسیر خام ذخیره‌شده را حمل می‌کند (نه یک متن نمایشی)
                 // تا blade بتواند لینک دانلود واقعی بسازد — نگاه کن is_file پایین.
-                'value' => $isFile ? (string) ($rawValue ?? '') : self::formatValue($rawValue),
+                'value' => $isFile ? (string) ($rawValue ?? '') : self::formatValue($displayValue),
                 'is_file' => $isFile,
             ];
         }

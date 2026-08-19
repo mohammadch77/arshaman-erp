@@ -8,6 +8,7 @@ use App\Modules\Process\Enums\ConditionOperator;
 use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Enums\TransitionResult;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use Illuminate\Database\Seeder;
@@ -32,10 +33,6 @@ class ProcessSampleSeeder extends Seeder
             [
                 'name' => 'درخواست نمونه (تستی)',
                 'subject_type' => null,
-                'request_form_fields' => [
-                    ['key' => 'title', 'type' => 'text', 'label' => 'عنوان درخواست'],
-                    ['key' => 'amount', 'type' => 'text', 'label' => 'مبلغ درخواستی'],
-                ],
                 'is_active' => true,
                 'created_by_user_id' => null,
             ]
@@ -46,6 +43,29 @@ class ProcessSampleSeeder extends Seeder
         // غیر از step_key در سطح همین تعریف ندارند.
         ProcessTransition::whereIn('from_step_id', $definition->steps()->pluck('id'))->delete();
         $definition->steps()->delete();
+        ProcessFormField::where('formable_type', ProcessFormField::FORMABLE_DEFINITION)
+            ->where('formable_id', $definition->id)
+            ->delete();
+
+        ProcessFormField::create([
+            'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+            'formable_id' => $definition->id,
+            'field_key' => 'title',
+            'label' => 'عنوان درخواست',
+            'field_type' => 'text',
+            'is_required' => true,
+            'display_order' => 0,
+        ]);
+
+        $amountField = ProcessFormField::create([
+            'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+            'formable_id' => $definition->id,
+            'field_key' => 'amount',
+            'label' => 'مبلغ درخواستی',
+            'field_type' => 'text',
+            'is_required' => true,
+            'display_order' => 1,
+        ]);
 
         $start = ProcessStep::create([
             'process_definition_id' => $definition->id,
@@ -68,7 +88,7 @@ class ProcessSampleSeeder extends Seeder
             'step_key' => 'amount_check',
             'name' => 'بررسی مبلغ',
             'step_type' => StepType::Condition,
-            'condition_field' => 'amount',
+            'condition_field_id' => $amountField->id,
             'condition_operator' => ConditionOperator::GreaterThan,
             'condition_value' => '1000000',
         ]);

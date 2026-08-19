@@ -10,11 +10,12 @@ use App\Modules\Process\Actions\ApproveProcessStep;
 use App\Modules\Process\Actions\CreateProcessDefinition;
 use App\Modules\Process\Actions\SubmitRequesterInput;
 use App\Modules\Process\Enums\AssignmentType;
+use App\Modules\Process\Enums\LogAction;
 use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Enums\TransitionResult;
 use App\Modules\Process\Models\ProcessDefinition;
-use App\Modules\Process\Models\ProcessInstance;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use App\Modules\Process\Services\ProcessEngine;
@@ -64,11 +65,17 @@ function riFullChain(Company $company, User $creator): array
         'name' => 'درخواست تجهیزات (تستی)',
         'process_key' => 'ri_chain_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => [
-            ['key' => 'item_name', 'label' => 'نام تجهیز', 'type' => 'text'],
-        ],
         'is_active' => true,
         'created_by_user_id' => $creator->id,
+    ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'item_name',
+        'label' => 'نام تجهیز',
+        'field_type' => 'text',
+        'is_required' => true,
     ]);
 
     $start = ProcessStep::create([
@@ -92,9 +99,15 @@ function riFullChain(Company $company, User $creator): array
         'step_key' => 'complete_docs',
         'name' => 'تکمیل مدرک توسط فرستنده',
         'step_type' => StepType::RequesterInput,
-        'step_form_fields' => [
-            ['key' => 'doc_number', 'label' => 'شماره مدرک', 'type' => 'text'],
-        ],
+    ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_STEP,
+        'formable_id' => $requesterInput->id,
+        'field_key' => 'doc_number',
+        'label' => 'شماره مدرک',
+        'field_type' => 'text',
+        'is_required' => true,
     ]);
 
     $accounting = ProcessStep::create([
@@ -170,8 +183,10 @@ it('runs a full chain through supervisor approval, requester input, accounting a
     expect($final->status)->toBe(ProcessStatus::Approved)
         ->and($final->current_step_id)->toBe($chain['end']->id);
 
-    $log = $final->logs()->where('action', \App\Modules\Process\Enums\LogAction::RequesterInput->value)->first();
-    expect($log->step_data)->toBe(['doc_number' => 'DOC-1001'])
+    $log = $final->logs()->where('action', LogAction::RequesterInput->value)->first();
+    $fieldValue = $log->fieldValues()->with('formField')->first();
+    expect($fieldValue->formField->field_key)->toBe('doc_number')
+        ->and($fieldValue->value)->toBe('DOC-1001')
         ->and($log->actor_user_id)->toBe($requester->id);
 });
 
@@ -265,8 +280,13 @@ it('validates a full designer-style payload with requester_input between two dif
     expect($definition->exists)->toBeTrue();
     $docsStep = ProcessStep::where('process_definition_id', $definition->id)->where('step_key', 'docs')->first();
     expect($docsStep->step_type)->toBe(StepType::RequesterInput)
-        ->and($docsStep->assignment_type)->toBeNull()
-        ->and($docsStep->step_form_fields)->toBe([['key' => 'doc', 'label' => 'مدرک', 'type' => 'text']]);
+        ->and($docsStep->assignment_type)->toBeNull();
+
+    $fields = $docsStep->formFields;
+    expect($fields)->toHaveCount(1)
+        ->and($fields->first()->field_key)->toBe('doc')
+        ->and($fields->first()->label)->toBe('مدرک')
+        ->and($fields->first()->field_type)->toBe('text');
 });
 
 it('rejects a requester_input step with zero outgoing transitions', function () {

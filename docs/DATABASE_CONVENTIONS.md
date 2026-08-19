@@ -289,3 +289,29 @@ enum-like ماژول جدید `Process` (موتور گردش‌کار عمومی
 `process_definitions.subject_type` و `process_definitions.process_key` این
 استثنا را **ندارند** — این دو مقدار آزاد (نام کلاس ماژول / کلید فرایند)
 هستند، نه از یک مجموعه بسته‌ی مقادیر، پس اصلاً ENUM/CHECK لیستی معنا ندارد.
+
+> **اصلاح بعدی (بند ۱۶):** تصمیم بالا درباره‌ی `subject_type` عوض شد —
+> نگاه کن بند ۱۶.
+
+---
+
+## ۱۶. استثنا: ENUM نیتیو MySQL برای subject_type (بازطراحی ماژول Process)
+
+طبق تصمیم صریح کارفرما، `process_definitions.subject_type` و
+`process_instances.subject_type` هم از VARCHAR آزاد به `ENUM` نیتیو MySQL
+محدود شدند — برخلاف تصمیم اولیه‌ی بند ۱۵ که این دو را عمداً آزاد گذاشته بود.
+مقدار مجاز فعلی دقیقاً یکی است: FQCN کامل مدل ماژول متصل
+(`'App\Modules\HR\Models\Leave'`) — همان مقداری که در
+`config('processes.subject_types')` ثبت شده، نه نام کوتاه کلاس.
+
+**هزینه‌اش (طبق همان بند ۱۴):** افزودن هر ماژول جدید به `subject_types` نیاز
+به `ALTER TABLE ... MODIFY COLUMN subject_type ENUM(...)` روی هر دو جدول دارد
+— یک migration که کل تعریف ستون را با فهرست کامل FQCN های مجاز (نه فقط
+مقدار تازه) بازنویسی می‌کند، دقیقاً مثل بند ۱۴/۱۵. روی SQLite (محیط تست)،
+چون تغییر یک ستون enum روی جدول موجود نیاز به rebuild کامل دارد (نه فقط
+`Schema::create`)، migration این تغییر با تکنیک rename+PRAGMA (نگاه کن
+`2026_08_19_100001_convert_process_subject_type_to_enum.php`) پیاده شده،
+نه `$table->enum()->change()`.
+
+`process_definitions.process_key` همچنان این استثنا را ندارد — مقدار آزاد
+باقی می‌ماند.

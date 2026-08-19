@@ -102,13 +102,18 @@ class ProcessDefinitionForm extends Component
     public function mount(?string $processDefinition = null): void
     {
         if ($processDefinition !== null) {
-            $this->record = ProcessDefinition::with('steps.outgoingTransitions.toStep')->findOrFail($processDefinition);
+            $this->record = ProcessDefinition::with(['steps.outgoingTransitions.toStep', 'steps.formFields', 'steps.conditionField', 'formFields'])->findOrFail($processDefinition);
             $this->authorize('update', $this->record);
 
             $this->name = $this->record->name;
             $this->subjectType = (string) ($this->record->subject_type ?? '');
             $this->isActive = $this->record->is_active;
-            $this->requestFormFields = $this->record->request_form_fields ?? [];
+            $this->requestFormFields = $this->record->formFields->map(fn ($field) => [
+                'key' => $field->field_key,
+                'label' => $field->label,
+                'type' => $field->field_type,
+                'options' => $field->options ?? [],
+            ])->all();
 
             foreach ($this->record->steps as $step) {
                 $this->steps[] = [
@@ -118,10 +123,15 @@ class ProcessDefinitionForm extends Component
                     'assignment_type' => $step->assignment_type?->value ?? '',
                     'assigned_role' => $step->assigned_role ?? '',
                     'assigned_user_id' => $step->assigned_user_id ?? '',
-                    'condition_field' => $step->condition_field ?? '',
+                    'condition_field' => $step->condition_module_field ?? $step->conditionField?->field_key ?? '',
                     'condition_operator' => $step->condition_operator?->value ?? '',
                     'condition_value' => $step->condition_value ?? '',
-                    'step_form_fields' => $step->step_form_fields ?? [],
+                    'step_form_fields' => $step->formFields->map(fn ($field) => [
+                        'key' => $field->field_key,
+                        'label' => $field->label,
+                        'type' => $field->field_type,
+                        'options' => $field->options ?? [],
+                    ])->all(),
                 ];
 
                 foreach ($step->outgoingTransitions as $transition) {
@@ -321,9 +331,23 @@ class ProcessDefinitionForm extends Component
             }
 
             $seenLabels[] = $label;
+
+            if (($field['type'] ?? '') === 'select' && $this->validOptionsCount($field) < 1) {
+                $errors[] = "فیلد «{$label}» از نوع «انتخابی» باید حداقل یک گزینه داشته باشد.";
+            }
         }
 
         return $errors;
+    }
+
+    /**
+     * @param  array<string, mixed>  $field
+     */
+    private function validOptionsCount(array $field): int
+    {
+        return collect($field['options'] ?? [])
+            ->filter(fn ($option) => trim($option['value'] ?? '') !== '' && trim($option['label'] ?? '') !== '')
+            ->count();
     }
 
     /**
@@ -380,6 +404,14 @@ class ProcessDefinitionForm extends Component
 
                 if ($fields === []) {
                     $errors[] = "مرحله‌ی «{$label}» باید حداقل یک فیلد فرم داشته باشد.";
+                }
+            }
+
+            foreach ($step['step_form_fields'] ?? [] as $field) {
+                $fieldLabel = trim($field['label'] ?? '');
+
+                if ($fieldLabel !== '' && ($field['type'] ?? '') === 'select' && $this->validOptionsCount($field) < 1) {
+                    $errors[] = "فیلد «{$fieldLabel}» (مرحله‌ی «{$label}») از نوع «انتخابی» باید حداقل یک گزینه داشته باشد.";
                 }
             }
         }
@@ -515,6 +547,65 @@ class ProcessDefinitionForm extends Component
     }
 
     /**
+     * درگ‌اند‌دراپ فیلدهای فرم درخواست (مرحله ۲) — فقط ترتیب آرایه‌ی
+     * requestFormFields را عوض می‌کند، هرگز کلید/برچسب/نوع را دست نمی‌زند
+     * (بخش ۵ بازطراحی).
+     */
+    public function moveRequestFieldRow(string $fieldKey, int $newIndex): void
+    {
+        $this->requestFormFields = $this->reorderByKey($this->requestFormFields, 'key', $fieldKey, $newIndex);
+    }
+
+    /**
+     * درگ‌اند‌دراپ فیلدهای فرم اضافه‌ی یک مرحله‌ی مشخص (approval/requester_input).
+     */
+    public function moveStepFormFieldRow(int $stepIndex, string $fieldKey, int $newIndex): void
+    {
+        $this->steps[$stepIndex]['step_form_fields'] = $this->reorderByKey(
+            $this->steps[$stepIndex]['step_form_fields'] ?? [],
+            'key',
+            $fieldKey,
+            $newIndex,
+        );
+    }
+
+    /**
+     * درگ‌اند‌دراپ خودِ مراحل در فهرست خلاصه‌ی مرحله ۳ — مرحله‌ی start همیشه
+     * اول می‌ماند (دستگیره‌ی درگ رویش در Blade غیرفعال است، مثل دکمه‌ی حذف).
+     */
+    public function moveStepRow(string $stepKey, int $newIndex): void
+    {
+        $step = collect($this->steps)->firstWhere('step_key', $stepKey);
+
+        if ($step !== null && $step['step_type'] === StepType::Start->value) {
+            return;
+        }
+
+        $this->steps = $this->reorderByKey($this->steps, 'step_key', $stepKey, max($newIndex, 1));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    private function reorderByKey(array $items, string $identifierField, string $identifierValue, int $newIndex): array
+    {
+        $items = array_values($items);
+        $index = collect($items)->search(fn ($item) => ($item[$identifierField] ?? null) === $identifierValue);
+
+        if ($index === false) {
+            return $items;
+        }
+
+        $item = $items[$index];
+        array_splice($items, $index, 1);
+        $newIndex = max(0, min($newIndex, count($items)));
+        array_splice($items, $newIndex, 0, [$item]);
+
+        return $items;
+    }
+
+    /**
      * خلاصه‌ی خوانای کل گراف برای مرحله ۵ (بازبینی) — یک ردیف به‌ازای هر
      * مرحله‌ی شرط‌پذیر با مقصد هر نتیجه‌ی ممکنش، به همان ترتیب transitionOrder.
      *
@@ -589,7 +680,7 @@ class ProcessDefinitionForm extends Component
 
     public function addRequestField(): void
     {
-        $this->requestFormFields[] = ['key' => $this->newFieldKey(''), 'label' => '', 'type' => 'text'];
+        $this->requestFormFields[] = ['key' => $this->newFieldKey(''), 'label' => '', 'type' => 'text', 'options' => []];
     }
 
     public function removeRequestField(int $index): void
@@ -599,12 +690,37 @@ class ProcessDefinitionForm extends Component
     }
 
     /**
-     * فرم اضافه‌ی اختیاری خودِ یک مرحله‌ی approval (بخش ۳ Session جاری) —
-     * همان الگوی requestFormFields، فقط سطح مرحله.
+     * افزودن یک گزینه‌ی خالی به فیلد نوع select (فرم درخواست).
+     */
+    public function addRequestFieldOption(int $fieldIndex): void
+    {
+        $this->requestFormFields[$fieldIndex]['options'][] = ['value' => '', 'label' => ''];
+    }
+
+    public function removeRequestFieldOption(int $fieldIndex, int $optionIndex): void
+    {
+        unset($this->requestFormFields[$fieldIndex]['options'][$optionIndex]);
+        $this->requestFormFields[$fieldIndex]['options'] = array_values($this->requestFormFields[$fieldIndex]['options']);
+    }
+
+    /**
+     * فرم اضافه‌ی اختیاری خودِ یک مرحله‌ی approval/requester_input — همان
+     * الگوی requestFormFields، فقط سطح مرحله.
      */
     public function addStepFormField(int $stepIndex): void
     {
-        $this->steps[$stepIndex]['step_form_fields'][] = ['key' => $this->newFieldKey(''), 'label' => '', 'type' => 'text'];
+        $this->steps[$stepIndex]['step_form_fields'][] = ['key' => $this->newFieldKey(''), 'label' => '', 'type' => 'text', 'options' => []];
+    }
+
+    public function addStepFormFieldOption(int $stepIndex, int $fieldIndex): void
+    {
+        $this->steps[$stepIndex]['step_form_fields'][$fieldIndex]['options'][] = ['value' => '', 'label' => ''];
+    }
+
+    public function removeStepFormFieldOption(int $stepIndex, int $fieldIndex, int $optionIndex): void
+    {
+        unset($this->steps[$stepIndex]['step_form_fields'][$fieldIndex]['options'][$optionIndex]);
+        $this->steps[$stepIndex]['step_form_fields'][$fieldIndex]['options'] = array_values($this->steps[$stepIndex]['step_form_fields'][$fieldIndex]['options']);
     }
 
     public function removeStepFormField(int $stepIndex, int $fieldIndex): void
@@ -668,6 +784,32 @@ class ProcessDefinitionForm extends Component
         $labels = config("processes.condition_field_labels.{$this->subjectType}", []);
 
         return collect($labels)->map(fn ($meta) => $meta['hint'] ?? null)->filter()->all();
+    }
+
+    /**
+     * خلاصه‌ی خوانای شرط هر مرحله‌ی condition برای مرحله ۴ ویزارد (بخش ۶
+     * بازطراحی) — «شرط: {برچسب فیلد} {برچسب عملگر} {مقدار}».
+     *
+     * @return array<string, string> کلید = step_key
+     */
+    public function getConditionSummaryProperty(): array
+    {
+        $fieldLabels = collect($this->conditionFieldOptions)->pluck('label', 'value');
+        $operatorLabels = collect($this->conditionOperatorOptions)->pluck('label', 'value');
+
+        return collect($this->steps)
+            ->filter(fn ($step) => $step['step_type'] === StepType::Condition->value)
+            ->mapWithKeys(function ($step) use ($fieldLabels, $operatorLabels) {
+                if ($step['condition_field'] === '' || $step['condition_operator'] === '' || $step['condition_value'] === '') {
+                    return [$step['step_key'] => ''];
+                }
+
+                $fieldLabel = $fieldLabels[$step['condition_field']] ?? $step['condition_field'];
+                $operatorLabel = $operatorLabels[$step['condition_operator']] ?? $step['condition_operator'];
+
+                return [$step['step_key'] => "شرط: {$fieldLabel} {$operatorLabel} {$step['condition_value']}"];
+            })
+            ->all();
     }
 
     /**
@@ -944,6 +1086,25 @@ class ProcessDefinitionForm extends Component
         }
 
         return $key;
+    }
+
+    /**
+     * فهرست مشترک نوع فیلد فرم (درخواست/مرحله) — یک منبع واحد تا سه بلوک
+     * مختلف Blade (فرم درخواست، فرم مرحله‌ی approval، فرم مرحله‌ی
+     * requester_input) این آرایه را تکرار نکنند.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    public function getFieldTypeOptionsProperty(): array
+    {
+        return [
+            ['value' => 'text', 'label' => 'متن کوتاه'],
+            ['value' => 'textarea', 'label' => 'متن چندخطی'],
+            ['value' => 'number', 'label' => 'عدد'],
+            ['value' => 'boolean', 'label' => 'بله/خیر'],
+            ['value' => 'select', 'label' => 'انتخابی از فهرست'],
+            ['value' => 'file', 'label' => 'فایل ضمیمه (PDF/تصویر)'],
+        ];
     }
 
     public function getConditionOperatorOptionsProperty(): array

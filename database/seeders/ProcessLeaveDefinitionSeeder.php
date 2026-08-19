@@ -50,7 +50,6 @@ class ProcessLeaveDefinitionSeeder extends Seeder
             [
                 'name' => 'تأیید درخواست مرخصی',
                 'subject_type' => Leave::class,
-                'request_form_fields' => null,
                 'is_active' => true,
                 'created_by_user_id' => null,
             ]
@@ -82,7 +81,7 @@ class ProcessLeaveDefinitionSeeder extends Seeder
             'step_key' => 'duration_check',
             'name' => 'بررسی مدت مرخصی',
             'step_type' => StepType::Condition,
-            'condition_field' => 'days_count',
+            'condition_module_field' => 'days_count',
             'condition_operator' => ConditionOperator::LessThanOrEqual,
             'condition_value' => '5',
         ]);

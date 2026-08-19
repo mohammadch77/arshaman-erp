@@ -2291,4 +2291,104 @@ drag-and-drop ویجت SiteBuilder — این Session عمداً فقط انتخ
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): بازطراحی UI
 ویزارد/مرحله‌به‌مرحله، جابه‌جایی درگ‌اند‌دراپ گذارها در UI.
 
+- [x] Session 8: بازطراحی کامل دیتابیس — حذف کامل JSON، نرمال‌سازی، ENUM محدود subject_type
+
+  **چه ساخته شد (شش migration جدید، `2026_08_19_100001` تا `100006`):**
+  - **بخش ۱:** `process_definitions.subject_type`/`process_instances.subject_type`
+    از VARCHAR آزاد به ENUM نیتیو MySQL با یک مقدار مجاز فعلی
+    (`'App\Modules\HR\Models\Leave'`، دقیقاً FQCN، نه نام کوتاه — نگاه کن
+    `docs/DATABASE_CONVENTIONS.md` بند ۱۶). روی sqlite با تکنیک rename+PRAGMA
+    بازسازی کامل (همان الگوی بند ۱۵)، روی mysql فقط `ALTER ... MODIFY COLUMN`.
+  - **بخش ۲:** جدول جدید `process_form_fields` (پلی‌مورفیک محض
+    formable_type/formable_id، بدون FK واقعی روی formable_id — دقیقاً الگوی
+    subject_type/subject_id در `process_instances`؛ `field_type` هفت مقدار:
+    `text,number,textarea,file,select,boolean` — طبق تصمیم صریح کارفرما «select»
+    اضافه و «boolean» حفظ شد، نه هفت‌تای دیگر). جایگزین کامل
+    `process_definitions.request_form_fields`/`process_steps.step_form_fields`
+    (هر دو ستون JSON حذف شدند). مهاجرت داده با شمارش تأیید (تعداد JSON قبل =
+    تعداد ردیف نوشته‌شده بعد، وگرنه throw قبل از drop).
+  - **بخش ۳:** `process_steps.condition_field` (VARCHAR آزاد) حذف، جایگزین با
+    `condition_field_id` (FK واقعی به `process_form_fields`، فقط شرط روی فرم
+    آزاد همان تعریف) و `condition_module_field` (VARCHAR، شرط روی فیلد ماژول).
+    CHECK دستی `chk_process_steps_condition_source` (guard غیر-sqlite، دقیقاً
+    یکی پر وقتی step_type=condition).
+  - **بخش ۴:** دو جدول جدید `process_instance_field_values`/
+    `process_instance_log_field_values` (هر دو FK واقعی به `process_form_fields`
+    + UNIQUE روی (parent_id, process_form_field_id)). جایگزین کامل
+    `process_instances.request_data`/`process_instance_logs.step_data`.
+  - سرویس جدید `ProcessFormFieldResolver` (نگاشت field_key↔id، ذخیره/خواندن
+    دسته‌ای مقادیر) — منبع واحد بین `ProcessEngine`، Action ها، و پنل‌های
+    Livewire. مدل‌های جدید `ProcessFormField`/`ProcessInstanceFieldValue`/
+    `ProcessInstanceLogFieldValue`. `FormFieldValidator`/`StepFormValidator`
+    از آرایه‌ی JSON خام به `Collection<ProcessFormField>` تغییر امضا دادند.
+  - **بخش ۵:** درگ‌اند‌دراپ فیلدهای فرم (درخواست + هر مرحله) و خودِ مراحل در
+    فهرست خلاصه‌ی مرحله ۳ ویزارد — تابع عمومی جدید `window.initProcessFieldSortable`
+    در `resources/js/process-sortable.js` (کنار `initProcessTransitionSortable`
+    موجود)، متدهای `moveRequestFieldRow`/`moveStepFormFieldRow`/`moveStepRow`
+    در `ProcessDefinitionForm` (مرحله‌ی start همیشه اول می‌ماند، دستگیره‌ی درگ
+    رویش مخفی است — مثل دکمه‌ی حذف).
+  - **بخش ۶:** خلاصه‌ی شرط («شرط: {فیلد} {عملگر} {مقدار}») بالای گذارهای هر
+    مرحله‌ی condition در مرحله ۴ ویزارد — computed property
+    `getConditionSummaryProperty()`.
+
+  **تصمیم‌های این Session:**
+  - `UpdateProcessDefinition`/`CreateProcessDefinitionVersion` قبل از بازسازی
+    ساختار، `process_form_fields` مرحله‌ی قدیمی/تعریف را هم صریح پاک می‌کنند
+    (نه فقط steps/transitions) — چون این مسیر فقط وقتی تعریف صفر instance
+    دارد اجرا می‌شود، حذف امن است (همان تحلیل قبلی حذف steps).
+  - **باگ واقعی کشف‌شده حین اجرای واقعی روی MySQL (نه فقط sqlite تست):**
+    `DB::statement("... ENUM('{$fqcn}') ...")` با یک رشته‌ی PHP حاوی بک‌اسلش
+    خام (`App\Modules\HR\Models\Leave`) نوشته شده بود — در یک رشته‌ی SQL خام
+    mysql، بک‌اسلش کاراکتر escape است (مگر `NO_BACKSLASH_ESCAPES`)، پس mysql
+    بی‌صدا هر بک‌اسلش را حذف می‌کرد و ستون واقعی `ENUM('AppModulesHRModelsLeave')`
+    ساخته می‌شد — هر seed/insert بعدی با «Data truncated» شکست می‌خورد. روی
+    sqlite (که این ALTER خام را اصلاً اجرا نمی‌کند، فقط Blueprint با parameter
+    binding) این باگ اصلاً دیده نمی‌شد؛ فقط اجرای واقعی روی MySQL آن را نشان
+    داد. رفع شد با `str_replace('\\', '\\\\', ...)` قبل از ساخت رشته‌ی SQL.
+    **درسِ تکرارشونده‌ی پروژه (بند ۹.۱۲-مانند): رفتار دقیق یک لایه‌ی خارجی
+    (اینجا: قوانین escape رشته‌ی خام mysql) را هرگز فقط از تست sqlite فرض نکن
+    — قبل از اعلام «تمام»، حتماً یک‌بار روی MySQL واقعی هم اجرا کن.**
+  - `ProcessSubjectSummary::forRequestData()` کشف حین بازدید بصری واقعی: فیلد
+    select مقدار خام (`value`, مثل `high`) را ذخیره می‌کند نه برچسب نمایشی —
+    بدون نگاشت صریح از `options`، پنل‌های «کارهای من»/«درخواست‌های من» مقدار
+    انگلیسی/کد خام را به‌جای برچسب فارسی («فوری») نشان می‌دادند. رفع شد.
+  - migration بخش ۲ (`2026_08_19_100003`) باید CHECK قدیمی
+    `chk_process_definitions_subject_or_form` را قبل از `dropColumn('request_form_fields')`
+    حذف کند (mysql رد می‌کند: «Check constraint uses this column»)، هرگز روی
+    sqlite (که این CHECK را از اول نداشت).
+
+  **تأیید مستقیم روی MySQL واقعی:** هر ۶ migration با `php artisan migrate --force`
+  روی `arshaman_erp` واقعی اجرا شد (بدون `fresh`، طبق بند ۸ CLAUDE.md؛ یک بار
+  به‌خاطر باگ CHECK بالا شکست خورد، rollback کامل ۶ پله + اصلاح + دوباره
+  اجرا). داده‌ی واقعی موجود (یک `process_definitions` با `request_form_fields`
+  و یک `condition_field`) بدون گم‌شدن مهاجرت شد (تأیید مستقیم با کوئری،
+  نه فقط پیام موفقیت). `ProcessSampleSeeder`/`ProcessLeaveDefinitionSeeder`
+  (هر دو به‌روزرسانی‌شده برای معماری جدید) دوباره روی همان دیتابیس اجرا شدند.
+
+  **بازدید بصری واقعی** با `php artisan serve` روی `127.0.0.1:8123` و یک
+  کاربر تستی موقت (holding_admin، شرکت واقعی `arshaman`): فرایند جامع
+  «درخواست خرید تجهیزات» از صفر ساخته شد — فرم درخواست سه‌فیلدی (متن، عدد،
+  select با دو گزینه)، مرحله‌ی تأیید، مرحله‌ی شرط (خلاصه‌ی «شرط: تعداد
+  بزرگ‌تر از 5» واقعاً دیده شد)، مرحله‌ی تکمیل اطلاعات با فیلد فایل، دو پایان.
+  اجرای واقعی کامل: ثبت درخواست با select واقعی، تأیید سرپرست، ارزیابی خودکار
+  شرط (۸>۵ → مسیر true)، تکمیل مرحله‌ی فایل، رسیدن به «تأیید نهایی» — تاریخچه‌ی
+  کامل هر پنج رویداد (با مقدار «فوری» درست‌نمایش‌داده‌شده و لینک دانلود واقعی
+  فایل) در `/processes/my-requests` تأیید شد. درگ‌اند‌دراپ فیلدها/مراحل به‌خاطر
+  محدودیت شبیه‌سازی درگ واقعی در ابزار خودکارسازی مرورگر headless (بدون
+  کامپوزیت صفحه) از طریق ۳ تست Feature جدید (`ProcessFormFieldDragTest`)
+  تأیید شد، نه با درگ واقعی ماوس. کاربر تستی، تعریف فرایند تستی (همه‌ی
+  steps/form fields/transitions اش)، instance تستی، و فایل آپلودشده در پایان
+  کامل از دیتابیس واقعی `arshaman_erp` حذف شدند (بند ۱۰ CLAUDE.md) — تأیید
+  شد صفر رکورد باقی‌مانده.
+
+  **تست‌ها:** ۵ فایل تست جدید (`SubjectTypeEnumTest`, `FormFieldsMigrationTest`,
+  `ConditionFieldFkTest`, `InstanceDataMigrationTest`, `ProcessFormFieldDragTest`)
+  + همه‌ی تست‌های موجود ماژول Process که مستقیم ستون‌های JSON/`condition_field`
+  خام را assert می‌کردند به رابطه‌ها/جداول جدید اصلاح شدند (نه حذف). کل سوییت
+  پروژه: ۶۵۳ سبز، ۱۵ skip (همان CHECKهای mysql-only + دو تست ENUM جدید) —
+  بدون رگرسیون.
+
+با این Session، دیگر هیچ ستون JSON برای فرم/مقدار در ماژول Process باقی
+نمانده؛ همه‌چیز از طریق جداول واقعی با کلید خارجی معتبر کار می‌کند.
+
 > این بخش را بعد از هر Session به‌روز کن. این حافظه بلندمدت پروژه است.

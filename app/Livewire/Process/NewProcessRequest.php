@@ -2,10 +2,12 @@
 
 namespace App\Livewire\Process;
 
-use App\Modules\Core\Services\CompanyContext;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Services\ProcessEngine;
+use App\Modules\Process\Support\FormFieldValidator;
 use App\Modules\Process\Support\ProcessFileUploader;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -41,7 +43,7 @@ class NewProcessRequest extends Component
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, ProcessDefinition>
+     * @return Collection<int, ProcessDefinition>
      */
     public function getDefinitionsProperty()
     {
@@ -62,16 +64,24 @@ class NewProcessRequest extends Component
         return $this->definitions->firstWhere('id', $this->selectedDefinitionId);
     }
 
+    /**
+     * @return Collection<int, ProcessFormField>
+     */
+    public function getSelectedDefinitionFieldsProperty()
+    {
+        return $this->selectedDefinition?->formFields ?? collect();
+    }
+
     public function selectDefinition(string $definitionId): void
     {
         $this->selectedDefinitionId = $definitionId;
         $this->formValues = [];
         $this->fileUploads = [];
 
-        foreach ($this->selectedDefinition?->request_form_fields ?? [] as $field) {
-            $this->formValues[$field['key']] = $field['type'] === 'boolean' ? false : null;
-            if ($field['type'] === 'file') {
-                $this->fileUploads[$field['key']] = null;
+        foreach ($this->selectedDefinitionFields as $field) {
+            $this->formValues[$field->field_key] = $field->field_type === 'boolean' ? false : null;
+            if ($field->field_type === 'file') {
+                $this->fileUploads[$field->field_key] = null;
             }
         }
     }
@@ -86,38 +96,29 @@ class NewProcessRequest extends Component
             return;
         }
 
-        $fields = $definition->request_form_fields ?? [];
+        $fields = $this->selectedDefinitionFields;
 
         // فیلد نوع file جدا از formValues اعتبارسنجی می‌شود (روی خودِ فایل
         // آپلودی، نه رشته‌ی مسیر که هنوز ساخته نشده) — نگاه کن ProcessFileUploader::store.
         $fileRules = [];
+        $rules = FormFieldValidator::rules($fields->filter(fn ($field) => $field->field_type !== 'file'));
         $otherRules = [];
-        foreach ($fields as $field) {
-            if ($field['type'] === 'file') {
-                $fileRules['fileUploads.'.$field['key']] = ['required'];
+        foreach ($rules as $key => $rule) {
+            $otherRules['formValues.'.$key] = $rule;
+        }
 
-                continue;
-            }
-
-            $otherRules['formValues.'.$field['key']] = match ($field['type']) {
-                'number' => ['required', 'numeric'],
-                'boolean' => ['boolean'],
-                default => ['required', 'string', 'max:2000'],
-            };
+        foreach ($fields->filter(fn ($field) => $field->field_type === 'file') as $field) {
+            $fileRules['fileUploads.'.$field->field_key] = $field->is_required ? ['required'] : ['nullable'];
         }
 
         Validator::make(['formValues' => $this->formValues], $otherRules)->validate();
         Validator::make(['fileUploads' => $this->fileUploads], $fileRules)->validate();
 
-        foreach ($fields as $field) {
-            if ($field['type'] !== 'file') {
-                continue;
-            }
-
-            $file = $this->fileUploads[$field['key']] ?? null;
+        foreach ($fields->where('field_type', 'file') as $field) {
+            $file = $this->fileUploads[$field->field_key] ?? null;
 
             if ($file instanceof TemporaryUploadedFile) {
-                $this->formValues[$field['key']] = ProcessFileUploader::store($file);
+                $this->formValues[$field->field_key] = ProcessFileUploader::store($file);
             }
         }
 

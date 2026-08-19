@@ -7,6 +7,7 @@ use App\Modules\Process\Enums\LogAction;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProcessInstanceLog extends Model
 {
@@ -22,7 +23,6 @@ class ProcessInstanceLog extends Model
         'action',
         'comment',
         'reversed_at',
-        'step_data',
     ];
 
     protected function casts(): array
@@ -30,7 +30,6 @@ class ProcessInstanceLog extends Model
         return [
             'action' => LogAction::class,
             'reversed_at' => 'datetime',
-            'step_data' => 'array',
         ];
     }
 
@@ -47,5 +46,13 @@ class ProcessInstanceLog extends Model
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'actor_user_id');
+    }
+
+    /**
+     * جایگزین واقعی ستون JSON قبلی step_data.
+     */
+    public function fieldValues(): HasMany
+    {
+        return $this->hasMany(ProcessInstanceLogFieldValue::class, 'process_instance_log_id');
     }
 }

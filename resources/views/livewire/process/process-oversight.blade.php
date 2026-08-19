@@ -89,48 +89,7 @@
     </x-modal>
 
     <x-modal wire:model="showHistoryModal" title="تاریخچه‌ی فرایند" separator>
-        @if($this->history->isEmpty())
-            <p class="text-base-content/60">هنوز هیچ رویدادی ثبت نشده است.</p>
-        @else
-            <ul class="flex flex-col gap-3">
-                @foreach($this->history as $event)
-                    <li class="border-b border-base-300 pb-3 last:border-b-0 last:pb-0">
-                        <div class="flex items-center gap-2">
-                            <x-icon :name="theme_icon('history')" class="w-4 h-4 text-base-content/60" />
-                            <span class="font-medium">{{ $event->step->name }}</span>
-                            <span class="badge badge-ghost badge-sm">{{ $event->action->label() }}</span>
-                            @if($event->reversed_at)
-                                <span class="badge badge-warning badge-sm">بازگردانی‌شده</span>
-                            @endif
-                        </div>
-
-                        <div class="text-sm mt-1 text-base-content/70">
-                            {{ $event->actor?->full_name ?? 'خودکار (سیستم)' }}
-                        </div>
-
-                        @if($event->comment)
-                            <p class="text-sm text-base-content/70 mt-1 whitespace-pre-line">{{ $event->comment }}</p>
-                        @endif
-
-                        @if($event->step_data)
-                            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
-                                @foreach($event->step_data as $key => $value)
-                                    @php($fieldLabel = collect($event->step->step_form_fields ?? [])->firstWhere('key', $key)['label'] ?? $key)
-                                    <div class="flex gap-2">
-                                        <dt class="text-base-content/60">{{ $fieldLabel }}:</dt>
-                                        <dd class="font-medium">{{ is_bool($value) ? ($value ? 'بله' : 'خیر') : $value }}</dd>
-                                    </div>
-                                @endforeach
-                            </dl>
-                        @endif
-
-                        <div class="text-xs text-base-content/60 mt-1">
-                            {{ \App\Support\Jalali::toDisplayDateTime($event->created_at) }}
-                        </div>
-                    </li>
-                @endforeach
-            </ul>
-        @endif
+        @include('livewire.process.partials.history-list', ['events' => $this->history])
 
         <x-slot:actions>
             <x-button label="بستن" @click="$wire.showHistoryModal = false" />

@@ -10,6 +10,7 @@ use App\Modules\HR\Actions\RejectLeave;
 use App\Modules\HR\Actions\RequestLeave;
 use App\Modules\HR\Enums\LeaveStatus;
 use App\Modules\HR\Enums\RecordedBy;
+use App\Modules\HR\Models\Employee;
 use App\Modules\HR\Models\Leave;
 use App\Modules\Process\Actions\ApproveProcessStep;
 use App\Modules\Process\Actions\RejectProcessStep;
@@ -106,7 +107,7 @@ function lpiBuildLeaveProcessDefinition(Company $company, User $creator): array
         'step_key' => 'duration_check',
         'name' => 'بررسی مدت مرخصی',
         'step_type' => StepType::Condition,
-        'condition_field' => 'days_count',
+        'condition_module_field' => 'days_count',
         'condition_operator' => ConditionOperator::LessThanOrEqual,
         'condition_value' => '5',
     ]);
@@ -149,7 +150,7 @@ function lpiBuildLeaveProcessDefinition(Company $company, User $creator): array
  * شرکت + ادمین + سرپرست(accountant) + مدیر ارشد(holding_admin) + کارمند —
  * همه‌ی اجزای مشترک تست‌های این فایل.
  *
- * @return array{0: Company, 1: User, 2: User, 3: User, 4: \App\Modules\HR\Models\Employee}
+ * @return array{0: Company, 1: User, 2: User, 3: User, 4: Employee}
  */
 function lpiScenario(string $nationalId): array
 {

@@ -11,6 +11,7 @@ use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Enums\TransitionResult;
 use App\Modules\Process\Exceptions\ProcessCycleDetectedException;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessInstance;
 use App\Modules\Process\Models\ProcessInstanceLog;
 use App\Modules\Process\Models\ProcessStep;
@@ -41,6 +42,8 @@ class ProcessEngine
 {
     private const MAX_AUTO_ADVANCE_STEPS = 50;
 
+    public function __construct(private readonly ProcessFormFieldResolver $formFieldResolver) {}
+
     public function startInstance(
         ProcessDefinition $definition,
         User $actor,
@@ -66,12 +69,15 @@ class ProcessEngine
             'process_definition_id' => $definition->id,
             'subject_type' => $subject !== null ? $subject::class : null,
             'subject_id' => $subject?->getKey(),
-            'request_data' => $requestData,
             'current_step_id' => $startStep->id,
             'status' => ProcessStatus::InProgress,
             'started_by_user_id' => $actor->id,
             'started_at' => now(),
         ]);
+
+        if ($requestData !== null && $requestData !== []) {
+            $this->formFieldResolver->storeForInstance($instance, ProcessFormField::FORMABLE_DEFINITION, $definition->id, $requestData);
+        }
 
         $this->log($instance, $startStep, $actor, LogAction::Started, null);
 
@@ -150,8 +156,8 @@ class ProcessEngine
      */
     /**
      * @param  array<string, mixed>  $stepData  مقادیر فرم اضافه‌ی خودِ همین مرحله (بخش ۳
-     *                                            Session جاری، اگر step_form_fields داشته باشد) —
-     *                                            فقط در همین یک رکورد لاگ (تصمیم انسانی) ذخیره می‌شود.
+     *                                          Session جاری، اگر step_form_fields داشته باشد) —
+     *                                          فقط در همین یک رکورد لاگ (تصمیم انسانی) ذخیره می‌شود.
      */
     public function advance(ProcessInstance $instance, string $result, ?User $actor = null, ?string $comment = null, array $stepData = []): void
     {
@@ -167,7 +173,11 @@ class ProcessEngine
 
         $resultEnum = TransitionResult::from($result);
 
-        $this->log($instance, $currentStep, $actor, $this->logActionForResult($resultEnum), $comment, $stepData !== [] ? $stepData : null);
+        $log = $this->log($instance, $currentStep, $actor, $this->logActionForResult($resultEnum), $comment);
+
+        if ($stepData !== []) {
+            $this->formFieldResolver->storeForLog($log, $currentStep->id, $stepData);
+        }
 
         $this->moveFrom($instance, $currentStep, $resultEnum, [$currentStep->id => true], 0, $actor, $comment);
     }
@@ -223,7 +233,11 @@ class ProcessEngine
             throw new RuntimeException('مرحله‌ی فعلی این فرایند یک مرحله‌ی تکمیل اطلاعات نیست.');
         }
 
-        $this->log($instance, $currentStep, $actor, LogAction::RequesterInput, null, $stepData !== [] ? $stepData : null);
+        $log = $this->log($instance, $currentStep, $actor, LogAction::RequesterInput, null);
+
+        if ($stepData !== []) {
+            $this->formFieldResolver->storeForLog($log, $currentStep->id, $stepData);
+        }
 
         $this->moveFrom($instance, $currentStep, TransitionResult::Default, [$currentStep->id => true], 0, $actor, null);
     }
@@ -461,21 +475,21 @@ class ProcessEngine
     }
 
     /**
-     * فقط از فیلدهای whitelist‌شده در config/processes.php (برای فرایند وصل‌شده
-     * به یک subject_type) یا از request_data خودِ فرایند آزاد (که کلیدهایش
-     * دوباره در برابر request_form_fields خودِ همین تعریف — نه یک whitelist
-     * سراسری دیگر — بررسی می‌شود، چون فرایند آزاد فیلد شرط ثابتی در config
-     * ندارد) خوانده می‌شود — هرگز دسترسی آزاد به هر پراپرتی مدل.
+     * برای فرایند وصل‌به‌ماژول از condition_module_field (whitelist‌شده در
+     * config/processes.php) روی خودِ سوژه خوانده می‌شود؛ برای فرایند آزاد از
+     * condition_field_id (FK واقعی به process_form_fields همین تعریف) روی
+     * مقادیر واقعی instance (process_instance_field_values) — هرگز دسترسی
+     * آزاد به هر پراپرتی مدل یا هر کلید دلخواه.
      */
     private function resolveConditionFieldValue(ProcessInstance $instance, ProcessStep $step): mixed
     {
-        $field = $step->condition_field;
-
-        if ($field === null) {
-            throw new RuntimeException("مرحله‌ی شرط «{$step->name}» فیلد شرط ندارد.");
-        }
-
         if ($instance->subject_type !== null) {
+            $field = $step->condition_module_field;
+
+            if ($field === null) {
+                throw new RuntimeException("مرحله‌ی شرط «{$step->name}» فیلد شرط ماژول ندارد.");
+            }
+
             $allowedFields = config("processes.condition_fields.{$instance->subject_type}", []);
 
             if (! in_array($field, $allowedFields, true)) {
@@ -485,23 +499,17 @@ class ProcessEngine
             return $this->resolveSubject($instance)?->{$field};
         }
 
-        // withoutGlobalScopes() عمداً: همان دلیل resolveSubject() — این متد
-        // داخلی موتور ممکن است بدون یک CompanyContext فعال صدا زده شود (مثلاً
-        // از یک تست یا فرآیند خودکار)؛ رابطه‌ی definition() پیش‌فرض تحت
-        // BelongsToCompany همان شرکت فعال session را می‌خواهد، که اینجا اصلاً
-        // تضمینی نیست وجود داشته باشد.
-        $definition = ProcessDefinition::withoutGlobalScopes()->find($instance->process_definition_id);
-
-        $allowedFreeFormFields = array_values(array_filter(array_map(
-            fn ($f) => $f['key'] ?? null,
-            $definition?->request_form_fields ?? []
-        )));
-
-        if (! in_array($field, $allowedFreeFormFields, true)) {
-            throw new RuntimeException("فیلد «{$field}» در فرم این فرایند آزاد تعریف نشده است.");
+        if ($step->condition_field_id === null) {
+            throw new RuntimeException("مرحله‌ی شرط «{$step->name}» فیلد شرط ندارد.");
         }
 
-        return data_get($instance->request_data, $field);
+        $conditionField = ProcessFormField::find($step->condition_field_id);
+
+        if ($conditionField === null) {
+            throw new RuntimeException("مرحله‌ی شرط «{$step->name}» به فیلد فرم نامعتبری اشاره می‌کند.");
+        }
+
+        return $this->formFieldResolver->valuesForInstance($instance)[$conditionField->field_key] ?? null;
     }
 
     /**
@@ -545,19 +553,15 @@ class ProcessEngine
         };
     }
 
-    /**
-     * @param  array<string, mixed>|null  $stepData
-     */
-    private function log(ProcessInstance $instance, ProcessStep $step, ?User $actor, LogAction $action, ?string $comment, ?array $stepData = null): void
+    private function log(ProcessInstance $instance, ProcessStep $step, ?User $actor, LogAction $action, ?string $comment): ProcessInstanceLog
     {
-        ProcessInstanceLog::create([
+        return ProcessInstanceLog::create([
             'owner_company_id' => $instance->owner_company_id,
             'process_instance_id' => $instance->id,
             'step_id' => $step->id,
             'actor_user_id' => $actor?->id,
             'action' => $action,
             'comment' => $comment,
-            'step_data' => $stepData,
         ]);
     }
 }

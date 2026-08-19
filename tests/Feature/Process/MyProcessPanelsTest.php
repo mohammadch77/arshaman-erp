@@ -16,10 +16,12 @@ use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Enums\TransitionResult;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessInstance;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use App\Modules\Process\Services\ProcessEngine;
+use App\Modules\Process\Services\ProcessFormFieldResolver;
 use Illuminate\Auth\Access\AuthorizationException;
 use Livewire\Livewire;
 
@@ -61,10 +63,21 @@ function mppFreeFormDefinition(Company $company, User $creator, array $requestFo
         'name' => 'درخواست آزاد تستی',
         'process_key' => 'mpp_free_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => $requestFormFields,
         'is_active' => true,
         'created_by_user_id' => $creator->id,
     ]);
+
+    foreach (array_values($requestFormFields) as $order => $field) {
+        ProcessFormField::create([
+            'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+            'formable_id' => $definition->id,
+            'field_key' => $field['key'],
+            'label' => $field['label'],
+            'field_type' => $field['type'],
+            'is_required' => $field['type'] !== 'boolean',
+            'display_order' => $order,
+        ]);
+    }
 
     $start = ProcessStep::create([
         'process_definition_id' => $definition->id,
@@ -224,8 +237,10 @@ it('submits a free-form process request from New Process Request and actually st
         ->where('started_by_user_id', $requester->id)
         ->firstOrFail();
 
+    $values = app(ProcessFormFieldResolver::class)->valuesForInstance($instance);
+
     expect($instance->status)->toBe(ProcessStatus::InProgress)
-        ->and($instance->request_data)->toMatchArray(['topic' => 'درخواست تجهیزات', 'days' => 3])
+        ->and($values)->toMatchArray(['topic' => 'درخواست تجهیزات', 'days' => '3'])
         ->and($instance->current_step_id)->toBe($chain['approval']->id);
 });
 

@@ -4,21 +4,22 @@ namespace App\Modules\Process\Actions;
 
 use App\Modules\Core\Models\User;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use App\Modules\Process\Services\ProcessGraphValidator;
+use App\Modules\Process\Support\ProcessFormFieldWriter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
- * نسخه‌ی جدید یک تعریف فرایند (بخش ۴.۲ Session جاری) — وقتی تعریف فقط
- * instance تمام‌شده دارد (بدون هیچ در‌جریان)، ویرایش ساختاری دیگر رکورد
- * موجود را رونویسی نمی‌کند: یک process_definitions تازه با همان process_key
- * و version+1 ساخته می‌شود (کلون کامل مراحل/گذارها با مقادیر تازه‌ی فرم)،
- * نسخه‌ی قدیمی is_current_version=false می‌شود. تاریخچه‌ی نسخه‌ی قدیمی
- * (instance/log هایش) کاملاً دست‌نخورده می‌ماند — همچنان به همان process_steps
- * قدیمی اشاره دارد. از دید UI فقط «یک فرایند با نام ثابت» دیده می‌شود چون
- * فهرست/لوکاپ‌ها همیشه is_current_version=true را می‌خوانند.
+ * نسخه‌ی جدید یک تعریف فرایند — وقتی تعریف فقط instance تمام‌شده دارد (بدون
+ * هیچ در‌جریان)، ویرایش ساختاری دیگر رکورد موجود را رونویسی نمی‌کند: یک
+ * process_definitions تازه با همان process_key و version+1 ساخته می‌شود
+ * (کلون کامل مراحل/فیلدهای فرم/گذارها با مقادیر تازه‌ی فرم)، نسخه‌ی قدیمی
+ * is_current_version=false می‌شود. تاریخچه‌ی نسخه‌ی قدیمی (instance/log هایش)
+ * کاملاً دست‌نخورده می‌ماند — همچنان به همان process_steps/process_form_fields
+ * قدیمی اشاره دارد.
  */
 class CreateProcessDefinitionVersion
 {
@@ -26,8 +27,8 @@ class CreateProcessDefinitionVersion
 
     /**
      * @param  array<string, mixed>  $data  خروجی ProcessDefinitionForm::extractPayload() —
-     *                                       process_key در $data نادیده گرفته می‌شود، همیشه
-     *                                       از روی نسخه‌ی قدیمی به ارث می‌رسد.
+     *                                      process_key در $data نادیده گرفته می‌شود، همیشه
+     *                                      از روی نسخه‌ی قدیمی به ارث می‌رسد.
      */
     public function handle(User $actor, ProcessDefinition $previousVersion, array $data): ProcessDefinition
     {
@@ -45,10 +46,13 @@ class CreateProcessDefinitionVersion
                 'version' => $previousVersion->version + 1,
                 'is_current_version' => true,
                 'subject_type' => $data['subject_type'],
-                'request_form_fields' => $data['subject_type'] === null ? $data['request_form_fields'] : null,
                 'is_active' => $data['is_active'],
                 'created_by_user_id' => $actor->id,
             ]);
+
+            $requestFieldIdsByKey = $data['subject_type'] === null
+                ? ProcessFormFieldWriter::write(ProcessFormField::FORMABLE_DEFINITION, $newVersion->id, $data['request_form_fields'] ?? [])
+                : [];
 
             $stepIdsByKey = [];
 
@@ -61,14 +65,22 @@ class CreateProcessDefinitionVersion
                     'assignment_type' => $step['assignment_type'] ?? null,
                     'assigned_role' => $step['assigned_role'] ?? null,
                     'assigned_user_id' => $step['assigned_user_id'] ?? null,
-                    'condition_field' => $step['condition_field'] ?? null,
+                    'condition_field_id' => ($data['subject_type'] === null && ! empty($step['condition_field']))
+                        ? ($requestFieldIdsByKey[$step['condition_field']] ?? null)
+                        : null,
+                    'condition_module_field' => ($data['subject_type'] !== null && ! empty($step['condition_field']))
+                        ? $step['condition_field']
+                        : null,
                     'condition_operator' => $step['condition_operator'] ?? null,
                     'condition_value' => $step['condition_value'] ?? null,
-                    'step_form_fields' => $step['step_form_fields'] ?? null,
                     'display_order' => $order,
                 ]);
 
                 $stepIdsByKey[$step['step_key']] = $created->id;
+
+                if (! empty($step['step_form_fields'])) {
+                    ProcessFormFieldWriter::write(ProcessFormField::FORMABLE_STEP, $created->id, $step['step_form_fields']);
+                }
             }
 
             foreach ($data['transitions'] as $order => $transition) {

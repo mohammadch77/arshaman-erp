@@ -5,6 +5,8 @@ use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Role;
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Models\UserCompanyRole;
+use App\Modules\HR\Models\Employee;
+use App\Modules\HR\Models\Leave;
 use App\Modules\Process\Actions\ApproveProcessStep;
 use App\Modules\Process\Actions\CancelProcessInstance;
 use App\Modules\Process\Actions\UpdateProcessInstanceRequest;
@@ -13,9 +15,11 @@ use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Enums\TransitionResult;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use App\Modules\Process\Services\ProcessEngine;
+use App\Modules\Process\Services\ProcessFormFieldResolver;
 use Illuminate\Auth\Access\AuthorizationException;
 use Livewire\Livewire;
 
@@ -46,11 +50,17 @@ function recFreeFormDefinition(Company $company, User $creator): array
         'name' => 'درخواست آزاد قابل‌ویرایش',
         'process_key' => 'rec_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => [
-            ['key' => 'title', 'label' => 'عنوان', 'type' => 'text'],
-        ],
         'is_active' => true,
         'created_by_user_id' => $creator->id,
+    ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'title',
+        'label' => 'عنوان',
+        'field_type' => 'text',
+        'is_required' => true,
     ]);
 
     $start = ProcessStep::create(['process_definition_id' => $definition->id, 'step_key' => 'start', 'name' => 'شروع', 'step_type' => StepType::Start]);
@@ -80,11 +90,11 @@ it('lets the requester edit the free-form request multiple times before any appr
     $instance = app(ProcessEngine::class)->startInstance($chain['definition'], $requester, null, ['title' => 'عنوان اول']);
 
     app(UpdateProcessInstanceRequest::class)->handle($requester, $instance, ['title' => 'عنوان دوم']);
-    expect($instance->fresh()->request_data['title'])->toBe('عنوان دوم');
+    expect(app(ProcessFormFieldResolver::class)->valuesForInstance($instance->fresh())['title'])->toBe('عنوان دوم');
 
     // دومین ویرایش هم باید مجاز بماند — نه فقط اولین بار.
     app(UpdateProcessInstanceRequest::class)->handle($requester->fresh(), $instance->fresh(), ['title' => 'عنوان سوم']);
-    expect($instance->fresh()->request_data['title'])->toBe('عنوان سوم');
+    expect(app(ProcessFormFieldResolver::class)->valuesForInstance($instance->fresh())['title'])->toBe('عنوان سوم');
 
     // بعد از چند ویرایش، لغو هم باید همچنان مجاز باشد.
     app(CancelProcessInstance::class)->handle($requester->fresh(), $instance->fresh());
@@ -149,7 +159,7 @@ it('shows and uses the edit/cancel buttons through the real MyProcessRequests Li
         ->call('saveEditRequest')
         ->assertHasNoErrors();
 
-    expect($instance->fresh()->request_data['title'])->toBe('عنوان تغییریافته از UI');
+    expect(app(ProcessFormFieldResolver::class)->valuesForInstance($instance->fresh())['title'])->toBe('عنوان تغییریافته از UI');
 
     // بعد از ویرایش از طریق UI هم دکمه‌ها باید همچنان فعال بمانند (رگرسیون).
     $rowsAfterEdit = Livewire::test(MyProcessRequests::class)->instance()->requests;
@@ -170,7 +180,7 @@ it('does not allow editing request_data for a module-linked (non free-form) proc
         'owner_company_id' => $company->id,
         'name' => 'فرایند وصل‌به‌ماژول',
         'process_key' => 'rec5_'.uniqid(),
-        'subject_type' => \App\Modules\HR\Models\Leave::class,
+        'subject_type' => Leave::class,
         'request_form_fields' => null,
         'is_active' => true,
         'created_by_user_id' => $requester->id,
@@ -183,11 +193,11 @@ it('does not allow editing request_data for a module-linked (non free-form) proc
     ProcessTransition::create(['from_step_id' => $approval->id, 'to_step_id' => $end->id, 'on_result' => TransitionResult::Approved]);
 
     $employeeUser = User::factory()->create(['is_super_admin' => false]);
-    $employee = \App\Modules\HR\Models\Employee::factory()->create([
+    $employee = Employee::factory()->create([
         'owner_company_id' => $company->id,
         'user_id' => $employeeUser->id,
     ]);
-    $leave = \App\Modules\HR\Models\Leave::create([
+    $leave = Leave::create([
         'owner_company_id' => $company->id,
         'employee_id' => $employee->id,
         'leave_type' => 'annual',

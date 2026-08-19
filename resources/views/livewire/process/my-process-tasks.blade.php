@@ -105,25 +105,10 @@
     @endif
 
     <x-modal wire:model="commentInstanceId" title="نظر (اختیاری)" separator>
-        @if($this->commentStepFormFields !== [])
+        @if($this->commentStepFormFields->isNotEmpty())
             <div class="flex flex-col gap-3 mb-3">
                 @foreach($this->commentStepFormFields as $field)
-                    @if($field['type'] === 'boolean')
-                        <x-checkbox :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" />
-                    @elseif($field['type'] === 'number')
-                        <x-input type="number" :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" :icon="theme_icon('site-form')" />
-                    @elseif($field['type'] === 'textarea')
-                        <x-textarea :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" rows="3" />
-                    @elseif($field['type'] === 'file')
-                        <x-file
-                            :label="$field['label']"
-                            wire:model="fileUploads.{{ $field['key'] }}"
-                            :icon="theme_icon('file')"
-                            hint="فرمت‌های مجاز: {{ implode('، ', config('processes.file_upload.allowed_extensions')) }} — حداکثر {{ round(config('processes.file_upload.max_kilobytes') / 1024, 1) }} مگابایت"
-                        />
-                    @else
-                        <x-input :label="$field['label']" wire:model="stepDataValues.{{ $field['key'] }}" :icon="theme_icon('site-form')" />
-                    @endif
+                    @include('livewire.process.partials.form-field-input', ['field' => $field, 'valuePrefix' => 'stepDataValues', 'filePrefix' => 'fileUploads'])
                 @endforeach
             </div>
         @endif
@@ -144,57 +129,7 @@
     </x-modal>
 
     <x-modal wire:model="showHistoryModal" title="تاریخچه‌ی فرایند" separator>
-        @if($this->history->isEmpty())
-            <p class="text-base-content/60">هنوز هیچ رویدادی ثبت نشده است.</p>
-        @else
-            <ul class="flex flex-col gap-3">
-                @foreach($this->history as $event)
-                    <li class="border-b border-base-300 pb-3 last:border-b-0 last:pb-0">
-                        <div class="flex items-center gap-2">
-                            <x-icon :name="theme_icon('history')" class="w-4 h-4 text-base-content/60" />
-                            <span class="font-medium">{{ $event->step->name }}</span>
-                            <span class="badge badge-ghost badge-sm">{{ $event->action->label() }}</span>
-                            @if($event->reversed_at)
-                                <span class="badge badge-warning badge-sm">بازگردانی‌شده</span>
-                            @endif
-                        </div>
-
-                        <div class="text-sm mt-1 text-base-content/70">
-                            {{ $event->actor?->full_name ?? 'خودکار (سیستم)' }}
-                        </div>
-
-                        @if($event->comment)
-                            <p class="text-sm text-base-content/70 mt-1 whitespace-pre-line">{{ $event->comment }}</p>
-                        @endif
-
-                        @if($event->step_data)
-                            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
-                                @foreach($event->step_data as $key => $value)
-                                    @php($stepField = collect($event->step->step_form_fields ?? [])->firstWhere('key', $key))
-                                    <div class="flex gap-2">
-                                        <dt class="text-base-content/60">{{ $stepField['label'] ?? $key }}:</dt>
-                                        @if(($stepField['type'] ?? null) === 'file')
-                                            <dd>
-                                                <a href="{{ \App\Modules\Process\Support\ProcessFileUploader::url($value) }}" target="_blank" class="link link-primary inline-flex items-center gap-1">
-                                                    <x-icon :name="theme_icon('download')" class="w-4 h-4" />
-                                                    {{ \App\Modules\Process\Support\ProcessFileUploader::originalNameFromPath($value) }}
-                                                </a>
-                                            </dd>
-                                        @else
-                                            <dd class="font-medium">{{ is_bool($value) ? ($value ? 'بله' : 'خیر') : $value }}</dd>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            </dl>
-                        @endif
-
-                        <div class="text-xs text-base-content/60 mt-1">
-                            {{ \App\Support\Jalali::toDisplayDateTime($event->created_at) }}
-                        </div>
-                    </li>
-                @endforeach
-            </ul>
-        @endif
+        @include('livewire.process.partials.history-list', ['events' => $this->history])
 
         <x-slot:actions>
             <x-button label="بستن" @click="$wire.showHistoryModal = false" />

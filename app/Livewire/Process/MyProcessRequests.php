@@ -7,7 +7,10 @@ use App\Modules\Process\Actions\SubmitRequesterInput;
 use App\Modules\Process\Actions\UpdateProcessInstanceRequest;
 use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessInstance;
+use App\Modules\Process\Models\ProcessInstanceLog;
+use App\Modules\Process\Services\ProcessFormFieldResolver;
 use App\Modules\Process\Support\ProcessFileUploader;
 use App\Modules\Process\Support\ProcessSubjectSummary;
 use Illuminate\Support\Collection;
@@ -118,10 +121,10 @@ class MyProcessRequests extends Component
         $this->inputStepDataValues = [];
         $this->inputFileUploads = [];
 
-        foreach ($instance->currentStep?->step_form_fields ?? [] as $field) {
-            $this->inputStepDataValues[$field['key']] = $field['type'] === 'boolean' ? false : null;
-            if ($field['type'] === 'file') {
-                $this->inputFileUploads[$field['key']] = null;
+        foreach ($instance->currentStep?->formFields ?? collect() as $field) {
+            $this->inputStepDataValues[$field->field_key] = $field->field_type === 'boolean' ? false : null;
+            if ($field->field_type === 'file') {
+                $this->inputFileUploads[$field->field_key] = null;
             }
         }
 
@@ -131,15 +134,15 @@ class MyProcessRequests extends Component
     /**
      * فیلدهای فرم مرحله‌ی requester_input همان instance که مودال برایش باز است.
      *
-     * @return array<int, array<string, mixed>>
+     * @return Collection<int, ProcessFormField>
      */
-    public function getInputStepFormFieldsProperty(): array
+    public function getInputStepFormFieldsProperty()
     {
         if ($this->inputInstanceId === null) {
-            return [];
+            return collect();
         }
 
-        return ProcessInstance::find($this->inputInstanceId)?->currentStep?->step_form_fields ?? [];
+        return ProcessInstance::find($this->inputInstanceId)?->currentStep?->formFields ?? collect();
     }
 
     public function submitInput(SubmitRequesterInput $action): void
@@ -178,10 +181,12 @@ class MyProcessRequests extends Component
         $this->editFormValues = [];
         $this->editFileUploads = [];
 
-        foreach ($instance->definition?->request_form_fields ?? [] as $field) {
-            $this->editFormValues[$field['key']] = $instance->request_data[$field['key']] ?? ($field['type'] === 'boolean' ? false : null);
-            if ($field['type'] === 'file') {
-                $this->editFileUploads[$field['key']] = null;
+        $existingValues = app(ProcessFormFieldResolver::class)->valuesForInstance($instance);
+
+        foreach ($instance->definition?->formFields ?? collect() as $field) {
+            $this->editFormValues[$field->field_key] = $existingValues[$field->field_key] ?? ($field->field_type === 'boolean' ? false : null);
+            if ($field->field_type === 'file') {
+                $this->editFileUploads[$field->field_key] = null;
             }
         }
 
@@ -189,22 +194,23 @@ class MyProcessRequests extends Component
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return Collection<int, ProcessFormField>
      */
-    public function getEditFormFieldsProperty(): array
+    public function getEditFormFieldsProperty()
     {
         if ($this->editInstanceId === null) {
-            return [];
+            return collect();
         }
 
-        return ProcessInstance::find($this->editInstanceId)?->definition?->request_form_fields ?? [];
+        return ProcessInstance::find($this->editInstanceId)?->definition?->formFields ?? collect();
     }
 
     /**
-     * مسیر فایل از‌قبل‌آپلودشده‌ی هر فیلد نوع file — برای نمایش «فایل فعلی»
-     * در فرم ویرایش وقتی کاربر فایل تازه انتخاب نکرده (آپلود مجدد اختیاری است).
+     * مقادیر از‌قبل‌ذخیره‌شده (شامل مسیر فایل هر فیلد نوع file) — برای نمایش
+     * «فایل فعلی» در فرم ویرایش وقتی کاربر فایل تازه انتخاب نکرده (آپلود
+     * مجدد اختیاری است).
      *
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     public function getEditExistingFilesProperty(): array
     {
@@ -212,7 +218,9 @@ class MyProcessRequests extends Component
             return [];
         }
 
-        return ProcessInstance::find($this->editInstanceId)?->request_data ?? [];
+        $instance = ProcessInstance::find($this->editInstanceId);
+
+        return $instance !== null ? app(ProcessFormFieldResolver::class)->valuesForInstance($instance) : [];
     }
 
     public function saveEditRequest(UpdateProcessInstanceRequest $action): void
@@ -227,11 +235,13 @@ class MyProcessRequests extends Component
 
         // فیلد نوع file اگر کاربر فایل تازه انتخاب نکرده باشد، مقدار (مسیر)
         // قبلی‌اش را حفظ می‌کند — آپلود مجدد اختیاری است، نه اجباری.
+        $existingValues = app(ProcessFormFieldResolver::class)->valuesForInstance($instance);
+
         foreach ($this->editFileUploads as $key => $file) {
             if ($file instanceof TemporaryUploadedFile) {
                 $this->editFormValues[$key] = ProcessFileUploader::store($file);
             } elseif (($this->editFormValues[$key] ?? null) === null) {
-                $this->editFormValues[$key] = $instance->request_data[$key] ?? null;
+                $this->editFormValues[$key] = $existingValues[$key] ?? null;
             }
         }
 
@@ -267,7 +277,7 @@ class MyProcessRequests extends Component
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, \App\Modules\Process\Models\ProcessInstanceLog>
+     * @return Collection<int, ProcessInstanceLog>
      */
     public function getHistoryProperty(): Collection
     {
@@ -277,7 +287,7 @@ class MyProcessRequests extends Component
 
         return ProcessInstance::findOrFail($this->historyInstanceId)
             ->logs()
-            ->with(['step', 'actor'])
+            ->with(['step', 'actor', 'fieldValues.formField'])
             ->orderBy('created_at')
             ->get();
     }

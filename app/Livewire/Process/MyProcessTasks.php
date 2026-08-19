@@ -11,6 +11,7 @@ use App\Modules\Process\Enums\AssignmentType;
 use App\Modules\Process\Enums\LogAction;
 use App\Modules\Process\Enums\ProcessStatus;
 use App\Modules\Process\Enums\StepType;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessInstance;
 use App\Modules\Process\Models\ProcessInstanceLog;
 use App\Modules\Process\Services\ProcessEngine;
@@ -150,9 +151,9 @@ class MyProcessTasks extends Component
         $this->fileUploads = [];
 
         foreach ($this->commentStepFormFields as $field) {
-            $this->stepDataValues[$field['key']] = $field['type'] === 'boolean' ? false : null;
-            if ($field['type'] === 'file') {
-                $this->fileUploads[$field['key']] = null;
+            $this->stepDataValues[$field->field_key] = $field->field_type === 'boolean' ? false : null;
+            if ($field->field_type === 'file') {
+                $this->fileUploads[$field->field_key] = null;
             }
         }
     }
@@ -161,15 +162,15 @@ class MyProcessTasks extends Component
      * فیلدهای فرم اضافه‌ی مرحله‌ی فعلی همان instance که مودال تأیید/رد برایش
      * باز است — خالی اگر این مرحله فرم اضافه‌ای تعریف نکرده باشد.
      *
-     * @return array<int, array<string, mixed>>
+     * @return Collection<int, ProcessFormField>
      */
-    public function getCommentStepFormFieldsProperty(): array
+    public function getCommentStepFormFieldsProperty()
     {
         if ($this->commentInstanceId === null) {
-            return [];
+            return collect();
         }
 
-        return ProcessInstance::find($this->commentInstanceId)?->currentStep?->step_form_fields ?? [];
+        return ProcessInstance::find($this->commentInstanceId)?->currentStep?->formFields ?? collect();
     }
 
     public function approve(ApproveProcessStep $action): void
@@ -203,7 +204,7 @@ class MyProcessTasks extends Component
 
         return ProcessInstance::findOrFail($this->historyInstanceId)
             ->logs()
-            ->with(['step', 'actor'])
+            ->with(['step', 'actor', 'fieldValues.formField'])
             ->orderBy('created_at')
             ->get();
     }

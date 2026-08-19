@@ -22,7 +22,6 @@ class ProcessInstance extends Model
         'process_definition_id',
         'subject_type',
         'subject_id',
-        'request_data',
         'current_step_id',
         'status',
         'started_by_user_id',
@@ -33,11 +32,19 @@ class ProcessInstance extends Model
     protected function casts(): array
     {
         return [
-            'request_data' => 'array',
             'status' => ProcessStatus::class,
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * جایگزین واقعی ستون JSON قبلی request_data — هر مقدار فرم درخواست
+     * (فقط فرایند آزاد) یک ردیف واقعی است.
+     */
+    public function fieldValues(): HasMany
+    {
+        return $this->hasMany(ProcessInstanceFieldValue::class, 'process_instance_id');
     }
 
     /**

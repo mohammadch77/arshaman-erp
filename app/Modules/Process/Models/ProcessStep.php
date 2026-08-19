@@ -25,10 +25,10 @@ class ProcessStep extends Model
         'assignment_type',
         'assigned_role',
         'assigned_user_id',
-        'condition_field',
+        'condition_field_id',
+        'condition_module_field',
         'condition_operator',
         'condition_value',
-        'step_form_fields',
         'display_order',
     ];
 
@@ -38,7 +38,6 @@ class ProcessStep extends Model
             'step_type' => StepType::class,
             'assignment_type' => AssignmentType::class,
             'condition_operator' => ConditionOperator::class,
-            'step_form_fields' => 'array',
             'display_order' => 'integer',
         ];
     }
@@ -51,6 +50,22 @@ class ProcessStep extends Model
     public function assignedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_user_id');
+    }
+
+    public function conditionField(): BelongsTo
+    {
+        return $this->belongsTo(ProcessFormField::class, 'condition_field_id');
+    }
+
+    /**
+     * فرم اضافه‌ی اختیاری خودِ این مرحله (approval/requester_input) — جایگزین
+     * واقعی ستون JSON قبلی step_form_fields.
+     */
+    public function formFields(): HasMany
+    {
+        return $this->hasMany(ProcessFormField::class, 'formable_id')
+            ->where('formable_type', ProcessFormField::FORMABLE_STEP)
+            ->orderBy('display_order');
     }
 
     public function outgoingTransitions(): HasMany

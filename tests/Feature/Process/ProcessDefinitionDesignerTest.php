@@ -88,7 +88,7 @@ it('saves a complete process definition with steps and transitions in one transa
     $transitions = ProcessTransition::whereIn('from_step_id', $steps->pluck('id'))->get();
     expect($transitions)->toHaveCount(7);
 
-    expect($steps['duration_check']->condition_field)->toBe('days_count')
+    expect($steps['duration_check']->condition_module_field)->toBe('days_count')
         ->and($steps['first_approval']->assigned_role)->toBe('accountant');
 });
 

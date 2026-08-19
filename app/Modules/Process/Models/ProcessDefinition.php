@@ -24,7 +24,6 @@ class ProcessDefinition extends Model
         'version',
         'is_current_version',
         'subject_type',
-        'request_form_fields',
         'is_active',
         'created_by_user_id',
     ];
@@ -32,7 +31,6 @@ class ProcessDefinition extends Model
     protected function casts(): array
     {
         return [
-            'request_form_fields' => 'array',
             'is_active' => 'boolean',
             'is_current_version' => 'boolean',
             'version' => 'integer',
@@ -42,6 +40,17 @@ class ProcessDefinition extends Model
     public function steps(): HasMany
     {
         return $this->hasMany(ProcessStep::class)->orderBy('display_order');
+    }
+
+    /**
+     * فیلدهای فرم درخواست (فقط برای فرایند آزاد، subject_type=null) — جایگزین
+     * واقعی ستون JSON قبلی request_form_fields.
+     */
+    public function formFields(): HasMany
+    {
+        return $this->hasMany(ProcessFormField::class, 'formable_id')
+            ->where('formable_type', ProcessFormField::FORMABLE_DEFINITION)
+            ->orderBy('display_order');
     }
 
     public function instances(): HasMany

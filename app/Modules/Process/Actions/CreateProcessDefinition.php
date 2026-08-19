@@ -4,17 +4,19 @@ namespace App\Modules\Process\Actions;
 
 use App\Modules\Core\Models\User;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use App\Modules\Process\Services\ProcessGraphValidator;
+use App\Modules\Process\Support\ProcessFormFieldWriter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
- * تنها راه ساخت یک تعریف فرایند کامل (definition + steps + transitions) —
- * همیشه در یک تراکنش دیتابیسی واحد، هرگز چند insert جدا که می‌تواند
- * نیمه‌کاره بماند. authorize داخل خودِ Action (بند ۹ CLAUDE.md)، مستقل از
- * این‌که کامپوننت Livewire قبلش authorize زده یا نه.
+ * تنها راه ساخت یک تعریف فرایند کامل (definition + form fields + steps +
+ * step form fields + transitions) — همیشه در یک تراکنش دیتابیسی واحد، هرگز
+ * چند insert جدا که می‌تواند نیمه‌کاره بماند. authorize داخل خودِ Action (بند
+ * ۹ CLAUDE.md)، مستقل از این‌که کامپوننت Livewire قبلش authorize زده یا نه.
  */
 class CreateProcessDefinition
 {
@@ -35,10 +37,13 @@ class CreateProcessDefinition
                 'name' => $data['name'],
                 'process_key' => $data['process_key'],
                 'subject_type' => $data['subject_type'],
-                'request_form_fields' => $data['subject_type'] === null ? $data['request_form_fields'] : null,
                 'is_active' => $data['is_active'],
                 'created_by_user_id' => $actor->id,
             ]);
+
+            $requestFieldIdsByKey = $data['subject_type'] === null
+                ? ProcessFormFieldWriter::write(ProcessFormField::FORMABLE_DEFINITION, $definition->id, $data['request_form_fields'] ?? [])
+                : [];
 
             $stepIdsByKey = [];
 
@@ -51,14 +56,22 @@ class CreateProcessDefinition
                     'assignment_type' => $step['assignment_type'] ?? null,
                     'assigned_role' => $step['assigned_role'] ?? null,
                     'assigned_user_id' => $step['assigned_user_id'] ?? null,
-                    'condition_field' => $step['condition_field'] ?? null,
+                    'condition_field_id' => ($data['subject_type'] === null && ! empty($step['condition_field']))
+                        ? ($requestFieldIdsByKey[$step['condition_field']] ?? null)
+                        : null,
+                    'condition_module_field' => ($data['subject_type'] !== null && ! empty($step['condition_field']))
+                        ? $step['condition_field']
+                        : null,
                     'condition_operator' => $step['condition_operator'] ?? null,
                     'condition_value' => $step['condition_value'] ?? null,
-                    'step_form_fields' => $step['step_form_fields'] ?? null,
                     'display_order' => $order,
                 ]);
 
                 $stepIdsByKey[$step['step_key']] = $created->id;
+
+                if (! empty($step['step_form_fields'])) {
+                    ProcessFormFieldWriter::write(ProcessFormField::FORMABLE_STEP, $created->id, $step['step_form_fields']);
+                }
             }
 
             foreach ($data['transitions'] as $order => $transition) {

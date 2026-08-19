@@ -107,28 +107,49 @@
     {{-- مرحله ۲ — فرم درخواست (فقط فرایند آزاد) --}}
     {{-- ============================================================ --}}
     @if($currentStep === 2 && $this->isStep2Applicable)
-        <x-card title="۲. فرم درخواست" subtitle="فیلدهایی که درخواست‌دهنده هنگام شروع فرایند پر می‌کند" shadow>
-            @foreach($requestFormFields as $i => $field)
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end border-b border-base-300 pb-3 mb-3">
-                    <x-input label="برچسب" wire:model="requestFormFields.{{ $i }}.label" />
-                    <x-select
-                        label="نوع"
-                        wire:model="requestFormFields.{{ $i }}.type"
-                        :options="[
-                            ['value' => 'text', 'label' => 'متن کوتاه'],
-                            ['value' => 'textarea', 'label' => 'متن چندخطی'],
-                            ['value' => 'number', 'label' => 'عدد'],
-                            ['value' => 'boolean', 'label' => 'بله/خیر'],
-                            ['value' => 'file', 'label' => 'فایل ضمیمه (PDF/تصویر)'],
-                        ]"
-                        option-value="value"
-                        option-label="label"
-                    />
-                    <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeRequestField({{ $i }})" />
-                </div>
-            @endforeach
+        <x-card title="۲. فرم درخواست" subtitle="فیلدهایی که درخواست‌دهنده هنگام شروع فرایند پر می‌کند — با دستگیره‌ی کنار هر ردیف ترتیب نمایش را جابه‌جا کنید" shadow>
+            <div
+                class="flex flex-col gap-3"
+                wire:key="request-fields-list"
+                x-init="window.initProcessFieldSortable($el, {
+                    onDrop: (fieldKey, index) => $wire.moveRequestFieldRow(fieldKey, index),
+                })"
+            >
+                @foreach($requestFormFields as $i => $field)
+                    <div class="border border-base-300 rounded-lg p-3" data-field-key="{{ $field['key'] }}" wire:key="request-field-{{ $field['key'] }}">
+                        <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr_auto] gap-3 items-end">
+                            <span class="pd-field-drag-handle cursor-grab text-base-content/40 transition hover:text-base-content/70 active:cursor-grabbing self-center" title="جابه‌جایی ترتیب نمایش">
+                                <x-icon :name="theme_icon('drag-handle')" class="h-4 w-4" />
+                            </span>
+                            <x-input label="برچسب" wire:model="requestFormFields.{{ $i }}.label" />
+                            <x-select
+                                label="نوع"
+                                wire:model.live="requestFormFields.{{ $i }}.type"
+                                :options="$this->fieldTypeOptions"
+                                option-value="value"
+                                option-label="label"
+                            />
+                            <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeRequestField({{ $i }})" />
+                        </div>
 
-            <x-button label="افزودن فیلد" :icon="theme_icon('add')" class="btn-ghost btn-sm" wire:click="addRequestField" />
+                        @if($field['type'] === 'select')
+                            <div class="mt-3 border-t border-base-300 pt-3">
+                                <div class="text-xs text-base-content/60 mb-2">گزینه‌های این فیلد</div>
+                                @foreach($field['options'] ?? [] as $oi => $option)
+                                    <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end mb-2">
+                                        <x-input label="مقدار" wire:model="requestFormFields.{{ $i }}.options.{{ $oi }}.value" />
+                                        <x-input label="برچسب نمایشی" wire:model="requestFormFields.{{ $i }}.options.{{ $oi }}.label" />
+                                        <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeRequestFieldOption({{ $i }}, {{ $oi }})" />
+                                    </div>
+                                @endforeach
+                                <x-button label="افزودن گزینه" :icon="theme_icon('add')" class="btn-ghost btn-xs" wire:click="addRequestFieldOption({{ $i }})" />
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+
+            <x-button label="افزودن فیلد" :icon="theme_icon('add')" class="btn-ghost btn-sm mt-3" wire:click="addRequestField" />
 
             @if(empty($requestFormFields))
                 <p class="text-sm text-base-content/60">این فرایند می‌تواند بدون هیچ فیلد اضافه‌ای هم شروع شود — افزودن فیلد اختیاری است.</p>
@@ -145,16 +166,30 @@
     {{-- مرحله ۳ — مراحل --}}
     {{-- ============================================================ --}}
     @if($currentStep === 3)
-        <x-card title="۳. مراحل" subtitle="هر فرایند دقیقاً یک مرحله‌ی شروع و حداقل یک مرحله‌ی پایان لازم دارد" shadow>
+        <x-card title="۳. مراحل" subtitle="هر فرایند دقیقاً یک مرحله‌ی شروع و حداقل یک مرحله‌ی پایان لازم دارد — با دستگیره‌ی کنار هر کارت (به‌جز شروع) ترتیب نمایش را جابه‌جا کنید" shadow>
             <div class="rounded-box border border-dashed border-base-300 p-3 mb-4 flex flex-wrap gap-2">
                 @foreach($steps as $outlineStep)
                     <x-badge :value="($outlineStep['name'] ?: $outlineStep['step_key']).' — '.\App\Modules\Process\Enums\StepType::from($outlineStep['step_type'])->label()" class="badge-ghost" />
                 @endforeach
             </div>
 
+            <div
+                wire:key="steps-list"
+                x-init="window.initProcessFieldSortable($el, {
+                    handle: '.pd-step-drag-handle',
+                    onDrop: (stepKey, index) => $wire.moveStepRow(stepKey, index),
+                })"
+            >
             @foreach($steps as $i => $step)
-                <div class="border border-base-300 rounded-lg p-4 mb-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="border border-base-300 rounded-lg p-4 mb-4" data-field-key="{{ $step['step_key'] }}" wire:key="step-row-{{ $step['step_key'] }}">
+                    <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr] gap-3 items-end">
+                        @if($step['step_type'] !== 'start')
+                            <span class="pd-step-drag-handle cursor-grab text-base-content/40 transition hover:text-base-content/70 active:cursor-grabbing self-center" title="جابه‌جایی ترتیب نمایش">
+                                <x-icon :name="theme_icon('drag-handle')" class="h-4 w-4" />
+                            </span>
+                        @else
+                            <span></span>
+                        @endif
                         <x-input label="نام مرحله" wire:model="steps.{{ $i }}.name" />
 
                         <x-select
@@ -205,24 +240,39 @@
                                 x-model="open"
                             />
 
-                            <div x-show="open" x-cloak class="mt-2">
+                            <div x-show="open" x-cloak class="mt-2" wire:key="approval-fields-{{ $step['step_key'] }}" x-init="window.initProcessFieldSortable($el, {
+                                onDrop: (fieldKey, index) => $wire.moveStepFormFieldRow({{ $i }}, fieldKey, index),
+                            })">
                                 @foreach($step['step_form_fields'] ?? [] as $fi => $stepField)
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end border-b border-base-300 pb-3 mb-3">
-                                        <x-input label="برچسب فیلد" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.label" />
-                                        <x-select
-                                            label="نوع"
-                                            wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.type"
-                                            :options="[
-                                                ['value' => 'text', 'label' => 'متن کوتاه'],
-                                                ['value' => 'textarea', 'label' => 'متن چندخطی'],
-                                                ['value' => 'number', 'label' => 'عدد'],
-                                                ['value' => 'boolean', 'label' => 'بله/خیر'],
-                                                ['value' => 'file', 'label' => 'فایل ضمیمه (PDF/تصویر)'],
-                                            ]"
-                                            option-value="value"
-                                            option-label="label"
-                                        />
-                                        <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeStepFormField({{ $i }}, {{ $fi }})" />
+                                    <div class="border border-base-300 rounded-lg p-3 mb-3" data-field-key="{{ $stepField['key'] }}">
+                                        <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr_auto] gap-3 items-end">
+                                            <span class="pd-field-drag-handle cursor-grab text-base-content/40 transition hover:text-base-content/70 active:cursor-grabbing self-center" title="جابه‌جایی ترتیب نمایش">
+                                                <x-icon :name="theme_icon('drag-handle')" class="h-4 w-4" />
+                                            </span>
+                                            <x-input label="برچسب فیلد" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.label" />
+                                            <x-select
+                                                label="نوع"
+                                                wire:model.live="steps.{{ $i }}.step_form_fields.{{ $fi }}.type"
+                                                :options="$this->fieldTypeOptions"
+                                                option-value="value"
+                                                option-label="label"
+                                            />
+                                            <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeStepFormField({{ $i }}, {{ $fi }})" />
+                                        </div>
+
+                                        @if($stepField['type'] === 'select')
+                                            <div class="mt-3 border-t border-base-300 pt-3">
+                                                <div class="text-xs text-base-content/60 mb-2">گزینه‌های این فیلد</div>
+                                                @foreach($stepField['options'] ?? [] as $oi => $option)
+                                                    <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end mb-2">
+                                                        <x-input label="مقدار" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.options.{{ $oi }}.value" />
+                                                        <x-input label="برچسب نمایشی" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.options.{{ $oi }}.label" />
+                                                        <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeStepFormFieldOption({{ $i }}, {{ $fi }}, {{ $oi }})" />
+                                                    </div>
+                                                @endforeach
+                                                <x-button label="افزودن گزینه" :icon="theme_icon('add')" class="btn-ghost btn-xs" wire:click="addStepFormFieldOption({{ $i }}, {{ $fi }})" />
+                                            </div>
+                                        @endif
                                     </div>
                                 @endforeach
 
@@ -240,25 +290,42 @@
                                 class="alert-info mb-3"
                             />
 
+                            <div wire:key="requester-fields-{{ $step['step_key'] }}" x-init="window.initProcessFieldSortable($el, {
+                                onDrop: (fieldKey, index) => $wire.moveStepFormFieldRow({{ $i }}, fieldKey, index),
+                            })">
                             @foreach($step['step_form_fields'] ?? [] as $fi => $stepField)
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end border-b border-base-300 pb-3 mb-3">
-                                    <x-input label="برچسب فیلد" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.label" />
-                                    <x-select
-                                        label="نوع"
-                                        wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.type"
-                                        :options="[
-                                            ['value' => 'text', 'label' => 'متن کوتاه'],
-                                            ['value' => 'textarea', 'label' => 'متن چندخطی'],
-                                            ['value' => 'number', 'label' => 'عدد'],
-                                            ['value' => 'boolean', 'label' => 'بله/خیر'],
-                                            ['value' => 'file', 'label' => 'فایل ضمیمه (PDF/تصویر)'],
-                                        ]"
-                                        option-value="value"
-                                        option-label="label"
-                                    />
-                                    <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeStepFormField({{ $i }}, {{ $fi }})" />
+                                <div class="border border-base-300 rounded-lg p-3 mb-3" data-field-key="{{ $stepField['key'] }}">
+                                    <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr_auto] gap-3 items-end">
+                                        <span class="pd-field-drag-handle cursor-grab text-base-content/40 transition hover:text-base-content/70 active:cursor-grabbing self-center" title="جابه‌جایی ترتیب نمایش">
+                                            <x-icon :name="theme_icon('drag-handle')" class="h-4 w-4" />
+                                        </span>
+                                        <x-input label="برچسب فیلد" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.label" />
+                                        <x-select
+                                            label="نوع"
+                                            wire:model.live="steps.{{ $i }}.step_form_fields.{{ $fi }}.type"
+                                            :options="$this->fieldTypeOptions"
+                                            option-value="value"
+                                            option-label="label"
+                                        />
+                                        <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeStepFormField({{ $i }}, {{ $fi }})" />
+                                    </div>
+
+                                    @if($stepField['type'] === 'select')
+                                        <div class="mt-3 border-t border-base-300 pt-3">
+                                            <div class="text-xs text-base-content/60 mb-2">گزینه‌های این فیلد</div>
+                                            @foreach($stepField['options'] ?? [] as $oi => $option)
+                                                <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end mb-2">
+                                                    <x-input label="مقدار" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.options.{{ $oi }}.value" />
+                                                    <x-input label="برچسب نمایشی" wire:model="steps.{{ $i }}.step_form_fields.{{ $fi }}.options.{{ $oi }}.label" />
+                                                    <x-button :icon="theme_icon('delete')" class="btn-circle btn-ghost btn-sm text-error" wire:click="removeStepFormFieldOption({{ $i }}, {{ $fi }}, {{ $oi }})" />
+                                                </div>
+                                            @endforeach
+                                            <x-button label="افزودن گزینه" :icon="theme_icon('add')" class="btn-ghost btn-xs" wire:click="addStepFormFieldOption({{ $i }}, {{ $fi }})" />
+                                        </div>
+                                    @endif
                                 </div>
                             @endforeach
+                            </div>
 
                             <x-button label="افزودن فیلد فرم" :icon="theme_icon('add')" class="btn-ghost btn-sm" wire:click="addStepFormField({{ $i }})" />
                         </div>
@@ -298,6 +365,7 @@
                     @endif
                 </div>
             @endforeach
+            </div>
 
             <x-button label="افزودن مرحله" :icon="theme_icon('add')" class="btn-primary btn-sm" wire:click="addStep" />
         </x-card>
@@ -365,6 +433,9 @@
                                 />
                             </div>
                         @elseif($step['step_type'] === 'condition')
+                            @if(! empty($this->conditionSummary[$step['step_key']] ?? ''))
+                                <x-badge :value="$this->conditionSummary[$step['step_key']]" class="badge-outline mb-2" />
+                            @endif
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <x-select
                                     label="اگر شرط درست بود"

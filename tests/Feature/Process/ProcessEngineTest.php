@@ -14,6 +14,7 @@ use App\Modules\Process\Enums\StepType;
 use App\Modules\Process\Enums\TransitionResult;
 use App\Modules\Process\Exceptions\ProcessCycleDetectedException;
 use App\Modules\Process\Models\ProcessDefinition;
+use App\Modules\Process\Models\ProcessFormField;
 use App\Modules\Process\Models\ProcessStep;
 use App\Modules\Process\Models\ProcessTransition;
 use App\Modules\Process\Services\ProcessEngine;
@@ -51,12 +52,28 @@ function engineTestBuildSampleChain(Company $company, User $creator, string $con
         'name' => 'درخواست نمونه (تستی)',
         'process_key' => 'sample_free_request_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => [
-            ['key' => 'title', 'type' => 'text', 'label' => 'عنوان درخواست'],
-            ['key' => 'amount', 'type' => 'text', 'label' => 'مبلغ درخواستی'],
-        ],
         'is_active' => true,
         'created_by_user_id' => $creator->id,
+    ]);
+
+    ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'title',
+        'label' => 'عنوان درخواست',
+        'field_type' => 'text',
+        'is_required' => true,
+        'display_order' => 0,
+    ]);
+
+    $amountField = ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'amount',
+        'label' => 'مبلغ درخواستی',
+        'field_type' => 'text',
+        'is_required' => true,
+        'display_order' => 1,
     ]);
 
     $start = ProcessStep::create([
@@ -80,7 +97,7 @@ function engineTestBuildSampleChain(Company $company, User $creator, string $con
         'step_key' => 'amount_check',
         'name' => 'بررسی مبلغ',
         'step_type' => StepType::Condition,
-        'condition_field' => 'amount',
+        'condition_field_id' => $amountField->id,
         'condition_operator' => ConditionOperator::from($conditionOperator),
         'condition_value' => $conditionValue,
     ]);
@@ -247,9 +264,18 @@ it('detects a real cycle in the process graph and throws instead of looping fore
         'name' => 'گراف چرخه‌دار (تستی)',
         'process_key' => 'cyclic_'.uniqid(),
         'subject_type' => null,
-        'request_form_fields' => [['key' => 'amount', 'type' => 'text', 'label' => 'مبلغ']],
         'is_active' => true,
         'created_by_user_id' => $admin->id,
+    ]);
+
+    $amountField = ProcessFormField::create([
+        'formable_type' => ProcessFormField::FORMABLE_DEFINITION,
+        'formable_id' => $definition->id,
+        'field_key' => 'amount',
+        'label' => 'مبلغ',
+        'field_type' => 'text',
+        'is_required' => true,
+        'display_order' => 0,
     ]);
 
     $start = ProcessStep::create([
@@ -264,7 +290,7 @@ it('detects a real cycle in the process graph and throws instead of looping fore
         'step_key' => 'cond_a',
         'name' => 'شرط الف',
         'step_type' => StepType::Condition,
-        'condition_field' => 'amount',
+        'condition_field_id' => $amountField->id,
         'condition_operator' => ConditionOperator::GreaterThan,
         'condition_value' => '0',
     ]);
@@ -274,7 +300,7 @@ it('detects a real cycle in the process graph and throws instead of looping fore
         'step_key' => 'cond_b',
         'name' => 'شرط ب',
         'step_type' => StepType::Condition,
-        'condition_field' => 'amount',
+        'condition_field_id' => $amountField->id,
         'condition_operator' => ConditionOperator::GreaterThan,
         'condition_value' => '0',
     ]);

@@ -163,7 +163,7 @@ it('builds the seeded sample process chain correctly in the real database', func
 
     expect($definition)->not->toBeNull()
         ->and($definition->subject_type)->toBeNull()
-        ->and($definition->request_form_fields)->toBeArray();
+        ->and($definition->formFields)->toHaveCount(2);
 
     $steps = ProcessStep::where('process_definition_id', $definition->id)->get()->keyBy('step_key');
 
