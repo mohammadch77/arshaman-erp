@@ -126,6 +126,9 @@ return [
         'flowchart' => 'o-share',
         'version' => 'o-code-bracket-square',
         'cancel' => 'o-x-circle',
+        'campaign' => 'o-megaphone',
+        'trigger' => 'o-bolt',
+        'simulation' => 'o-beaker',
     ],
 
 ];

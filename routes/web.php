@@ -19,6 +19,7 @@ use App\Livewire\Core\Users\AssignRole;
 use App\Livewire\Core\Users\InviteUser;
 use App\Livewire\Core\Users\UserCreate;
 use App\Livewire\Core\Users\UserIndex;
+use App\Livewire\CRM\CampaignIndex;
 use App\Livewire\CRM\ContactForm;
 use App\Livewire\CRM\ContactIndex;
 use App\Livewire\CRM\ContactProfile;
@@ -110,6 +111,8 @@ Route::livewire('/leads', LeadBoard::class)->middleware('auth')->name('leads.ind
 Route::livewire('/rfm-segments', RfmSegmentIndex::class)->middleware('auth')->name('rfm-segments.index');
 
 Route::livewire('/contact-submissions', ContactSubmissionIndex::class)->middleware('auth')->name('contact-submissions.index');
+
+Route::livewire('/campaigns', CampaignIndex::class)->middleware('auth')->name('campaigns.index');
 
 // مسیر عمومی مهمان — بدون middleware auth. owner_company_id صریح از پارامتر
 // companySlug تعیین می‌شود، نه از CompanyContext session. عمداً route-model
