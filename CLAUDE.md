@@ -317,6 +317,22 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
     تصویر در `/site/arshaman/services` و صفحات مشابه شد (تصویرها روی دیسک و
     مسیرشان سالم بودند؛ فقط `content_html` ذخیره‌شده قبل از رفع باگ
     `resolveImageUrl` بود).
+13. **هر جا کدی خارج از context یک شرکت مشخص اجرا می‌شود** (holding_admin،
+    نمای تجمیعی هلدینگ، یا هر Action/Query که `owner_company_id` هدف را
+    صریح می‌گیرد نه از `CompanyContext` فعال)، تمام روابط Eloquent مرتبط
+    (نه فقط کوئری اصلی) باید `withoutGlobalScopes()` بگیرند. قبل از commit
+    هر Session‌ای که چنین کدی دارد، صریح این را چک کن.
+    **چرا:** خودِ کوئری اصلی می‌تواند درست `withoutGlobalScopes()` بگیرد و
+    رکورد را پیدا کند، ولی هر رابطه‌ای که از رویش صدا زده می‌شود
+    (`$model->someRelation`) دوباره global scope خودِ مدل مقصد را از نو
+    اعمال می‌کند — و آن global scope معمولاً `BelongsToCompany` است که به
+    شرکت فعال *session* مقید است، نه به شرکتی که رکورد واقعاً به آن تعلق
+    دارد. نتیجه رابطه‌ای که باید مقدار داشته باشد بی‌صدا `null`/خالی
+    برمی‌گردد، نه یک خطای صریح. این الگو تا امروز سه/چهار بار در پروژه
+    تکرار شده: `MyPayslips` (HR)، `RfmSegment`/`ContactProfile` (CRM)، و
+    `WarehouseIndex` (Inventory، رابطه `Stock::product` وقتی `Stock` خودش
+    بدون global scope خوانده می‌شد). هر بار فقط با نوشتن یک تست که واقعاً
+    دو شرکت مختلف را کنار هم رندر می‌کند کشف شده، نه با خواندن کد.
 
 ---
 
