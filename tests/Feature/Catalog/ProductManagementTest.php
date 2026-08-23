@@ -9,6 +9,7 @@ use App\Modules\Core\Models\Role;
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Models\UserCompanyRole;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\QueryException;
 use Livewire\Livewire;
 
 function productMakeRole(string $name): Role
@@ -154,6 +155,149 @@ it('forbids a user with no role in any company from viewing products', function 
     $this->actingAs($user);
 
     $this->get('/products')->assertForbidden();
+});
+
+it('creates a product without sku (digital/service products may have no warehouse code)', function () {
+    [$user, $company] = productActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    Livewire::test(ProductForm::class)
+        ->set('name', 'خدمات سئو ماهانه')
+        ->set('sale_price', '500000')
+        ->set('fulfillment_type', 'service')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $product = Product::where('name', 'خدمات سئو ماهانه')->firstOrFail();
+    expect($product->sku)->toBeNull();
+});
+
+it('rejects a duplicate sku within the same company at the Livewire validation layer', function () {
+    [$user, $company] = productActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    app(CreateProduct::class)->handle([
+        'owner_company_id' => $company->id,
+        'name' => 'کارت دعای NFC نوع اول',
+        'category_id' => null,
+        'sku' => 'SKU-001',
+        'sale_price' => '75000',
+        'cost_price' => '30000',
+        'currency_id' => null,
+        'fulfillment_type' => 'physical',
+        'unit_of_measure' => 'piece',
+        'woocommerce_product_id' => null,
+        'is_active' => true,
+    ], $user);
+
+    Livewire::test(ProductForm::class)
+        ->set('name', 'کارت دعای NFC نوع دوم')
+        ->set('sku', 'SKU-001')
+        ->set('sale_price', '80000')
+        ->set('fulfillment_type', 'physical')
+        ->call('save')
+        ->assertHasErrors(['sku']);
+});
+
+it('rejects a duplicate sku within the same company at the database layer even bypassing Livewire validation', function () {
+    [$user, $company] = productActingAsWithRole('operator');
+
+    app(CreateProduct::class)->handle([
+        'owner_company_id' => $company->id,
+        'name' => 'کالای اول',
+        'category_id' => null,
+        'sku' => 'SKU-DUP',
+        'sale_price' => '10000',
+        'cost_price' => null,
+        'currency_id' => null,
+        'fulfillment_type' => 'physical',
+        'unit_of_measure' => 'piece',
+        'woocommerce_product_id' => null,
+        'is_active' => true,
+    ], $user);
+
+    expect(fn () => app(CreateProduct::class)->handle([
+        'owner_company_id' => $company->id,
+        'name' => 'کالای دوم',
+        'category_id' => null,
+        'sku' => 'SKU-DUP',
+        'sale_price' => '12000',
+        'cost_price' => null,
+        'currency_id' => null,
+        'fulfillment_type' => 'physical',
+        'unit_of_measure' => 'piece',
+        'woocommerce_product_id' => null,
+        'is_active' => true,
+    ], $user))->toThrow(QueryException::class);
+});
+
+it('allows the same sku to be reused across two different companies', function () {
+    [$userA, $companyA] = productActingAsWithRole('operator');
+    $companyB = Company::create(['name' => 'Tkart', 'slug' => 'tkart', 'business_type' => 'physical_goods']);
+    productGiveRole($userA, $companyB, 'operator');
+
+    app(CreateProduct::class)->handle([
+        'owner_company_id' => $companyA->id,
+        'name' => 'محصول شرکت آ',
+        'category_id' => null,
+        'sku' => 'SHARED-SKU',
+        'sale_price' => '10000',
+        'cost_price' => null,
+        'currency_id' => null,
+        'fulfillment_type' => 'physical',
+        'unit_of_measure' => 'piece',
+        'woocommerce_product_id' => null,
+        'is_active' => true,
+    ], $userA);
+
+    app(CreateProduct::class)->handle([
+        'owner_company_id' => $companyB->id,
+        'name' => 'محصول شرکت ب',
+        'category_id' => null,
+        'sku' => 'SHARED-SKU',
+        'sale_price' => '20000',
+        'cost_price' => null,
+        'currency_id' => null,
+        'fulfillment_type' => 'physical',
+        'unit_of_measure' => 'piece',
+        'woocommerce_product_id' => null,
+        'is_active' => true,
+    ], $userA);
+
+    expect(Product::withoutGlobalScopes()->where('sku', 'SHARED-SKU')->count())->toBe(2);
+});
+
+it('sets and filters products by unit_of_measure', function () {
+    [$user, $company] = productActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    app(CreateProduct::class)->handle([
+        'owner_company_id' => $company->id,
+        'name' => 'روغن زیتون فله',
+        'category_id' => null,
+        'sku' => null,
+        'sale_price' => '150000',
+        'cost_price' => '100000',
+        'currency_id' => null,
+        'fulfillment_type' => 'physical',
+        'unit_of_measure' => 'liter',
+        'woocommerce_product_id' => null,
+        'is_active' => true,
+    ], $user);
+
+    $product = Product::where('name', 'روغن زیتون فله')->firstOrFail();
+    expect($product->unit_of_measure->value)->toBe('liter');
+
+    Livewire::test(ProductIndex::class)
+        ->set('unitOfMeasure', 'liter')
+        ->assertSee('روغن زیتون فله');
+
+    Livewire::test(ProductIndex::class)
+        ->set('unitOfMeasure', 'kilogram')
+        ->assertDontSee('روغن زیتون فله');
 });
 
 it('rejects an operator of company A creating a product for company B where they have no role at all', function () {

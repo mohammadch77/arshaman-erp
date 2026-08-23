@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Gate;
 class CreateProduct
 {
     /**
-     * @param  array{name: string, category_id: ?string, sale_price: string, cost_price: ?string, currency_id: ?string, fulfillment_type: string, woocommerce_product_id: ?string, is_active: bool, owner_company_id: string}  $data
+     * @param  array{name: string, category_id: ?string, sku: ?string, sale_price: string, cost_price: ?string, currency_id: ?string, fulfillment_type: string, unit_of_measure: string, woocommerce_product_id: ?string, is_active: bool, owner_company_id: string}  $data
      */
     public function handle(array $data, User $actor): Product
     {

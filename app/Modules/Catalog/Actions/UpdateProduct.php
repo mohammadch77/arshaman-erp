@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Gate;
 class UpdateProduct
 {
     /**
-     * @param  array{name: string, category_id: ?string, sale_price: string, cost_price: ?string, currency_id: ?string, fulfillment_type: string, woocommerce_product_id: ?string, is_active: bool}  $data
+     * @param  array{name: string, category_id: ?string, sku: ?string, sale_price: string, cost_price: ?string, currency_id: ?string, fulfillment_type: string, unit_of_measure: string, woocommerce_product_id: ?string, is_active: bool}  $data
      */
     public function handle(Product $product, array $data, User $actor): Product
     {

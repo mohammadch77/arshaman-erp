@@ -3,6 +3,7 @@
 namespace App\Modules\Catalog\Models;
 
 use App\Modules\Catalog\Enums\FulfillmentType;
+use App\Modules\Catalog\Enums\UnitOfMeasure;
 use App\Modules\Core\Concerns\BelongsToCompany;
 use App\Modules\Core\Models\Currency;
 use App\Modules\Core\Models\User;
@@ -19,10 +20,12 @@ class Product extends Model
         'owner_company_id',
         'category_id',
         'name',
+        'sku',
         'sale_price',
         'cost_price',
         'currency_id',
         'fulfillment_type',
+        'unit_of_measure',
         'woocommerce_product_id',
         'is_active',
         'reorder_point',
@@ -36,6 +39,7 @@ class Product extends Model
             'sale_price' => 'decimal:2',
             'cost_price' => 'decimal:2',
             'fulfillment_type' => FulfillmentType::class,
+            'unit_of_measure' => UnitOfMeasure::class,
             'is_active' => 'boolean',
             'reorder_point' => 'integer',
         ];

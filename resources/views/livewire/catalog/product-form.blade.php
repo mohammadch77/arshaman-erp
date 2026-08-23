@@ -9,10 +9,21 @@
         <x-form wire:submit="save" class="gap-5">
             <x-input label="نام محصول" wire:model="name" :icon="theme_icon('product')" required />
 
+            <x-input label="کد کالا (SKU) — اختیاری" wire:model="sku" :icon="theme_icon('sku')" />
+
             <x-select
                 label="نوع تحویل"
                 wire:model="fulfillment_type"
                 :options="$this->fulfillmentTypeOptions"
+                option-value="id"
+                option-label="name"
+                required
+            />
+
+            <x-select
+                label="واحد اندازه‌گیری"
+                wire:model="unit_of_measure"
+                :options="$this->unitOfMeasureOptions"
                 option-value="id"
                 option-label="name"
                 required

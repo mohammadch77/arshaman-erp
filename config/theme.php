@@ -93,6 +93,8 @@ return [
         'segment' => 'o-chart-pie',
         'recalculate' => 'o-arrow-path',
         'category' => 'o-tag',
+        'sku' => 'o-qr-code',
+        'unit' => 'o-scale',
         'woocommerce' => 'o-link',
         'warehouse' => 'o-building-storefront',
         'stock-in' => 'o-arrow-down-tray',

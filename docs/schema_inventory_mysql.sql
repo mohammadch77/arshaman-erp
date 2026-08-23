@@ -7,19 +7,50 @@
 -- =====================================================================
 
 -- =====================================================================
+-- جدول ۰: product_categories — دسته‌بندی محصولات (پیش‌نیاز products.category_id)
+-- ⚠️ این جدول از Session قبلی ماژول Catalog می‌آید (batch ۲۶ در migrations
+-- واقعی، migration 2026_08_06_100001_create_product_categories_table)، نه
+-- بخشی از طراحی اصلی این سند — اینجا فقط برای تکمیل مرجع اضافه شده تا
+-- FK واقعی products.category_id قابل پیگیری باشد. بدون CRUD/UI در پروژه
+-- (طبق تصمیم Session Catalog، فقط FK واقعی برای آینده).
+-- =====================================================================
+CREATE TABLE product_categories (
+    id                  CHAR(36)      NOT NULL PRIMARY KEY,
+    owner_company_id    CHAR(36)      NOT NULL,
+    name                VARCHAR(100)  NOT NULL,
+    is_active           TINYINT(1)    NOT NULL DEFAULT 1,
+    created_by_user_id  CHAR(36)      NULL,
+    updated_by_user_id  CHAR(36)      NULL,
+    created_at          TIMESTAMP     NULL,
+    updated_at          TIMESTAMP     NULL,
+    deleted_at          TIMESTAMP     NULL,
+
+    KEY idx_product_categories_company (owner_company_id),
+    CONSTRAINT fk_product_categories_company     FOREIGN KEY (owner_company_id)   REFERENCES companies(id),
+    CONSTRAINT fk_product_categories_created_by  FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+    CONSTRAINT fk_product_categories_updated_by  FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- =====================================================================
 -- جدول ۱: products — محصولات و خدمات
 -- fulfillment_type در سطح محصول است، نه شرکت (طبق بند ۵.۳ CLAUDE.md)
+-- ترتیب ستون‌ها و کل ساختار زیر دقیقاً از SHOW CREATE TABLE روی
+-- arshaman_erp واقعی گرفته شده (تأیید‌شده ۲۰۲۶-۰۸-۲۳) — نگاه کن یادداشت
+-- پایان فایل درباره‌ی category_id/reorder_point/woocommerce_product_id.
 -- =====================================================================
 CREATE TABLE products (
     id                      CHAR(36)      NOT NULL PRIMARY KEY,
     owner_company_id        CHAR(36)      NOT NULL,
-    name                    VARCHAR(200)  NOT NULL,
+    category_id             CHAR(36)      NULL,               -- FK به product_categories؛ اختیاری
+    name                    VARCHAR(150)  NOT NULL,
     sku                     VARCHAR(50)   NULL,               -- اختیاری: محصول دیجیتال/خدمت لزوماً کد انبار ندارد
-    fulfillment_type        ENUM('physical','digital','service') NOT NULL,
-    unit_of_measure         ENUM('piece','kilogram','liter','meter','box') NOT NULL DEFAULT 'piece',
     sale_price              DECIMAL(18,2) NOT NULL,
     cost_price              DECIMAL(18,2) NULL,               -- ممکن است هنوز نامشخص باشد
+    reorder_point           INT           NULL,               -- خالی یعنی هشدار موجودی کم بی‌معناست
     currency_id             CHAR(36)      NULL,               -- FK واقعی؛ خالی = تومان
+    fulfillment_type        ENUM('physical','digital','service') NOT NULL DEFAULT 'physical',
+    unit_of_measure         ENUM('piece','kilogram','liter','meter','box') NOT NULL DEFAULT 'piece',
     woocommerce_product_id  VARCHAR(50)   NULL,
     is_active               TINYINT(1)    NOT NULL DEFAULT 1,
     created_by_user_id      CHAR(36)      NULL,
@@ -29,7 +60,10 @@ CREATE TABLE products (
     deleted_at              TIMESTAMP     NULL,
 
     UNIQUE KEY uq_products_company_sku (owner_company_id, sku),   -- NULL ها با هم برخورد نمی‌کنند (چند محصول بدون sku مجازند)
-    KEY idx_products_company_active (owner_company_id, is_active),
+    KEY idx_products_company (owner_company_id),
+    KEY idx_products_fulfillment (owner_company_id, fulfillment_type),
+    KEY idx_products_category (category_id),
+    CONSTRAINT fk_products_category    FOREIGN KEY (category_id)        REFERENCES product_categories(id),
     CONSTRAINT fk_products_company     FOREIGN KEY (owner_company_id)   REFERENCES companies(id),
     CONSTRAINT fk_products_currency    FOREIGN KEY (currency_id)        REFERENCES currencies(id),
     CONSTRAINT fk_products_created_by  FOREIGN KEY (created_by_user_id) REFERENCES users(id),
@@ -246,4 +280,17 @@ CREATE TABLE shipments (
 --     (یک ردیف «عدد»، ردیف دیگر همان محصول «کیلوگرم» — یک باگ داده).
 --     طبق تصمیم کارفرما: بدون سطح قفسه/ردیف و بدون تاریخ انقضا —
 --     محصولات فعلی این نیازها را ندارند.
+-- 13. ⚠️ products.category_id، products.reorder_point و
+--     products.woocommerce_product_id از این سند طراحی نشده بودند —
+--     از یک Session قبلی‌تر ماژول Catalog می‌آیند (migration های واقعی
+--     2026_08_06_100002_create_products_table و
+--     2026_08_07_100004_add_reorder_point_to_products_table، batch ۲۶/۲۷
+--     در جدول migrations واقعی، هر دو زودتر از نگارش این سند). جدول ۰
+--     (product_categories) هم به همین دلیل اضافه شد — پیش‌نیاز واقعی
+--     products.category_id بود که تا امروز در هیچ سند طراحی این پروژه
+--     نیامده بود. کشف شد حین بررسی مشترک با کارفرما قبل از commit
+--     Session sku/unit_of_measure (۲۰۲۶-۰۸-۲۳)؛ ساختار کامل هر دو جدول
+--     در بالا مستقیماً از SHOW CREATE TABLE روی arshaman_erp واقعی گرفته
+--     شده، نه از حافظه یا فرض. product_categories بدون CRUD/UI است —
+--     همان Session قبلی عمداً فقط FK واقعی برای آینده ساخته بود.
 -- =====================================================================

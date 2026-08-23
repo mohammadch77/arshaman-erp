@@ -12,6 +12,14 @@
                 placeholder="همه انواع تحویل"
                 placeholder-value=""
             />
+            <x-select
+                wire:model.live="unitOfMeasure"
+                :options="$this->unitOfMeasureOptions"
+                option-value="id"
+                option-label="name"
+                placeholder="همه واحدها"
+                placeholder-value=""
+            />
             <x-button label="محصول جدید" :icon="theme_icon('add')" class="btn-primary" link="{{ route('products.create') }}" responsive />
         </x-slot:actions>
     </x-header>
@@ -20,7 +28,9 @@
         <x-table
             :headers="[
                 ['key' => 'name', 'label' => 'نام'],
+                ['key' => 'sku', 'label' => 'کد کالا'],
                 ['key' => 'fulfillment_type', 'label' => 'نوع تحویل'],
+                ['key' => 'unit_of_measure', 'label' => 'واحد اندازه‌گیری'],
                 ['key' => 'sale_price', 'label' => 'قیمت فروش'],
                 ['key' => 'cost_price', 'label' => 'بهای تمام‌شده'],
                 ['key' => 'is_active', 'label' => 'وضعیت'],
@@ -28,8 +38,16 @@
             :rows="$products"
             with-pagination
         >
+            @scope('cell_sku', $product)
+                {{ $product->sku ?? '—' }}
+            @endscope
+
             @scope('cell_fulfillment_type', $product)
                 {{ $product->fulfillment_type->label() }}
+            @endscope
+
+            @scope('cell_unit_of_measure', $product)
+                {{ $product->unit_of_measure->label() }}
             @endscope
 
             @scope('cell_sale_price', $product)
