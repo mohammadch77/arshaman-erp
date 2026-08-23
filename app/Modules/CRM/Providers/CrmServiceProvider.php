@@ -14,6 +14,8 @@ use App\Modules\CRM\Policies\ContactSubmissionPolicy;
 use App\Modules\CRM\Policies\InteractionPolicy;
 use App\Modules\CRM\Policies\LeadPolicy;
 use App\Modules\CRM\Policies\RfmSegmentPolicy;
+use App\Modules\CRM\Policies\TicketPolicy;
+use App\Modules\CRM\Models\Ticket;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -27,5 +29,6 @@ class CrmServiceProvider extends ServiceProvider
         Gate::policy(Lead::class, LeadPolicy::class);
         Gate::policy(RfmSegment::class, RfmSegmentPolicy::class);
         Gate::policy(ContactSubmission::class, ContactSubmissionPolicy::class);
+        Gate::policy(Ticket::class, TicketPolicy::class);
     }
 }

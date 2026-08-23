@@ -55,4 +55,8 @@
     <div class="mt-4">
         @livewire('crm.interaction-timeline', ['contactId' => $contact->id], key('interaction-timeline-'.$contact->id))
     </div>
+
+    <div class="mt-4">
+        @livewire('crm.ticket-timeline', ['contactId' => $contact->id], key('ticket-timeline-'.$contact->id))
+    </div>
 </div>

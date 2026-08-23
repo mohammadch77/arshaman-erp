@@ -101,6 +101,7 @@ return [
         'send' => 'o-paper-airplane',
         'archive' => 'o-archive-box',
         'inbox' => 'o-inbox',
+        'ticket' => 'o-lifebuoy',
         'history' => 'o-clock',
         'blog' => 'o-newspaper',
         'blog-tag' => 'o-bookmark',

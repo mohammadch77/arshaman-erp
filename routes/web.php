@@ -27,6 +27,8 @@ use App\Livewire\CRM\ContactSubmissionIndex;
 use App\Livewire\CRM\LeadBoard;
 use App\Livewire\CRM\Public\ContactForm as PublicContactForm;
 use App\Livewire\CRM\RfmSegmentIndex;
+use App\Livewire\CRM\TicketIndex;
+use App\Livewire\CRM\TicketShow;
 use App\Livewire\HR\AttendanceIndex;
 use App\Livewire\HR\EmployeeForm;
 use App\Livewire\HR\EmployeeIndex;
@@ -111,6 +113,9 @@ Route::livewire('/leads', LeadBoard::class)->middleware('auth')->name('leads.ind
 Route::livewire('/rfm-segments', RfmSegmentIndex::class)->middleware('auth')->name('rfm-segments.index');
 
 Route::livewire('/contact-submissions', ContactSubmissionIndex::class)->middleware('auth')->name('contact-submissions.index');
+
+Route::livewire('/tickets', TicketIndex::class)->middleware('auth')->name('tickets.index');
+Route::livewire('/tickets/{ticketId}', TicketShow::class)->middleware('auth')->name('tickets.show');
 
 Route::livewire('/campaigns', CampaignIndex::class)->middleware('auth')->name('campaigns.index');
 
