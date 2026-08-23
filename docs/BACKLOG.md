@@ -129,15 +129,13 @@
 - **از کجا آمد:** Epic 7 (ماژول Inventory، انبار پایه) — کارفرما صریحاً scope این Session
   را به `ReceiveStock`/`IssueStock` مستقل محدود کرد.
 - **چه چیزی به‌تعویق افتاد:** خروج خودکار موجودی هنگام رسیدن سفارش به وضعیت `preparing`
-  (طبق `IMPLEMENTATION_PLAYBOOK.md` Session 8 — ماشین وضعیت سفارش). ستون‌های
-  `reference_type`/`reference_id` روی `stock_movements` برای همین از قبل رزرو شده‌اند.
-- **وضعیت:** باز.
-
-### Action برای movement_type=adjust
-- **از کجا آمد:** Epic 7 (ماژول Inventory) — مقدار `adjust` در CHECK constraint
-  `stock_movements.movement_type` رزرو شد ولی هیچ Action ای آن را نمی‌سازد.
-- **چه چیزی به‌تعویق افتاد:** یک Action مجزا (مثلاً `AdjustStock`) برای اصلاح دستی موجودی
-  با دلیل مستند، برای زمانی که شمارش فیزیکی با رکورد سیستم فرق دارد.
+  (طبق `IMPLEMENTATION_PLAYBOOK.md` Session 8 — ماشین وضعیت سفارش).
+  ⚠️ **به‌روزرسانی (Session دفترچه حرکت موجودی):** ستون‌های `reference_type`/`reference_id`
+  که قبلاً برای همین منظور روی `stock_movements` رزرو شده بودند، در بازطراحی کامل جدول
+  (migration `2026_08_23_100003`، طبق `docs/schema_inventory_mysql.sql`) **حذف شدند** —
+  آن جدول هرگز رکورد واقعی نداشت، پس چیزی برای مهاجرت نبود. وقتی این Backlog باز شود،
+  اتصال به سفارش باید با یک ستون جدید (یا از طریق `reference_note` متنی، یا یک FK واقعی
+  تازه اگر لازم شد) دوباره طراحی شود، نه با فرض وجود این دو ستون قدیمی.
 - **وضعیت:** باز.
 
 ### CRUD کامل Warehouse

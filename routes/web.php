@@ -42,6 +42,7 @@ use App\Livewire\HR\SelfService\MyPayslips;
 use App\Livewire\Inventory\LowStockReport;
 use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
+use App\Livewire\Inventory\StockMovementLedger;
 use App\Livewire\Inventory\WarehouseIndex;
 use App\Livewire\Process\MyProcessRequests;
 use App\Livewire\Process\MyProcessTasks;
@@ -137,7 +138,9 @@ Route::livewire('/inventory/stock', StockIndex::class)->middleware('auth')->name
 Route::livewire('/inventory/warehouses', WarehouseIndex::class)->middleware('auth')->name('inventory.warehouses.index');
 Route::livewire('/inventory/receive', StockMovementForm::class)->middleware('auth')->name('inventory.receive')->defaults('type', 'in');
 Route::livewire('/inventory/issue', StockMovementForm::class)->middleware('auth')->name('inventory.issue')->defaults('type', 'out');
+Route::livewire('/inventory/adjust', StockMovementForm::class)->middleware('auth')->name('inventory.adjust')->defaults('type', 'adjust');
 Route::livewire('/inventory/low-stock-report', LowStockReport::class)->middleware('auth')->name('inventory.low-stock-report');
+Route::livewire('/inventory/stock/{stockId}/movements', StockMovementLedger::class)->middleware('auth')->name('inventory.stock.movements');
 
 Route::livewire('/blog/posts', BlogPostIndex::class)->middleware('auth')->name('blog.posts.index');
 Route::livewire('/blog/posts/create', BlogPostForm::class)->middleware('auth')->name('blog.posts.create');

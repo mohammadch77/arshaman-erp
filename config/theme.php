@@ -99,6 +99,7 @@ return [
         'warehouse' => 'o-building-storefront',
         'stock-in' => 'o-arrow-down-tray',
         'stock-out' => 'o-arrow-up-tray',
+        'stock-adjust' => 'o-adjustments-horizontal',
         'message' => 'o-chat-bubble-left-right',
         'send' => 'o-paper-airplane',
         'archive' => 'o-archive-box',

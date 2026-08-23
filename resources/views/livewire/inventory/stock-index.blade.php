@@ -6,6 +6,7 @@
         <x-slot:actions>
             <x-button label="دریافت کالا" :icon="theme_icon('stock-in')" class="btn-primary" link="{{ route('inventory.receive') }}" responsive />
             <x-button label="خروج کالا" :icon="theme_icon('stock-out')" class="btn-secondary" link="{{ route('inventory.issue') }}" responsive />
+            <x-button label="تعدیل موجودی" :icon="theme_icon('stock-adjust')" class="btn-ghost" link="{{ route('inventory.adjust') }}" responsive />
         </x-slot:actions>
     </x-header>
 
@@ -16,6 +17,7 @@
                 ['key' => 'warehouse_name', 'label' => 'انبار'],
                 ['key' => 'quantity_on_hand', 'label' => 'موجودی'],
                 ['key' => 'reorder_status', 'label' => 'وضعیت'],
+                ['key' => 'actions', 'label' => ''],
             ]"
             :rows="$stocks"
             with-pagination
@@ -38,6 +40,15 @@
                 @else
                     <x-badge value="نرمال" class="badge-success" />
                 @endif
+            @endscope
+
+            @scope('cell_actions', $stock)
+                <x-button
+                    label="دفترچه حرکت"
+                    :icon="theme_icon('history')"
+                    class="btn-ghost btn-sm"
+                    link="{{ route('inventory.stock.movements', $stock->id) }}"
+                />
             @endscope
         </x-table>
     </x-card>

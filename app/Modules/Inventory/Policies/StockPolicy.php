@@ -15,8 +15,19 @@ class StockPolicy
         return $companyId !== null && $user->hasRoleInCompany($companyId);
     }
 
+    /**
+     * holding_admin/is_super_admin با hasRole سراسری (نه hasRoleInCompany مقید به
+     * owner_company_id همان Stock) اجازه می‌گیرند — دقیقاً همان استثنای مستند
+     * WarehouseIndex::getStocksByWarehouseProperty() برای همین مدل Stock (بند ۵.۸/۱۱
+     * CLAUDE.md: انبار بین‌شرکتی است، هلدینگ‌ادمین باید بتواند دفترچه حرکت هر شرکتی
+     * را از پنل انبار مشترک ببیند).
+     */
     public function view(User $user, Stock $stock): bool
     {
+        if ($user->is_super_admin || $user->hasRole('holding_admin')) {
+            return true;
+        }
+
         return $user->hasRoleInCompany($stock->owner_company_id);
     }
 

@@ -767,6 +767,71 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 محاسبه واقعی `average_cost` (میانگین موزون — Session بعدی طبق
 `PROJECT_04_INVENTORY.md`)، CRUD کامل Warehouse.
 
+- [x] Session 3: دفترچه حرکت موجودی (Ledger) — میانگین موزون + تعدیل + race condition
+
+  **چه ساخته شد:** طبق `docs/schema_inventory_mysql.sql` (جدول ۴) و تأیید صریح کارفرما
+  در همین Session: بازطراحی کامل `stock_movements` با یک migration جدید (نه ویرایش
+  migration قدیمی — بند ۹) که جدول را drop+create می‌کند (جدول قبلی صفر ردیف واقعی
+  داشت، تأیید شده با شمارش مستقیم قبل از اجرا). `movement_type` حالا **ENUM نیتیو
+  MySQL** با شش مقدار (`purchase_in, sale_out, return_in, adjustment_in,
+  adjustment_out, waste_out`) — طبق تصمیم صریح کارفرما، نه VARCHAR+CHECK سند
+  قدیمی‌تر `PROJECT_04_INVENTORY.md` (که پیش از تصمیم سراسری ENUM نیتیو نوشته شده
+  بود). `quantity` به `DECIMAL(18,4)` تغییر کرد (هم‌راستا با `stocks.quantity_on_hand`).
+  ستون‌های جدید: `unit_cost` (nullable، فقط ورودی‌ها)، `reference_note` (text،
+  الزامی فقط در `AdjustStock`). ستون‌های `reference_type`/`reference_id`/`reason`
+  حذف شدند (طبق تأیید صریح کارفرما؛ رزرو قدیمی برای اتصال سفارش در `BACKLOG.md`
+  به‌روزرسانی شد). `MovementType` enum PHP با متد جدید `direction(): 'in'|'out'`.
+
+  سه Action: `ReceiveStock` (`purchase_in`/`return_in` — میانگین موزون فقط اینجا،
+  با `App\Support\Money`/bcmath، نه float)، `IssueStock` (`sale_out`/`waste_out`،
+  بدون تغییر در `average_cost`)، `AdjustStock` جدید (`adjustment_in`/`adjustment_out`،
+  `reference_note` الزامی، بدون تغییر در `average_cost` — طبق تصمیم صریح کارفرما).
+  هر سه در `DB::transaction` با `lockForUpdate`، و هر سه صریح
+  `activity()->causedBy($actor)->performedOn($stock)->log(...)` می‌زنند (شکاف
+  مستندشده در یادداشت پایانی `schema_inventory_mysql.sql` که این Session بست).
+  کامپوننت‌های Livewire: `StockMovementForm` بازنویسی‌شده (select نوع حرکت با شش
+  مقدار، فیلد `unit_cost` فقط برای خرید/مرجوعی، `reference_note`)، و کامپوننت
+  جدید `StockMovementLedger` (`/inventory/stock/{stockId}/movements`، دفترچه
+  حرکت صفحه‌بندی‌شده یک `Stock` مشخص). مسیر جدید `/inventory/adjust`.
+
+  **تصمیم‌های این Session:**
+  - پارامتر route/`mount()` عمداً `stockId` نام‌گذاری شد نه `stock` — همنام‌بودن
+    با property تایپ‌شده `public Stock $stock` باعث می‌شد Livewire پیش از اجرای
+    `mount()` مقدار خام رشته‌ای route را مستقیم روی همان property بنشاند و با
+    خطای type mismatch شکست بخورد (**تکرار همان الگوی مستندشده `ContactProfile`
+    در CRM** — سومین‌بار این کلاس باگ در پروژه دیده می‌شود).
+  - `StockPolicy::view()` یک استثنای جدید holding_admin/is_super_admin سراسری
+    گرفت (`hasRole('holding_admin')`، نه `hasRoleInCompany` مقید به
+    `owner_company_id` خودِ `Stock`) — دقیقاً همان الگوی مستندِ
+    `WarehouseIndex::getStocksByWarehouseProperty()` برای همین مدل (بند ۵.۸/۱۱:
+    انبار بین‌شرکتی است، هلدینگ‌ادمین باید بتواند دفترچه حرکت هر شرکتی را از
+    پنل انبار مشترک ببیند). بدون این، تست HTTP واقعی هلدینگ‌ادمین با ۴۰۳ رد
+    می‌شد چون او در شرکت مالک آن `Stock` خاص نقشی ندارد.
+  - **باگ بند ۹.۱۳ دوباره تکرار شد** (چهارمین‌بار مستندشده در پروژه): وقتی
+    `StockMovementLedger::mount()` برای holding_admin با `withoutGlobalScopes()`
+    یک `Stock` را می‌خواند، هم رابطه `product` هم متد `movements()` (که خودش
+    روی `StockMovement` با `BelongsToCompany` است) باید صریح
+    `withoutGlobalScopes()` بگیرند — وگرنه برای شرکتی غیر از شرکت فعال سوییچر
+    بی‌صدا خالی/`null` برمی‌گردند، نه خطای صریح. کشف شد با یک تست HTTP واقعی که
+    محتوای واقعی صفحه را چک می‌کرد (`assertSee`)، نه فقط `assertOk()`.
+  - **تأیید race condition روی MySQL واقعی، نه فقط ادعا:** چون تست Pest معمولی
+    (یک اتصال دیتابیس) نمی‌تواند قفل ردیفی واقعی بین دو تراکنش هم‌زمان را نشان
+    دهد، یک تست MySQL-only با دو اتصال PDO مستقل نوشته شد (اتصال A ردیف را
+    قفل و می‌خوابد، اتصال B با `innodb_lock_wait_timeout` کوتاه تلاش می‌کند و
+    باید timeout بگیرد) — skip روی sqlite. علاوه‌بر آن، خودِ رفتار واقعی
+    `IssueStock` هم با دو پردازش PHP واقعی و هم‌زمان (نه تست، یک اسکریپت
+    یک‌بارمصرف) روی `arshaman_erp` تأیید شد: از دو خروج ۸تایی هم‌زمان روی
+    موجودی ۱۰تایی، دقیقاً یکی موفق و دیگری با پیام «موجودی کافی برای خروج
+    وجود ندارد» رد شد؛ موجودی نهایی هرگز منفی نشد. تمام داده‌های این تأیید
+    (شرکت/انبار/محصول/کاربر تستی) در پایان کامل حذف شدند (بند ۱۰).
+  - ENUM نیتیو + CHECK هر دو مستقیم روی `arshaman_erp` واقعی (نه فقط sqlite
+    تست) داخل یک تراکنش rollback-شده تأیید شدند: مقدار `movement_type` نامعتبر
+    و `quantity<=0` هر دو با `QueryException` واقعی رد شدند، بعد از آن صفر
+    رکورد باقی ماند.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): اتصال خودکار `IssueStock`
+به ماشین وضعیت سفارش، هر چیز مربوط به `orders`/`order_lines` (Session بعدی).
+
 ### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
 
 طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون

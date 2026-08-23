@@ -20,24 +20,29 @@ class StockMovement extends Model
         'stock_id',
         'movement_type',
         'quantity',
-        'reference_type',
-        'reference_id',
-        'reason',
+        'unit_cost',
+        'reference_note',
         'created_by_user_id',
+        'occurred_at',
     ];
 
     protected function casts(): array
     {
         return [
             'movement_type' => MovementType::class,
-            'quantity' => 'integer',
+            'quantity' => 'decimal:4',
+            'unit_cost' => 'decimal:2',
+            'occurred_at' => 'datetime',
             'created_at' => 'datetime',
         ];
     }
 
     protected static function booted(): void
     {
-        static::creating(fn (self $movement) => $movement->created_at ??= now());
+        static::creating(function (self $movement) {
+            $movement->created_at ??= now();
+            $movement->occurred_at ??= now();
+        });
     }
 
     public function stock(): BelongsTo
