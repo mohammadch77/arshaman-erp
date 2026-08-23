@@ -42,6 +42,7 @@ use App\Livewire\HR\SelfService\MyPayslips;
 use App\Livewire\Inventory\LowStockReport;
 use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
+use App\Livewire\Inventory\WarehouseIndex;
 use App\Livewire\Process\MyProcessRequests;
 use App\Livewire\Process\MyProcessTasks;
 use App\Livewire\Process\NewProcessRequest;
@@ -133,6 +134,7 @@ Route::livewire('/products/create', ProductForm::class)->middleware('auth')->nam
 Route::livewire('/products/{product}/edit', ProductForm::class)->middleware('auth')->name('products.edit');
 
 Route::livewire('/inventory/stock', StockIndex::class)->middleware('auth')->name('inventory.stock.index');
+Route::livewire('/inventory/warehouses', WarehouseIndex::class)->middleware('auth')->name('inventory.warehouses.index');
 Route::livewire('/inventory/receive', StockMovementForm::class)->middleware('auth')->name('inventory.receive')->defaults('type', 'in');
 Route::livewire('/inventory/issue', StockMovementForm::class)->middleware('auth')->name('inventory.issue')->defaults('type', 'out');
 Route::livewire('/inventory/low-stock-report', LowStockReport::class)->middleware('auth')->name('inventory.low-stock-report');

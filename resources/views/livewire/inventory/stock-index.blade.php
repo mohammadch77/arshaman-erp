@@ -14,7 +14,7 @@
             :headers="[
                 ['key' => 'product_name', 'label' => 'محصول'],
                 ['key' => 'warehouse_name', 'label' => 'انبار'],
-                ['key' => 'quantity', 'label' => 'موجودی'],
+                ['key' => 'quantity_on_hand', 'label' => 'موجودی'],
                 ['key' => 'reorder_status', 'label' => 'وضعیت'],
             ]"
             :rows="$stocks"
@@ -28,8 +28,8 @@
                 {{ $stock->warehouse->name }}
             @endscope
 
-            @scope('cell_quantity', $stock)
-                {{ \App\Support\Farsi::toDigits($stock->quantity) }}
+            @scope('cell_quantity_on_hand', $stock)
+                {{ \App\Support\Farsi::toDigits($stock->quantity_on_hand) }}
             @endscope
 
             @scope('cell_reorder_status', $stock)

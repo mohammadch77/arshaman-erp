@@ -9,7 +9,7 @@
                 :headers="[
                     ['key' => 'product_name', 'label' => 'محصول'],
                     ['key' => 'warehouse_name', 'label' => 'انبار'],
-                    ['key' => 'quantity', 'label' => 'موجودی فعلی'],
+                    ['key' => 'quantity_on_hand', 'label' => 'موجودی فعلی'],
                     ['key' => 'reorder_point', 'label' => 'نقطه سفارش'],
                 ]"
                 :rows="$stocks"
@@ -22,12 +22,12 @@
                     {{ $stock->warehouse->name }}
                 @endscope
 
-                @scope('cell_quantity', $stock)
-                    <x-badge value="{{ \App\Support\Farsi::toDigits($stock->quantity) }}" class="badge-warning" :icon="theme_icon('warning')" />
+                @scope('cell_quantity_on_hand', $stock)
+                    <x-badge value="{{ \App\Support\Farsi::toDigits($stock->quantity_on_hand) }}" class="badge-warning" :icon="theme_icon('warning')" />
                 @endscope
 
                 @scope('cell_reorder_point', $stock)
-                    {{ \App\Support\Farsi::toDigits($stock->product->reorder_point) }}
+                    {{ \App\Support\Farsi::toDigits($stock->reorderThreshold()) }}
                 @endscope
             </x-table>
         @endif

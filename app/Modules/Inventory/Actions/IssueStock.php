@@ -26,11 +26,11 @@ class IssueStock
                 ->where('warehouse_id', $data['warehouse_id'])
                 ->first();
 
-            if ($stock === null || $stock->quantity < $data['quantity']) {
+            if ($stock === null || (float) $stock->quantity_on_hand < $data['quantity']) {
                 throw new InvalidArgumentException('موجودی کافی برای خروج وجود ندارد.');
             }
 
-            $stock->decrement('quantity', $data['quantity']);
+            $stock->decrement('quantity_on_hand', $data['quantity']);
 
             return StockMovement::create([
                 'owner_company_id' => $data['owner_company_id'],

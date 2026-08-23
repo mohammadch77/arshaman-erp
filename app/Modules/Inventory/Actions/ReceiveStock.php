@@ -24,10 +24,10 @@ class ReceiveStock
                 'product_id' => $data['product_id'],
                 'warehouse_id' => $data['warehouse_id'],
             ], [
-                'quantity' => 0,
+                'quantity_on_hand' => 0,
             ]);
 
-            $stock->increment('quantity', $data['quantity']);
+            $stock->increment('quantity_on_hand', $data['quantity']);
 
             return StockMovement::create([
                 'owner_company_id' => $data['owner_company_id'],

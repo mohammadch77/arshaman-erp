@@ -705,6 +705,52 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 سفارش (خروج خودکار از انبار)، Action برای `movement_type=adjust`، CRUD
 کامل Warehouse (ساخت/ویرایش چند انبار از UI).
 
+- [x] Session 2: نقطه سفارش/بهای میانگین در سطح موجودی + فهرست انبارها
+
+  **چه ساخته شد:** طبق `docs/PROJECT_04_INVENTORY.md` (Session 2)، بدون ویرایش
+  migration قدیمی: migration جدید که `stocks.quantity` را به `quantity_on_hand`
+  (decimal 18,4 — چون `unit_of_measure` محصول می‌تواند کیلوگرم/لیتر باشد) تغییر
+  می‌دهد و دو ستون `reorder_point` (decimal, nullable) و `average_cost`
+  (decimal, nullable) اضافه می‌کند، به‌علاوه `chk_stocks_quantity_on_hand_non_negative`
+  روی MySQL. کامپوننت جدید `WarehouseIndex` (مسیر `/inventory/warehouses`، منوی
+  «انبارها») — فهرست انبارها + موجودی هر انبار به تفکیک شرکت مالک.
+
+  **تصمیم این Session — رابطه `stocks.reorder_point` با `products.reorder_point`
+  موجود:** این دو یکی نیستند. `products.reorder_point` یک آستانه پیش‌فرض
+  سطح محصول/شرکت است (مستقل از انبار). `stocks.reorder_point` یک override
+  اختیاری **برای همان محصول در همان انبار خاص** است (یک انبار مرکزی بزرگ
+  می‌تواند آستانه‌ای متفاوت از یک دپوی کوچک داشته باشد). `Stock::reorderThreshold()`
+  اول به override خودِ ردیف نگاه می‌کند، وگرنه fallback به `products.reorder_point`؛
+  `isBelowReorderPoint()`/`LowStockReport` هر دو از همین یک متد استفاده می‌کنند
+  تا منطق در دو جا تکرار نشود.
+
+  - دفاع دولایه در برابر موجودی منفی (بند تثبیت‌شده پروژه): لایه مدل
+    (`Stock::booted()` روی event `saving`) + همان CHECK دیتابیس — دو تست جدا
+    (`rejects a negative quantity_on_hand at the model level` /
+    `... at the database level`)، هم‌راستا با `IssueStock` که از قبل سطح
+    Action چک می‌کرد.
+  - `WarehouseIndex` فقط برای `holding_admin`/`is_super_admin` موجودی همه
+    شرکت‌ها را در یک انبار کنار هم نشان می‌دهد (`withoutGlobalScopes()` روی
+    `Stock`، الگوی `ContactProfile`/`RfmSegmentIndex`)؛ بقیه فقط شرکت فعال
+    خودشان را می‌بینند. **باگ کشف‌شده حین نوشتن تست:** وقتی `Stock` بدون
+    global scope خوانده می‌شود، رابطه `product` هم باید صریح
+    `withoutGlobalScopes()` بگیرد — وگرنه global scope خودِ `Product`
+    (`BelongsToCompany`، مقید به شرکت فعال سوییچر) محصولات شرکت‌های دیگر را
+    `null` برمی‌گرداند حتی وقتی خودِ ردیف `Stock` درست خوانده شده بود؛ تست
+    اول با `ViewException` («Attempt to read property "name" on null»)
+    همین را نشان داد.
+  - `ReceiveStock`/`IssueStock` فقط رفرنس ستون تغییر کردند (نه منطق)؛
+    `stock_movements.quantity` عمداً integer باقی ماند — طبق scope صریح
+    Session («نساز: حرکت موجودی»)، خارج از این Session.
+  - migration جدید مستقیم روی `arshaman_erp` واقعی با `php artisan migrate
+    --force` (بدون `fresh`) اجرا و با `SHOW CREATE TABLE` تأیید شد؛ جدول
+    `stocks` روی دیتابیس واقعی در زمان این Session خالی بود، پس ریسک
+    از‌دست‌رفتن داده مطرح نبود.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): `movement_type=adjust`،
+محاسبه واقعی `average_cost` (میانگین موزون — Session بعدی طبق
+`PROJECT_04_INVENTORY.md`)، CRUD کامل Warehouse.
+
 ### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
 
 طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون

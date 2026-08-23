@@ -1,0 +1,69 @@
+<div>
+    <x-header title="انبارها" subtitle="انبارهای فیزیکی و موجودی هر شرکت مالک در هرکدام" separator />
+
+    @if($warehouses->isEmpty())
+        <x-alert title="هنوز هیچ انباری ثبت نشده است." :icon="theme_icon('inventory')" />
+    @endif
+
+    @foreach($warehouses as $warehouse)
+        @php($stocks = $stocksByWarehouse->get($warehouse->id, collect()))
+
+        <x-card shadow class="mb-4">
+            <x-slot:title>
+                {{ $warehouse->name }}
+                @if($warehouse->is_active)
+                    <x-badge value="فعال" class="badge-success" />
+                @else
+                    <x-badge value="غیرفعال" class="badge-error" />
+                @endif
+            </x-slot:title>
+
+            @if($warehouse->address)
+                <p class="text-sm text-base-content/70 mb-4">{{ $warehouse->address }}</p>
+            @endif
+
+            @if($stocks->isEmpty())
+                <x-alert title="هنوز موجودی‌ای در این انبار ثبت نشده است." class="alert-info" />
+            @else
+                <x-table
+                    :headers="[
+                        ['key' => 'company_name', 'label' => 'شرکت مالک'],
+                        ['key' => 'product_name', 'label' => 'محصول'],
+                        ['key' => 'quantity_on_hand', 'label' => 'موجودی'],
+                        ['key' => 'average_cost', 'label' => 'میانگین بهای واحد'],
+                        ['key' => 'reorder_status', 'label' => 'وضعیت'],
+                    ]"
+                    :rows="$stocks"
+                >
+                    @scope('cell_company_name', $stock)
+                        {{ $stock->ownerCompany?->name }}
+                    @endscope
+
+                    @scope('cell_product_name', $stock)
+                        {{ $stock->product->name }}
+                    @endscope
+
+                    @scope('cell_quantity_on_hand', $stock)
+                        {{ \App\Support\Farsi::toDigits($stock->quantity_on_hand) }}
+                    @endscope
+
+                    @scope('cell_average_cost', $stock)
+                        @if($stock->average_cost !== null)
+                            {{ \App\Support\Farsi::toToman($stock->average_cost) }}
+                        @else
+                            <span class="text-base-content/50">نامشخص</span>
+                        @endif
+                    @endscope
+
+                    @scope('cell_reorder_status', $stock)
+                        @if($stock->isBelowReorderPoint())
+                            <x-badge value="زیر نقطه سفارش" class="badge-warning" :icon="theme_icon('warning')" />
+                        @else
+                            <x-badge value="نرمال" class="badge-success" />
+                        @endif
+                    @endscope
+                </x-table>
+            @endif
+        </x-card>
+    @endforeach
+</div>

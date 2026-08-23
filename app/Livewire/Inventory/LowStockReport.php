@@ -14,13 +14,15 @@ class LowStockReport extends Component
 
     public function getStocksProperty()
     {
+        // آستانه هر ردیف یا از خودِ stock (اختصاصی انبار) یا از products.reorder_point
+        // (پیش‌فرض شرکت) می‌آید — Stock::isBelowReorderPoint() این fallback را حمل
+        // می‌کند، پس مقایسه در سطح PHP انجام می‌شود نه یک whereColumn ساده.
         return Stock::query()
             ->with(['product', 'warehouse'])
-            ->whereHas('product', fn ($query) => $query
-                ->whereNotNull('reorder_point')
-                ->whereColumn('products.reorder_point', '>', 'stocks.quantity'))
-            ->orderBy('quantity')
-            ->get();
+            ->get()
+            ->filter(fn (Stock $stock) => $stock->isBelowReorderPoint())
+            ->sortBy('quantity_on_hand')
+            ->values();
     }
 
     public function render()
