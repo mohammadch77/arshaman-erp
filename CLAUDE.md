@@ -941,6 +941,56 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): `shipments`،
 همگام‌سازی ووکامرس.
 
+- [x] Session 3: همگام‌سازی سفارش‌های ووکامرس (`SyncWooCommerceOrders`)
+
+  **چه ساخته شد:** `App\Modules\Sales\Services\WooCommerceClient` (پوشش نازک
+  روی `GET /wp-json/wc/v3/orders` با Basic Auth از `companies.woocommerce_config`
+  — دقیقاً الگوی `NotificationChannel` ماژول CRM: یک سرویس تک‌مسئولیتی
+  قابل‌تزریق، کاملاً `Http::fake()`-تستی، چون کلید واقعی API پنج سایت هنوز در
+  دسترس نیست). Action جدید `SyncWooCommerceOrder` (پردازش idempotent یک
+  سفارش خام — بدون `User $actor`/بدون Gate، دقیقاً الگوی `PublishScheduledPost`
+  بلاگ چون تنها caller اش یک فرآیند سیستمی است، نه کاربر). Job
+  `SyncWooCommerceOrders implements ShouldQueue` (یک Job جدا به‌ازای هر شرکت،
+  نه یک Job برای کل هلدینگ). Command جدید `woocommerce:sync-orders` که برای
+  هر شرکت با `woocommerce_config` غیرخالی یک Job صف‌بندی می‌کند، ثبت‌شده در
+  `routes/console.php` با `->everyFifteenMinutes()`.
+
+  **تصمیم‌های این Session:**
+  - **idempotency بدون بازنویسی:** برخلاف `updateOrCreate` خام، اگر سفارشی
+    با همان `(owner_company_id, source=woocommerce, external_order_id)` از
+    قبل وجود داشت، دست‌نخورده برگردانده می‌شود — نه فقط چون ستون‌های مالی
+    می‌توانند قفل‌شده باشند (بند ۶ CLAUDE.md، `Order::booted()`)، بلکه چون
+    تغییر وضعیت/مبلغ یک سفارش از قبل مسئولیت `TransitionOrderStatus` است،
+    نه این Action.
+  - **ایزولاسیون خطا در دو سطح:** (۱) هر شرکت Job مستقل خودش را دارد، پس
+    خطای یک شرکت ذاتاً روی بقیه اثر نمی‌گذارد؛ (۲) داخل خودِ Job هم خطای
+    fetch سطح شرکت هم خطای پردازش سطح تک‌سفارش جدا `try/catch` و
+    `Log::error` می‌شوند — یک سفارش بدخط (مثلاً بدون قلم) بقیه‌ی سفارش‌های
+    همان batch را متوقف نمی‌کند.
+  - **محصول ناشناخته:** با `woocommerce_product_id` عدم‌تطابق → مستقیم
+    (بدون `CreateProduct` Action/Gate، چون actor ای وجود ندارد) با
+    `cost_price=null` ساخته می‌شود + `Log::warning` + `activity()->causedBy(null)`.
+  - **مشتری خودکار:** تطبیق با `email` سپس `phone` روی `Party`های `is_customer`
+    همان شرکت؛ در نبود تطابق، `Party` جدید با `causedBy(null)` ساخته می‌شود.
+  - **ارز:** اگر `wcOrder.currency` تومان/خالی بود، `currency_id=null` می‌ماند
+    (طبق `companies.base_currency` پیش‌فرض IRR)؛ اگر ارز خارجی بود و در
+    `currencies` یافت نشد، هشدار لاگ می‌شود و به‌عنوان تومان درنظر گرفته
+    می‌شود (تا سفارش رد نشود) — مورد نادر، مستند در کد.
+  - محدودیت شناخته‌شده (طبق درخواست صریح کارفرما): چون کلید واقعی API پنج
+    سایت هنوز نیست، این Session فقط با `Http::fake()` تست شد؛ بازدید بصری/
+    تأیید روی یک سایت ووکامرس واقعی امکان‌پذیر نبود — منتظر کلید واقعی است.
+
+  **تست‌ها:** `tests/Feature/Sales/WooCommerceSyncTest.php` (۶ تست) — عدم
+  تکرار سفارش با دو بار sync، ساخت خودکار محصول ناشناخته با `cost_price=null`
+  + لاگ هشدار، عدم بازنویسی سفارش موجود، ایزولاسیون خطای یک شرکت از بقیه،
+  تطبیق مشتری تکراری با ایمیل، و رد یک سفارش بدخط بدون توقف بقیه‌ی همان
+  batch. کل سوییت پروژه: ۷۱۵ سبز، ۱۹ skip (همان CHECKهای mysql-only) —
+  بدون رگرسیون.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): `shipments`، اتصال
+واقعی به کلید API پنج سایت واقعی، همگام‌سازی تغییر وضعیت سفارش از ووکامرس
+(paid/shipped/...) بعد از ثبت اولیه.
+
 ### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
 
 طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون

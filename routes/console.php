@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('blog:publish-scheduled')->everyMinute();
+Schedule::command('woocommerce:sync-orders')->everyFifteenMinutes();
