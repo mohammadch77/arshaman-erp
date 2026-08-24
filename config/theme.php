@@ -133,6 +133,8 @@ return [
         'campaign' => 'o-megaphone',
         'trigger' => 'o-bolt',
         'simulation' => 'o-beaker',
+        'tracking' => 'o-qr-code',
+        'pack' => 'o-archive-box',
     ],
 
 ];

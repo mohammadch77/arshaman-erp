@@ -8,6 +8,7 @@ use App\Modules\HR\Providers\HrServiceProvider;
 use App\Modules\Inventory\Providers\InventoryServiceProvider;
 use App\Modules\Process\Providers\ProcessServiceProvider;
 use App\Modules\Sales\Providers\SalesServiceProvider;
+use App\Modules\Shipping\Providers\ShippingServiceProvider;
 use App\Modules\SiteBuilder\Providers\SiteBuilderServiceProvider;
 use App\Providers\AppServiceProvider;
 
@@ -22,4 +23,5 @@ return [
     SiteBuilderServiceProvider::class,
     ProcessServiceProvider::class,
     SalesServiceProvider::class,
+    ShippingServiceProvider::class,
 ];

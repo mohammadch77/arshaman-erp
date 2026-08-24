@@ -53,6 +53,8 @@ use App\Livewire\Process\ProcessOversight;
 use App\Livewire\Sales\OrderForm;
 use App\Livewire\Sales\OrderIndex;
 use App\Livewire\Sales\OrderShow;
+use App\Livewire\Shipping\ShipmentForm;
+use App\Livewire\Shipping\ShipmentIndex;
 use App\Livewire\SiteBuilder\LayoutDemoSelector;
 use App\Livewire\SiteBuilder\PageContentEditor;
 use App\Livewire\SiteBuilder\PageCreateFlow;
@@ -142,6 +144,11 @@ Route::livewire('/orders/create', OrderForm::class)->middleware('auth')->name('s
 // پارامتر orderId عمداً هم‌نام public property تایپ‌شده OrderShow نیست —
 // همان الگوی مستندشده باگ بایند خودکار Livewire (نگاه کن ContactProfile/StockMovementLedger).
 Route::livewire('/orders/{orderId}', OrderShow::class)->middleware('auth')->name('sales.orders.show');
+
+Route::livewire('/shipping', ShipmentIndex::class)->middleware('auth')->name('shipping.orders.index');
+// پارامتر orderId عمداً هم‌نام public property تایپ‌شده ShipmentForm (order) نیست —
+// همان الگوی مستندشده باگ بایند خودکار Livewire.
+Route::livewire('/shipping/orders/{orderId}', ShipmentForm::class)->middleware('auth')->name('shipping.orders.show');
 
 Route::livewire('/inventory/stock', StockIndex::class)->middleware('auth')->name('inventory.stock.index');
 Route::livewire('/inventory/warehouses', WarehouseIndex::class)->middleware('auth')->name('inventory.warehouses.index');

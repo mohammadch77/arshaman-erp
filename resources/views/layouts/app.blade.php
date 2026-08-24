@@ -109,6 +109,13 @@
                     <x-menu-item title="سفارش‌ها" :icon="theme_icon('order')" link="{{ route('sales.orders.index') }}" />
                 @endif
 
+                {{-- ارسال و حمل — طبق بند ۵.۸ CLAUDE.md فقط برای شرکت‌های physical_goods/hybrid
+                     فعال است (همان محدودیت زیرمنوی انبار). شرط دقیقاً ShipmentPolicy::viewAny
+                     («هر نقشی در شرکت»). --}}
+                @if($activeCompany && in_array($activeCompany->business_type->value, ['physical_goods', 'hybrid']) && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-item title="ارسال و حمل" :icon="theme_icon('shipping')" link="{{ route('shipping.orders.index') }}" />
+                @endif
+
                 @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id, ['holding_admin', 'operator']))
                     <x-menu-sub title="مخاطبین" :icon="theme_icon('crm')">
                         <x-menu-item title="فهرست مخاطبین" :icon="theme_icon('contact')" link="{{ route('contacts.index') }}" />

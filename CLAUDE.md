@@ -991,6 +991,64 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 واقعی به کلید API پنج سایت واقعی، همگام‌سازی تغییر وضعیت سفارش از ووکامرس
 (paid/shipped/...) بعد از ثبت اولیه.
 
+### ماژول Shipping (جدید — ارسال و پیگیری مرسوله)
+
+- [x] Session 1: `shipments` + بسته‌بندی/کد رهگیری/تحویل، وصل به ماشین وضعیت سفارش
+
+  **چه ساخته شد:** `app/Modules/Shipping` (اسکلت استاندارد). جدول `shipments`
+  دقیقاً طبق `docs/schema_inventory_mysql.sql` (جدول ۷): `carrier` VARCHAR(30)
+  پیش‌فرض `'tipax'` (عمداً نه ENUM — یادداشت ۱۰ همان سند)، `status` ENUM نیتیو
+  (`pending,packed,shipped,delivered`)، `shipping_cost_amount`،
+  `created_by_user_id` (بدون `updated_by_user_id`/soft delete — طبق ستون‌های
+  دقیق سند). enum PHP `ShipmentStatus`. `ShipmentPolicy` (مشاهده = هر نقشی در
+  شرکت، مدیریت = `holding_admin`/`accountant`/`operator`، همان الگوی
+  `OrderPolicy`). سه Action: `PackOrder` (فقط از `preparing`، شرط سفارش دارای
+  قلم فیزیکی)، `AssignTrackingCode` (سفارش را از طریق `TransitionOrderStatus`
+  موجود — نه مستقیم — به `shipped` می‌برد + شبیه‌سازی اطلاع مشتری با
+  `App\Modules\CRM\Services\NotificationChannel` موجود)، `MarkDelivered`
+  (به `delivered`، باز هم از طریق `TransitionOrderStatus`). کامپوننت‌های
+  `ShipmentIndex`/`ShipmentForm` (مسیرهای `/shipping`, `/shipping/orders/{orderId}`)
+  و منوی «ارسال و حمل» (شرط `business_type` مثل زیرمنوی انبار + شرط دقیق
+  `ShipmentPolicy::viewAny`).
+
+  **تصمیم اصلی این Session — چه زمانی `shipping_cost_amount` وارد مالی سفارش
+  می‌شود:** `orders.shipping_amount` از قبل (Session 1 Sales) در
+  `Order::LOCKED_FINANCIAL_FIELDS` است و فقط از `delivered`/`delivered_instant`/
+  `closed` به بعد قفل می‌شود. چون توالی چرخه فیزیکی `preparing→shipped→delivered`
+  است، `AssignTrackingCode` (لحظه‌ی رسیدن به `shipped`) تنها و آخرین نقطه‌ای
+  است که `order.shipping_amount`/`total_amount` را می‌نویسد — **قبل** از قفل،
+  و فقط همان‌جا (نه در `PackOrder`) تا یک نقطه نوشتن واحد باشد، نه دو. طبق
+  یادداشت خودِ سند طراحی (`schema_inventory_mysql.sql:210`: «shipping_cost_amount
+  بخشی از بهای تمام‌شده سفارش است») این ادغام یک تصمیم از پیش‌گرفته‌شده بود،
+  نه اختراع این Session.
+  - `AssignTrackingCode` با `Order::withoutGlobalScopes()->lockForUpdate()`
+    ردیف سفارش را قفل می‌کند (همان الگوی race-condition ماژول Inventory/Sales)،
+    `total_amount` را با `App\Support\Money::add/round` (bcmath، نه float) از
+    `subtotal_amount + shipping_cost_amount` بازمحاسبه می‌کند — دقیقاً همان
+    فرمول `CreateManualOrder`.
+  - رگرسیون قفل مالی صریح تست شد: بعد از `MarkDelivered`، تلاش مستقیم برای
+    تغییر `order.shipping_amount` با `ValidationException` رد می‌شود
+    (نگهبان موجود `Order::booted()`، بدون تغییر).
+  - سفارش کاملاً دیجیتال (بدون قلم فیزیکی) اصلاً اجازه‌ی ساخت `Shipment`
+    نمی‌گیرد — چرخه‌اش اساساً `shipped` ندارد.
+  - migration مستقیم روی `arshaman_erp` واقعی با `php artisan migrate --force`
+    (بدون `fresh`) اجرا و بدون خطا تأیید شد.
+
+  **تست‌ها:** `tests/Feature/Shipping/ShipmentTest.php` (۹ تست) — بسته‌بندی
+  بدون تغییر مالی زودهنگام، رد بسته‌بندی سفارش دیجیتال، ثبت کد رهگیری با
+  ترنزیشن واقعی + نوشتن صحیح `shipping_amount`/`total_amount` قبل از قفل، رد
+  ثبت کد رهگیری قبل از بسته‌بندی، تحویل واقعی + رگرسیون قفل مالی بعد از آن،
+  رد تحویل قبل از ارسال، رد کاربر بدون نقش مجاز (`AuthorizationException`)،
+  رندر واقعی صفحات فهرست/فرم روی HTTP با حداقل یک ردیف واقعی (طبق قاعده
+  مستندشده پروژه برای کامپوننت‌های دارای `@scope`)، و ایزولاسیون شرکت. کل
+  سوییت پروژه: ۷۲۳ سبز، ۱۹ skip (همان CHECKهای mysql-only) — بدون رگرسیون.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): پنل انتخاب/split
+چند انبار روی UI بسته‌بندی (فعلاً فقط از طریق `TransitionOrderStatus` موجود
+خودکار انجام می‌شود)، شرکت‌های حمل متعدد در UI (ساختار دیتابیس باز است ولی
+فرم فعلاً carrier را غیرفعال/فقط‌خواندنی نشان می‌دهد)، اتصال اطلاع‌رسانی واقعی
+پیامک/تلگرام (فعلاً شبیه‌سازی‌شده، همان محدودیت CRM).
+
 ### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
 
 طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون
