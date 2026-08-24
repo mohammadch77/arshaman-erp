@@ -896,6 +896,51 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 سفارش (فقط `received` پیش‌فرض این Session)، `shipments`، همگام‌سازی
 ووکامرس، اتصال خودکار `IssueStock` از سفارش.
 
+- [x] Session 2: ماشین وضعیت سفارش — دو چرخه + اتصال خودکار به موجودی + قفل مالی
+
+  **چه ساخته شد:** `OrderStateMachine` (نقشه صریح TRANSITIONS برای هر دو
+  چرخه‌ی فیزیکی/دیجیتال طبق `docs/PROJECT_04_INVENTORY.md`، +
+  `hasPhysicalLine()` که سفارش ترکیبی را همیشه چرخه‌ی فیزیکی می‌دهد، حتی اگر
+  قلم دیجیتالش زودتر تحویل شود). Action `TransitionOrderStatus`
+  (`OrderPolicy::transition()` جدید، همان سه نقش `create`؛ ترنزیشن نامعتبر →
+  `InvalidArgumentException` فارسی؛ `activity()->causedBy()->performedOn()->
+  withProperties(['from','to'])->log()`). نگهبان قفل مالی در `Order::booted()`
+  (دقیقاً الگوی `Payslip` در HR — فقط ستون‌های مالی را می‌بندد، نه خودِ
+  `order_status`، پس `delivered→closed` همچنان مجاز می‌ماند). کامپوننت
+  `OrderShow` (مسیر `/orders/{orderId}`، دکمه‌ی هر ترنزیشن مجاز).
+
+  **تصمیم‌های این Session:**
+  - **انتخاب/تقسیم انبار خودکار هنگام رسیدن به `preparing`** (چون
+    `order_lines` ستون warehouse ندارد): برای هر قلم فیزیکی، اگر یک انبار
+    به‌تنهایی کافی بود همان یک `IssueStock` می‌گیرد؛ وگرنه بین چند انبار
+    (بیشترین موجودی اول) پشت‌سرهم تقسیم می‌شود تا کل مقدار قلم تأمین شود —
+    یک `OrderLine` می‌تواند چند رکورد `stock_movements` (از `stock_id` های
+    مختلف، با `reference_note` یکسان) بسازد. اگر مجموع همه‌ی انبارها هم کافی
+    نبود، رفتار **all-or-nothing** (تصمیم صریح کارفرما): کل
+    `DB::transaction` — شامل هر `IssueStock`ی که تا همان لحظه در همان لوپ
+    اجرا شده — rollback می‌شود؛ سفارش در `paid` می‌ماند، هیچ موجودی‌ای واقعاً
+    کم نمی‌ماند.
+  - `allocateStockForLine()` طبق یادآوری صریح کارفرما (بند ۱۳ CLAUDE.md)
+    همه‌جا `Stock::withoutGlobalScopes()` می‌زند — این فراخوانی به
+    `order.owner_company_id` صریح مقید است، نه شرکت فعال سوییچر session؛
+    همان الگوی تکراری باگی که قبلاً در `ContactProfile`/`RfmSegment`/
+    `WarehouseIndex`/`StockMovementLedger` دیده شده بود.
+  - قفل مالی بر پایه‌ی `getRawOriginal('order_status')` تصمیم می‌گیرد (وضعیت
+    *قبل* از ویرایش)، نه مقدار جدید — چون خودِ `TransitionOrderStatus` باید
+    بتواند `order_status` را از `delivered`/`closed` به مقصد بعدی ببرد.
+  - پارامتر `mount()` در `OrderShow` عمداً `orderId` نام‌گذاری شد، نه `order`
+    — همان باگ تکراری bind خودکار Livewire (چهارمین‌بار مستندشده در پروژه).
+
+  **تست‌ها:** `tests/Feature/Sales/OrderTransitionTest.php` (۸ تست) — چرخه‌ی
+  فیزیکی/دیجیتال/ترکیبی، ترنزیشن نامعتبر، کاهش موجودی در `preparing`، تقسیم
+  موجودی بین دو انبار (۵+۵ برای سفارش ۸تایی، دو رکورد `stock_movements` با
+  `reference_note` یکسان)، رد کامل با rollback وقتی مجموع انبارها هم کافی
+  نیست، و قفل مالی بعد از `delivered_instant`/`closed`. کل سوییت پروژه: ۷۰۹
+  سبز، ۱۹ skip (همان CHECKهای mysql-only) — بدون رگرسیون.
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): `shipments`،
+همگام‌سازی ووکامرس.
+
 ### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
 
 طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون

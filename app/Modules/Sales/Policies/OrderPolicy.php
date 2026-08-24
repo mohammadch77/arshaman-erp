@@ -4,6 +4,7 @@ namespace App\Modules\Sales\Policies;
 
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Services\CompanyContext;
+use App\Modules\Sales\Enums\OrderStatus;
 use App\Modules\Sales\Models\Order;
 
 class OrderPolicy
@@ -38,5 +39,17 @@ class OrderPolicy
         }
 
         return $user->hasRoleInCompany($companyId, ['holding_admin', 'accountant', 'operator']);
+    }
+
+    /**
+     * تغییر وضعیت سفارش — همان سه نقش عملیاتی/مالی create(). $to اینجا
+     * پارامتر ثابتی برای تصمیم‌گیری فعلی نیست (همه‌ی ترنزیشن‌ها با همین سه
+     * نقش انجام می‌شوند)، ولی امضا صریح نگه‌داشته شد تا اگر بعداً محدودیت
+     * دقیق‌تر بر پایه‌ی مقصد (مثلاً لغو فقط holding_admin) لازم شد، بدون
+     * تغییر امضای caller اضافه شود.
+     */
+    public function transition(User $user, Order $order, OrderStatus $to): bool
+    {
+        return $user->hasRoleInCompany($order->owner_company_id, ['holding_admin', 'accountant', 'operator']);
     }
 }

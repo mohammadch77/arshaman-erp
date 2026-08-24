@@ -13,10 +13,29 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class Order extends Model
 {
     use BelongsToCompany, HasUuids, SoftDeletes;
+
+    /**
+     * ستون‌های مالی که بعد از تحویل/بسته‌شدن سفارش دیگر قابل تغییر نیستند —
+     * طبق بند ۶ CLAUDE.md («بعد از delivered فیلدهای مالی قفل‌اند»).
+     */
+    private const LOCKED_FINANCIAL_FIELDS = [
+        'subtotal_amount',
+        'shipping_amount',
+        'total_amount',
+        'exchange_rate_snapshot',
+        'currency_id',
+    ];
+
+    private const LOCKING_STATUSES = [
+        OrderStatus::Delivered,
+        OrderStatus::DeliveredInstant,
+        OrderStatus::Closed,
+    ];
 
     protected $fillable = [
         'owner_company_id',
@@ -70,5 +89,39 @@ class Order extends Model
     public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by_user_id');
+    }
+
+    /**
+     * قفل مالی در سطح مدل — دقیقاً الگوی Payslip::booted() در HR (بند ۹
+     * CLAUDE.md: Action تنها caller نیست). وضعیت *قبل* از این ویرایش
+     * (getRawOriginal) ملاک است، نه مقدار جدید — چون خودِ
+     * TransitionOrderStatus باید بتواند order_status را از delivered به
+     * closed/returned ببرد؛ آن ستون در فهرست قفل‌شده نیست، پس دست‌نخورده
+     * می‌ماند.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (self $order) {
+            $originalStatus = $order->getRawOriginal('order_status');
+
+            if ($originalStatus === null) {
+                return;
+            }
+
+            $isLocked = collect(self::LOCKING_STATUSES)
+                ->contains(fn (OrderStatus $status) => $status->value === $originalStatus);
+
+            if (! $isLocked) {
+                return;
+            }
+
+            foreach (self::LOCKED_FINANCIAL_FIELDS as $field) {
+                if ($order->isDirty($field)) {
+                    throw ValidationException::withMessages([
+                        $field => 'این سفارش تحویل/بسته شده است و فیلدهای مالی آن قابل ویرایش نیستند.',
+                    ]);
+                }
+            }
+        });
     }
 }

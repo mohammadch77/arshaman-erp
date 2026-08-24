@@ -27,7 +27,7 @@
             with-pagination
         >
             @scope('cell_order_number', $order)
-                #{{ $order->order_number }}
+                <a href="{{ route('sales.orders.show', $order->id) }}" class="link link-primary">#{{ $order->order_number }}</a>
             @endscope
 
             @scope('cell_party', $order)
