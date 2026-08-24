@@ -832,6 +832,70 @@ npm run dev                         # کامپایل CSS/JS (Tailwind + Alpine)
 نساز این Session (خارج از scope، در `docs/BACKLOG.md`): اتصال خودکار `IssueStock`
 به ماشین وضعیت سفارش، هر چیز مربوط به `orders`/`order_lines` (Session بعدی).
 
+### ماژول Sales (جدید — سفارش‌ها)
+
+- [x] Session 1: سفارش دستی (Manual Order) — snapshot سه‌گانه + شماره ترتیبی + idempotency
+
+  **چه ساخته شد:** `app/Modules/Sales` (ماژول جدید، اسکلت استاندارد با
+  `new-module-scaffold`). `orders`/`order_lines` دقیقاً طبق
+  `docs/schema_inventory_mysql.sql` (جدول ۵/۶؛ این دو جدول تا این Session
+  در پروژه اصلاً وجود نداشتند، برخلاف `products` که از یک ماژول قبلی‌تر
+  می‌آمد) — `order_status`/`source` ENUM نیتیو، `order_lines` عمداً بدون
+  `owner_company_id`/بدون هیچ ستون timestamp/audit (تأیید صریح کارفرما قبل
+  از شروع کد؛ شرکت از طریق `order.owner_company_id` مشخص است). enum های PHP
+  `OrderStatus`/`OrderSource` (`OrderSource::isManual()` تفکیک ووکامرس از
+  سه منبع دستی). `OrderPolicy` (مشاهده = هر نقشی در شرکت، ساخت = فقط
+  `holding_admin`/`accountant`/`operator`، همان الگوی `ProductPolicy`/
+  `StockPolicy`) + `SalesServiceProvider` (ثبت در `bootstrap/providers.php`).
+  Action `CreateManualOrder` (authorize داخل خودِ Action، بند ۹)، کامپوننت‌های
+  `OrderForm`/`OrderIndex` (مسیرهای `/orders`, `/orders/create`).
+
+  **تصمیم‌های این Session:**
+  - **تولید `order_number` بدون جدول شمارنده جدا:** داخل همان
+    `DB::transaction`، ردیف واقعی `Company` هدف با `lockForUpdate()` قفل
+    می‌شود (نه یک ردیف `orders` که هنوز برای اولین سفارش شرکت وجود ندارد) —
+    الگوی دقیق قفل ردیف واقعی `ReceiveStock`/`IssueStock`؛ بعد از گرفتن قفل،
+    `MAX(order_number)+1` محاسبه می‌شود. این سریال‌سازی per-company واقعی روی
+    MySQL با یک تست دو-اتصالی PDO (قفل‌شدن واقعی B پشت A، الگوی همان تست
+    race condition Session ۳ ماژول Inventory) و جداگانه با یک اسکریپت
+    یک‌بارمصرف روی `arshaman_erp` واقعی (داخل تراکنش rollback-شده، صفر داده
+    باقی‌مانده) تأیید شد.
+  - **idempotency با پیام فارسی، نه خطای خام SQL:** تلاش دوم با همان
+    `(owner_company_id, source, external_order_id)` به UNIQUE دیتابیس
+    می‌خورد؛ `CreateManualOrder` این `QueryException`/
+    `UniqueConstraintViolationException` را می‌گیرد و به `ValidationException`
+    با پیام فارسی تبدیل می‌کند. **نکته‌ی کشف‌شده حین تست:** پیام خطای این قید
+    روی sqlite (محیط تست) نام قید (`uq_orders_company_source_external`) را
+    نشان نمی‌دهد، فقط فهرست ستون‌ها (`orders.source, orders.external_order_id`)
+    را می‌دهد — برخلاف MySQL واقعی که نام قید را می‌دهد. تشخیص تکراری‌بودن
+    باید هر دو الگو را بپذیرد، وگرنه تست‌های sqlite قرمز می‌مانند در حالی که
+    منطق واقعی درست است.
+  - **رد ترکیب چند ارز خارجی در یک سفارش، عمدی:** طبق سند، `exchange_rate_snapshot`
+    روی `orders` است نه `order_lines` — یعنی طراحی سند فرض کرده یک سفارش
+    دستی یک ارز دارد. اگر اقلام یک سفارش بیش از یک `currency_id` غیر-تومانی
+    متفاوت داشته باشند، `CreateManualOrder` با `InvalidArgumentException`
+    و پیام فارسی رد می‌کند — تصمیم صریح کارفرما برای ساده‌نگه‌داشتن، نه یک
+    محدودیت فنی موقت.
+  - **باگ واقعی کشف‌شده حین بازدید بصری (نه فقط تست PHP):** یک `<select>`ی
+    که فقط یک گزینه دارد (مثل انتخاب مشتری/محصول وقتی هنوز فقط یک رکورد
+    ساخته شده) به‌صورت بصری همان گزینه را «انتخاب‌شده» نشان می‌دهد چون مرورگر
+    اولین `<option>` را پیش‌فرض می‌گیرد — ولی چون هیچ رویداد `change` واقعی
+    شلیک نشده، مقدار Livewire (`party_id`/`lines.*.product_id`) هنوز رشته‌ی
+    خالی است و submit با خطای «این فیلد الزامی است» رد می‌شود، با اینکه UI
+    گزینه را انتخاب‌شده نشان می‌دهد. این رفتار طبیعی مرورگر/Livewire است (کاربر
+    واقعی باید صریح روی گزینه کلیک کند، حتی وقتی تنها گزینه است)، نه باگ در
+    این Session، ولی برای Session بعدی که با این فرم کار می‌کند مستند شد که
+    غافلگیرکننده است.
+  - بازدید بصری کامل با کاربر تستی موقت (`sales-visual-test@example.com`) روی
+    شرکت واقعی `arshaman`: ثبت سفارش تک‌قلمی، ثبت سفارش دوقلمی (افزودن ردیف
+    زنده در فرم)، رد idempotency با toast خطای فارسی صحیح، و فهرست سفارش‌ها
+    با شماره/مشتری/وضعیت/منبع/مبلغ/تاریخ شمسی درست. کاربر، مشتری، محصول، و
+    هر دو سفارش تستی در پایان کامل حذف شدند (بند ۱۰ CLAUDE.md).
+
+نساز این Session (خارج از scope، در `docs/BACKLOG.md`): ماشین وضعیت کامل
+سفارش (فقط `received` پیش‌فرض این Session)، `shipments`، همگام‌سازی
+ووکامرس، اتصال خودکار `IssueStock` از سفارش.
+
 ### اصلاح سراسری: هماهنگی شرط نمایش منو با Policy واقعی صفحه
 
 طبق همان استثنای بند ۹ برای اصلاحات امنیتی/UX سراسری (bypass قانون

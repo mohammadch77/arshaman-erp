@@ -306,6 +306,21 @@
 
 ---
 
+### ماشین وضعیت کامل سفارش + shipments + همگام‌سازی ووکامرس + اتصال IssueStock
+- **از کجا آمد:** Session 1 ماژول Sales (سفارش دستی) — scope صریح آن
+  Session فقط snapshot سه‌گانه + شماره ترتیبی + idempotency بود.
+- **چه چیزی به‌تعویق افتاد:** ترنزیشن‌های واقعی `order_status` (بند ۶
+  CLAUDE.md؛ این Session فقط پیش‌فرض `received` را ست می‌کند، هیچ Action
+  تغییر وضعیتی نساخت)، جدول `shipments` (طبق `docs/schema_inventory_mysql.sql`
+  جدول ۷)، اتصال واقعی sync ووکامرس (idempotency دیتابیس از قبل آماده است —
+  `UNIQUE(owner_company_id, source, external_order_id)`)، و خروج خودکار
+  موجودی (`IssueStock`) وقتی سفارش فیزیکی به وضعیت مناسب می‌رسد.
+- **چرا الان نه:** خارج از scope صریح Session 1؛ منطق مالی/ماشین وضعیت
+  حساس‌تر است و به Session جدا و تست‌محور نیاز دارد (بند ۹.۲ CLAUDE.md).
+- **وضعیت:** باز.
+
+---
+
 ## قالب افزودن آیتم جدید
 
 ```

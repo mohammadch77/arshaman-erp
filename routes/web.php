@@ -50,6 +50,8 @@ use App\Livewire\Process\NewProcessRequest;
 use App\Livewire\Process\ProcessDefinitionForm;
 use App\Livewire\Process\ProcessDefinitionIndex;
 use App\Livewire\Process\ProcessOversight;
+use App\Livewire\Sales\OrderForm;
+use App\Livewire\Sales\OrderIndex;
 use App\Livewire\SiteBuilder\LayoutDemoSelector;
 use App\Livewire\SiteBuilder\PageContentEditor;
 use App\Livewire\SiteBuilder\PageCreateFlow;
@@ -133,6 +135,9 @@ Route::livewire('/contact-us/{companySlug}', PublicContactForm::class)->name('co
 Route::livewire('/products', ProductIndex::class)->middleware('auth')->name('products.index');
 Route::livewire('/products/create', ProductForm::class)->middleware('auth')->name('products.create');
 Route::livewire('/products/{product}/edit', ProductForm::class)->middleware('auth')->name('products.edit');
+
+Route::livewire('/orders', OrderIndex::class)->middleware('auth')->name('sales.orders.index');
+Route::livewire('/orders/create', OrderForm::class)->middleware('auth')->name('sales.orders.create');
 
 Route::livewire('/inventory/stock', StockIndex::class)->middleware('auth')->name('inventory.stock.index');
 Route::livewire('/inventory/warehouses', WarehouseIndex::class)->middleware('auth')->name('inventory.warehouses.index');

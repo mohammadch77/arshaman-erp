@@ -103,6 +103,12 @@
                     <x-menu-item title="محصولات" :icon="theme_icon('product')" link="{{ route('products.index') }}" />
                 @endif
 
+                {{-- سفارش‌ها — عمداً hasRoleInCompany($activeCompany->id) بدون فهرست نقش،
+                     همان شرط دقیق OrderPolicy::viewAny («هر نقشی در شرکت»). --}}
+                @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id))
+                    <x-menu-item title="سفارش‌ها" :icon="theme_icon('order')" link="{{ route('sales.orders.index') }}" />
+                @endif
+
                 @if($activeCompany && auth()->check() && auth()->user()->hasRoleInCompany($activeCompany->id, ['holding_admin', 'operator']))
                     <x-menu-sub title="مخاطبین" :icon="theme_icon('crm')">
                         <x-menu-item title="فهرست مخاطبین" :icon="theme_icon('contact')" link="{{ route('contacts.index') }}" />
