@@ -18,6 +18,7 @@ class StockMovement extends Model
     protected $fillable = [
         'owner_company_id',
         'stock_id',
+        'stock_transfer_id',
         'movement_type',
         'quantity',
         'unit_cost',
@@ -53,5 +54,14 @@ class StockMovement extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    /**
+     * فقط برای دو رکورد transfer_out/transfer_in پر است — بقیه انواع حرکت
+     * همیشه null دارند (نگاه کن migration add_stock_transfer_id...).
+     */
+    public function transfer(): BelongsTo
+    {
+        return $this->belongsTo(StockTransfer::class, 'stock_transfer_id');
     }
 }

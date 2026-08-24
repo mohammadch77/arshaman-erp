@@ -150,6 +150,7 @@
                         <x-menu-item title="دریافت کالا" :icon="theme_icon('stock-in')" link="{{ route('inventory.receive') }}" />
                         <x-menu-item title="خروج کالا" :icon="theme_icon('stock-out')" link="{{ route('inventory.issue') }}" />
                         <x-menu-item title="تعدیل موجودی" :icon="theme_icon('stock-adjust')" link="{{ route('inventory.adjust') }}" />
+                        <x-menu-item title="جابجایی بین انبارها" :icon="theme_icon('stock-transfer')" link="{{ route('inventory.transfer') }}" />
                         <x-menu-item title="کالاهای زیر نقطه سفارش" :icon="theme_icon('warning')" link="{{ route('inventory.low-stock-report') }}" />
                     </x-menu-sub>
                 @endif
