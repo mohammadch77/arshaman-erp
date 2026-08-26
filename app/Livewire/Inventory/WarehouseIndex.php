@@ -4,6 +4,7 @@ namespace App\Livewire\Inventory;
 
 use App\Modules\Inventory\Models\Stock;
 use App\Modules\Inventory\Models\Warehouse;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 
 class WarehouseIndex extends Component
@@ -44,6 +45,11 @@ class WarehouseIndex extends Component
         }
 
         return $query->get()->groupBy('warehouse_id');
+    }
+
+    public function getCanCreateWarehouseProperty(): bool
+    {
+        return Gate::allows('create', Warehouse::class);
     }
 
     public function render()

@@ -44,6 +44,7 @@ use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
 use App\Livewire\Inventory\StockMovementLedger;
 use App\Livewire\Inventory\StockTransferForm;
+use App\Livewire\Inventory\WarehouseForm;
 use App\Livewire\Inventory\WarehouseIndex;
 use App\Livewire\Process\MyProcessRequests;
 use App\Livewire\Process\MyProcessTasks;
@@ -153,6 +154,7 @@ Route::livewire('/shipping/orders/{orderId}', ShipmentForm::class)->middleware('
 
 Route::livewire('/inventory/stock', StockIndex::class)->middleware('auth')->name('inventory.stock.index');
 Route::livewire('/inventory/warehouses', WarehouseIndex::class)->middleware('auth')->name('inventory.warehouses.index');
+Route::livewire('/inventory/warehouses/create', WarehouseForm::class)->middleware('auth')->name('inventory.warehouses.create');
 Route::livewire('/inventory/receive', StockMovementForm::class)->middleware('auth')->name('inventory.receive')->defaults('type', 'in');
 Route::livewire('/inventory/issue', StockMovementForm::class)->middleware('auth')->name('inventory.issue')->defaults('type', 'out');
 Route::livewire('/inventory/adjust', StockMovementForm::class)->middleware('auth')->name('inventory.adjust')->defaults('type', 'adjust');

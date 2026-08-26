@@ -1,5 +1,11 @@
 <div>
-    <x-header title="انبارها" subtitle="انبارهای فیزیکی و موجودی هر شرکت مالک در هرکدام" separator />
+    <x-header title="انبارها" subtitle="انبارهای فیزیکی و موجودی هر شرکت مالک در هرکدام" separator>
+        @if($this->canCreateWarehouse)
+            <x-slot:actions>
+                <x-button label="انبار جدید" link="{{ route('inventory.warehouses.create') }}" icon="{{ theme_icon('add') }}" class="btn-primary" />
+            </x-slot:actions>
+        @endif
+    </x-header>
 
     @if($warehouses->isEmpty())
         <x-alert title="هنوز هیچ انباری ثبت نشده است." :icon="theme_icon('inventory')" />
