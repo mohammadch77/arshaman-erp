@@ -51,14 +51,14 @@
             @endscope
 
             @scope('cell_sale_price', $product)
-                {{ \App\Support\Farsi::toToman($product->sale_price) }}
+                {{ \App\Support\Farsi::toMoney($product->sale_price, $product->currency) }}
             @endscope
 
             @scope('cell_cost_price', $product)
                 @if($product->needsCostReview())
                     <x-badge value="بهای تمام‌شده نامشخص" class="badge-warning" :icon="theme_icon('warning')" />
                 @else
-                    {{ \App\Support\Farsi::toToman($product->cost_price) }}
+                    {{ \App\Support\Farsi::toMoney($product->cost_price, $product->currency) }}
                 @endif
             @endscope
 

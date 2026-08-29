@@ -31,7 +31,7 @@ class OrderIndex extends Component
     public function getOrdersProperty()
     {
         return Order::query()
-            ->with(['party'])
+            ->with(['party', 'currency'])
             ->when($this->orderStatus, fn ($query) => $query->where('order_status', $this->orderStatus))
             ->orderByDesc('order_number')
             ->paginate(15);

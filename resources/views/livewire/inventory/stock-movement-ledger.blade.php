@@ -17,12 +17,12 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
                 <div class="text-sm opacity-60">موجودی فعلی</div>
-                <div class="text-lg font-semibold">{{ \App\Support\Farsi::toDigits($stock->quantity_on_hand) }}</div>
+                <div class="text-lg font-semibold">{{ \App\Support\Farsi::formatQuantity($stock->quantity_on_hand, $stock->product->unit_of_measure) }}</div>
             </div>
             <div>
                 <div class="text-sm opacity-60">میانگین موزون بهای واحد</div>
                 <div class="text-lg font-semibold">
-                    {{ $stock->average_cost !== null ? \App\Support\Farsi::toToman((string) $stock->average_cost) : 'نامشخص' }}
+                    {{ $stock->average_cost !== null ? \App\Support\Farsi::toMoney((string) $stock->average_cost, $stock->product->currency) : 'نامشخص' }}
                 </div>
             </div>
         </div>
@@ -50,12 +50,12 @@
                 />
             @endscope
 
-            @scope('cell_quantity', $movement)
-                {{ \App\Support\Farsi::toDigits($movement->quantity) }}
+            @scope('cell_quantity', $movement, $stock)
+                {{ \App\Support\Farsi::formatQuantity($movement->quantity, $stock->product->unit_of_measure) }}
             @endscope
 
-            @scope('cell_unit_cost', $movement)
-                {{ $movement->unit_cost !== null ? \App\Support\Farsi::toToman((string) $movement->unit_cost) : '—' }}
+            @scope('cell_unit_cost', $movement, $stock)
+                {{ $movement->unit_cost !== null ? \App\Support\Farsi::toMoney((string) $movement->unit_cost, $stock->product->currency) : '—' }}
             @endscope
 
             @scope('cell_reference_note', $movement)
@@ -63,7 +63,7 @@
             @endscope
 
             @scope('cell_created_by', $movement)
-                {{ $movement->createdBy?->name ?? '—' }}
+                {{ $movement->createdBy?->full_name ?? '—' }}
             @endscope
         </x-table>
     </x-card>

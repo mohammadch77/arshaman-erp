@@ -51,6 +51,7 @@ class ProductIndex extends Component
     public function getProductsProperty()
     {
         return Product::query()
+            ->with('currency')
             ->when($this->search, fn ($query) => $query->where('name', 'like', "%{$this->search}%"))
             ->when($this->fulfillmentType, fn ($query) => $query->where('fulfillment_type', $this->fulfillmentType))
             ->when($this->unitOfMeasure, fn ($query) => $query->where('unit_of_measure', $this->unitOfMeasure))

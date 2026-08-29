@@ -31,7 +31,7 @@
             @endscope
 
             @scope('cell_quantity_on_hand', $stock)
-                {{ \App\Support\Farsi::toDigits($stock->quantity_on_hand) }}
+                {{ \App\Support\Farsi::formatQuantity($stock->quantity_on_hand, $stock->product->unit_of_measure) }}
             @endscope
 
             @scope('cell_reorder_status', $stock)

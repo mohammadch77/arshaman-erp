@@ -24,6 +24,19 @@
                 @endif
             </x-slot:title>
 
+            @if($this->canManageWarehouses)
+                <x-slot:menu>
+                    <x-button label="ویرایش" :icon="theme_icon('edit')" link="{{ route('inventory.warehouses.edit', $warehouse->id) }}" class="btn-ghost btn-sm" />
+                    <x-button
+                        label="{{ $warehouse->is_active ? 'غیرفعال‌سازی' : 'فعال‌سازی' }}"
+                        :icon="theme_icon($warehouse->is_active ? 'deactivate' : 'activate')"
+                        wire:click="toggleActive('{{ $warehouse->id }}')"
+                        wire:confirm="وضعیت فعال‌بودن این انبار تغییر کند؟"
+                        class="btn-ghost btn-sm"
+                    />
+                </x-slot:menu>
+            @endif
+
             @if($warehouse->address)
                 <p class="text-sm text-base-content/70 mb-4">{{ $warehouse->address }}</p>
             @endif
@@ -50,12 +63,12 @@
                     @endscope
 
                     @scope('cell_quantity_on_hand', $stock)
-                        {{ \App\Support\Farsi::toDigits($stock->quantity_on_hand) }}
+                        {{ \App\Support\Farsi::formatQuantity($stock->quantity_on_hand, $stock->product->unit_of_measure) }}
                     @endscope
 
                     @scope('cell_average_cost', $stock)
                         @if($stock->average_cost !== null)
-                            {{ \App\Support\Farsi::toToman($stock->average_cost) }}
+                            {{ \App\Support\Farsi::toMoney($stock->average_cost, $stock->product->currency) }}
                         @else
                             <span class="text-base-content/50">نامشخص</span>
                         @endif

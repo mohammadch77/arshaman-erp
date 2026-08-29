@@ -29,7 +29,7 @@
 
             @if ($this->fromStockQuantity !== null)
                 <div class="text-sm opacity-60">
-                    موجودی فعلی در انبار مبدأ: {{ \App\Support\Farsi::toDigits($this->fromStockQuantity) }}
+                    موجودی فعلی در انبار مبدأ: {{ $this->fromStockQuantity }}
                 </div>
             @endif
 
@@ -94,7 +94,7 @@
             @endscope
 
             @scope('cell_quantity', $transfer)
-                {{ \App\Support\Farsi::toDigits($transfer->quantity) }}
+                {{ \App\Support\Farsi::formatQuantity($transfer->quantity, $transfer->product->unit_of_measure) }}
             @endscope
 
             @scope('cell_note', $transfer)
@@ -102,7 +102,7 @@
             @endscope
 
             @scope('cell_created_by', $transfer)
-                {{ $transfer->createdBy?->name ?? '—' }}
+                {{ $transfer->createdBy?->full_name ?? '—' }}
             @endscope
         </x-table>
     </x-card>

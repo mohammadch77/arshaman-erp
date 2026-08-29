@@ -2,13 +2,41 @@
 
 namespace App\Support;
 
+use App\Modules\Catalog\Enums\UnitOfMeasure;
+use App\Modules\Core\Models\Currency;
+
 class Farsi
 {
     protected const DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
 
+    protected const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+
+    protected const ARABIC_INDIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+
+    protected const ENGLISH_DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
     public static function toDigits(int|string $input): string
     {
         return preg_replace_callback('/\d/', fn ($m) => self::DIGITS[$m[0]], (string) $input);
+    }
+
+    /**
+     * فارسی/عربی → لاتین، برعکس toDigits — روی فیلدهای عددی فرم (تعداد،
+     * بهای واحد و ...) لازم است: کیبورد فارسی ویندوز رقم‌های ۰-۹ را تایپ
+     * می‌کند، ولی قوانین اعتبارسنجی PHP (`numeric`) و bcmath این ارقام را
+     * عدد نمی‌شناسند — کاربر رقمی تایپ می‌کند که از دیدش «پر شده» است ولی
+     * سرور آن را نامعتبر/خالی می‌بیند. این متد قبل از اعتبارسنجی روی چنین
+     * فیلدهایی صدا زده می‌شود تا ورودی همیشه لاتین باشد.
+     */
+    public static function toEnglishDigits(?string $input): ?string
+    {
+        if ($input === null) {
+            return null;
+        }
+
+        $input = str_replace(self::PERSIAN_DIGITS, self::ENGLISH_DIGITS, $input);
+
+        return str_replace(self::ARABIC_INDIC_DIGITS, self::ENGLISH_DIGITS, $input);
     }
 
     /**
@@ -24,6 +52,51 @@ class Farsi
             : number_format($amount);
 
         return self::toDigits($formatted).' تومان';
+    }
+
+    /**
+     * مثل toToman ولی واحد پول واقعی محصول/سفارش را نمایش می‌دهد، نه همیشه
+     * تومان — بند ۵.۳/۳ CLAUDE.md: currency_id سطح محصول تعیین‌کننده است.
+     * $currency خالی یعنی ارز پایه هلدینگ (تومان)، دقیقاً همان قرارداد
+     * nullable بودن products.currency_id/orders.currency_id.
+     */
+    public static function toMoney(float|int|string $amount, ?Currency $currency = null): string
+    {
+        if ($currency === null) {
+            return self::toToman($amount);
+        }
+
+        $formatted = is_string($amount)
+            ? self::groupDecimalString($amount)
+            : number_format($amount);
+
+        $unit = $currency->symbol !== null && $currency->symbol !== '' ? $currency->symbol : $currency->code;
+
+        return self::toDigits($formatted).' '.$unit;
+    }
+
+    /**
+     * نمایش تعداد بر اساس واحد اندازه‌گیری محصول — quantity_on_hand در
+     * دیتابیس همیشه DECIMAL(18,4) می‌ماند (برای دقت لازم است)، ولی نمایش آن
+     * برای واحدهای شمارشی (عدد) با اعشار گمراه‌کننده است («۳۰٫۰۰۰۰» به‌جای
+     * «۳۰»). برای واحدهای وزنی/حجمی تا ۲ رقم اعشار (بدون صفرهای اضافه) نشان
+     * داده می‌شود.
+     */
+    public static function formatQuantity(float|int|string $quantity, ?UnitOfMeasure $unit = null): string
+    {
+        $decimals = ($unit === null || $unit === UnitOfMeasure::Piece) ? 0 : 2;
+        $rounded = Money::round((string) $quantity, $decimals);
+
+        return self::toDigits(self::trimTrailingZeros($rounded));
+    }
+
+    protected static function trimTrailingZeros(string $value): string
+    {
+        if (! str_contains($value, '.')) {
+            return $value;
+        }
+
+        return rtrim(rtrim($value, '0'), '.');
     }
 
     /**

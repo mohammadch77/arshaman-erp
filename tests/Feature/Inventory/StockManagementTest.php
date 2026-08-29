@@ -3,6 +3,8 @@
 use App\Livewire\Inventory\LowStockReport;
 use App\Livewire\Inventory\StockIndex;
 use App\Livewire\Inventory\StockMovementForm;
+use App\Livewire\Inventory\StockMovementLedger;
+use App\Livewire\Inventory\StockTransferForm;
 use App\Livewire\Inventory\WarehouseIndex;
 use App\Modules\Catalog\Actions\CreateProduct;
 use App\Modules\Catalog\Models\Product;
@@ -736,4 +738,182 @@ it('defaults the StockMovementForm to the right movement_type per URL type', fun
     Livewire::test(StockMovementForm::class, ['type' => 'adjust'])
         ->assertOk()
         ->assertSet('movementType', 'adjustment_in');
+});
+
+it('excludes the transfer movement types from the generic movement form options', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $component = Livewire::test(StockMovementForm::class);
+    $optionValues = array_column($component->get('movementTypeOptions'), 'id');
+
+    expect($optionValues)->not->toContain('transfer_in')
+        ->and($optionValues)->not->toContain('transfer_out')
+        ->and($optionValues)->toContain('purchase_in')
+        ->and($optionValues)->toContain('sale_out')
+        ->and($optionValues)->toContain('adjustment_in')
+        ->and($optionValues)->toContain('adjustment_out');
+});
+
+it('rejects a transfer movement_type submitted directly to the generic movement form', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    Livewire::test(StockMovementForm::class)
+        ->set('movementType', 'transfer_in')
+        ->set('product_id', $product->id)
+        ->set('warehouse_id', $warehouse->id)
+        ->set('quantity', '10')
+        ->call('save')
+        ->assertHasErrors(['movementType']);
+});
+
+it('accepts persian-digit quantity input and stores it correctly (root cause of "required despite filled")', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    Livewire::test(StockMovementForm::class)
+        ->set('movementType', 'purchase_in')
+        ->set('product_id', $product->id)
+        ->set('warehouse_id', $warehouse->id)
+        ->set('quantity', '۱۵') // رقم فارسی — دقیقاً همان چیزی که کیبورد فارسی تایپ می‌کند
+        ->set('unit_cost', '۱۰۰۰')
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('inventory.stock.index'));
+
+    $stock = Stock::withoutGlobalScopes()->where('product_id', $product->id)->where('warehouse_id', $warehouse->id)->firstOrFail();
+
+    expect((float) $stock->quantity_on_hand)->toBe(15.0)
+        ->and((float) $stock->average_cost)->toBe(1000.0);
+});
+
+it('shows the real insufficient-stock error, not a numeric-validation error, when a persian-digit quantity exceeds available stock', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 5,
+    ], $user);
+
+    Livewire::test(StockMovementForm::class, ['type' => 'out'])
+        ->set('product_id', $product->id)
+        ->set('warehouse_id', $warehouse->id)
+        ->set('quantity', '۱۰۰') // رقم فارسی، بیش از موجودی واقعی (۵)
+        ->call('save')
+        ->assertHasNoErrors(); // رد باید از IssueStock (toast خطا) بیاید، نه از قانون numeric
+
+    $stock = Stock::withoutGlobalScopes()->where('product_id', $product->id)->where('warehouse_id', $warehouse->id)->firstOrFail();
+    expect((float) $stock->quantity_on_hand)->toBe(5.0);
+});
+
+it('accepts persian-digit quantity input on the stock transfer form', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $fromWarehouse = inventoryMakeWarehouse();
+    $toWarehouse = Warehouse::create(['name' => 'انبار دوم']);
+    $product = inventoryMakeProduct($company, $user);
+
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $fromWarehouse->id,
+        'quantity' => 20,
+    ], $user);
+
+    Livewire::test(StockTransferForm::class)
+        ->set('product_id', $product->id)
+        ->set('from_warehouse_id', $fromWarehouse->id)
+        ->set('to_warehouse_id', $toWarehouse->id)
+        ->set('quantity', '۱۰')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $toStock = Stock::withoutGlobalScopes()->where('product_id', $product->id)->where('warehouse_id', $toWarehouse->id)->firstOrFail();
+    expect((float) $toStock->quantity_on_hand)->toBe(10.0);
+});
+
+it('sets created_at on a stock movement (regression: BelongsToCompany creating-listener halt bug)', function () {
+    // ریشه‌ی باگ: static::creating روی BelongsToCompany به‌جای بدنه‌ی
+    // بلوکی، arrow function بود که مقدار غیر-null owner_company_id را
+    // برمی‌گرداند — چون رویداد creating با Dispatcher::until() صدا زده
+    // می‌شود (اولین پاسخ غیر-null کل زنجیره را متوقف می‌کند)، هر
+    // static::creating دیگری که بعد از این trait در booted() خودِ مدل
+    // ثبت شده بود (مثل تنظیم created_at اینجا) هرگز اجرا نمی‌شد.
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 10,
+    ], $user);
+
+    $movement = StockMovement::withoutGlobalScopes()->latest('occurred_at')->firstOrFail();
+
+    expect($movement->created_at)->not->toBeNull();
+});
+
+it('shows the real creator name in the movement ledger (User has full_name, not name)', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 10,
+    ], $user);
+
+    $stock = Stock::withoutGlobalScopes()->where('product_id', $product->id)->where('warehouse_id', $warehouse->id)->firstOrFail();
+
+    Livewire::test(StockMovementLedger::class, ['stockId' => $stock->id])
+        ->assertSee($user->full_name);
+});
+
+it('does not change average_cost explicitly when unit_cost is left empty on receive', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    // اولین دریافت هم بدون unit_cost — average_cost باید null بماند، نه صفر.
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 10,
+    ], $user);
+
+    $stock = Stock::withoutGlobalScopes()->where('product_id', $product->id)->where('warehouse_id', $warehouse->id)->firstOrFail();
+    expect($stock->average_cost)->toBeNull();
 });

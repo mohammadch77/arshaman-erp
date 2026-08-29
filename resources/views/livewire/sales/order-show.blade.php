@@ -32,11 +32,11 @@
                 @endscope
 
                 @scope('cell_unit_sale_price_amount', $line)
-                    {{ \App\Support\Farsi::toToman($line->unit_sale_price_amount) }}
+                    {{ \App\Support\Farsi::toMoney($line->unit_sale_price_amount, $order->currency) }}
                 @endscope
 
                 @scope('cell_line_total_amount', $line)
-                    {{ \App\Support\Farsi::toToman($line->line_total_amount) }}
+                    {{ \App\Support\Farsi::toMoney($line->line_total_amount, $order->currency) }}
                 @endscope
             </x-table>
         </x-card>
@@ -52,7 +52,7 @@
                         مشتری: {{ $order->party?->name ?? '—' }}
                     </div>
                     <div class="text-sm text-base-content/70">
-                        مبلغ کل: {{ \App\Support\Farsi::toToman($order->total_amount) }}
+                        مبلغ کل: {{ \App\Support\Farsi::toMoney($order->total_amount, $order->currency) }}
                     </div>
                     <div class="text-sm text-base-content/70">
                         تاریخ ثبت: {{ \App\Support\Jalali::toDisplay($order->created_at) }}

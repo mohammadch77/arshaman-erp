@@ -30,7 +30,7 @@ class StockMovementLedger extends Component
         // سوییچر مقید می‌ماند و برای شرکت دیگر بی‌صدا null برمی‌گرداند.
         $this->stock = Stock::withoutGlobalScopes()
             ->with([
-                'product' => fn ($query) => $query->withoutGlobalScopes(),
+                'product' => fn ($query) => $query->withoutGlobalScopes()->with('currency'),
                 'warehouse',
             ])
             ->findOrFail($stockId);

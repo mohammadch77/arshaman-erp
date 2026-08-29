@@ -23,11 +23,11 @@
                 @endscope
 
                 @scope('cell_quantity_on_hand', $stock)
-                    <x-badge value="{{ \App\Support\Farsi::toDigits($stock->quantity_on_hand) }}" class="badge-warning" :icon="theme_icon('warning')" />
+                    <x-badge value="{{ \App\Support\Farsi::formatQuantity($stock->quantity_on_hand, $stock->product->unit_of_measure) }}" class="badge-warning" :icon="theme_icon('warning')" />
                 @endscope
 
                 @scope('cell_reorder_point', $stock)
-                    {{ \App\Support\Farsi::toDigits($stock->reorderThreshold()) }}
+                    {{ \App\Support\Farsi::formatQuantity($stock->reorderThreshold(), $stock->product->unit_of_measure) }}
                 @endscope
             </x-table>
         @endif

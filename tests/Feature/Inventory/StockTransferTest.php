@@ -371,3 +371,57 @@ it('submits a transfer through the real StockTransferForm component and lists it
 
     expect((float) $toStock->quantity_on_hand)->toBe(3.0);
 });
+
+it('sets created_at on a stock transfer (regression: BelongsToCompany creating-listener halt bug)', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $fromWarehouse = inventoryMakeWarehouse();
+    $toWarehouse = transferMakeSecondWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $fromWarehouse->id,
+        'quantity' => 10,
+    ], $user);
+
+    Livewire::test(StockTransferForm::class)
+        ->set('product_id', $product->id)
+        ->set('from_warehouse_id', $fromWarehouse->id)
+        ->set('to_warehouse_id', $toWarehouse->id)
+        ->set('quantity', '3')
+        ->call('save');
+
+    $transfer = StockTransfer::withoutGlobalScopes()->latest('created_at')->first();
+
+    expect($transfer)->not->toBeNull()
+        ->and($transfer->created_at)->not->toBeNull();
+});
+
+it('shows the real creator name in the transfer history table (User has full_name, not name)', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $fromWarehouse = inventoryMakeWarehouse();
+    $toWarehouse = transferMakeSecondWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $fromWarehouse->id,
+        'quantity' => 10,
+    ], $user);
+
+    Livewire::test(StockTransferForm::class)
+        ->set('product_id', $product->id)
+        ->set('from_warehouse_id', $fromWarehouse->id)
+        ->set('to_warehouse_id', $toWarehouse->id)
+        ->set('quantity', '3')
+        ->call('save')
+        ->assertSee($user->full_name);
+});

@@ -10,6 +10,7 @@ use App\Modules\Inventory\Actions\ReceiveStock;
 use App\Modules\Inventory\Enums\MovementType;
 use App\Modules\Inventory\Models\Stock;
 use App\Modules\Inventory\Models\Warehouse;
+use App\Support\Farsi;
 use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
 use Livewire\Component;
@@ -45,10 +46,33 @@ class StockMovementForm extends Component
         Gate::authorize('manage', Stock::class);
     }
 
+    /**
+     * جابجایی بین انبارها (transfer_in/transfer_out) عمداً از این فرم عمومی
+     * حذف است — آن مسیر فقط از طریق فرم اختصاصی /inventory/transfer
+     * (StockTransferForm → TransferStock Action) با دو رکورد هم‌زمان ثبت
+     * می‌شود، نه به‌صورت یک حرکت تکی که اینجا انتخاب شود.
+     */
+    /**
+     * کیبورد فارسی رقم‌های ۰-۹ تایپ می‌کند که برای PHP/bcmath عدد نیستند —
+     * این دو hook همان لحظه ورودی را به رقم لاتین تبدیل می‌کنند تا کاربر
+     * فیلدی را «پر» ببیند که سرور هم واقعاً عدد تشخیص می‌دهد.
+     */
+    public function updatedQuantity(): void
+    {
+        $this->quantity = Farsi::toEnglishDigits($this->quantity);
+    }
+
+    public function updatedUnitCost(): void
+    {
+        $this->unit_cost = Farsi::toEnglishDigits($this->unit_cost);
+    }
+
     public function getMovementTypeOptionsProperty(): array
     {
         return collect(MovementType::cases())
+            ->reject(fn (MovementType $case) => in_array($case, [MovementType::TransferIn, MovementType::TransferOut], true))
             ->map(fn (MovementType $case) => ['id' => $case->value, 'name' => $case->label()])
+            ->values()
             ->all();
     }
 
@@ -60,6 +84,23 @@ class StockMovementForm extends Component
     public function getIsPurchaseProperty(): bool
     {
         return $this->movementType === MovementType::PurchaseIn->value;
+    }
+
+    /**
+     * برچسب فیلد «بهای واحد» باید ارز واقعی محصول انتخاب‌شده را نشان بدهد،
+     * نه همیشه «تومان» — همان باگ بند ۳ (نمایش واحد پول اشتباه)، این‌بار در
+     * برچسب فرم به‌جای جدول نمایش.
+     */
+    public function getUnitCostLabelProperty(): string
+    {
+        if ($this->product_id === '') {
+            return 'بهای واحد (تومان، اختیاری)';
+        }
+
+        $currency = Product::query()->find($this->product_id)?->currency;
+        $unit = $currency === null ? 'تومان' : ($currency->symbol ?: $currency->code);
+
+        return "بهای واحد ({$unit}، اختیاری)";
     }
 
     public function getIsAdjustmentProperty(): bool
@@ -83,8 +124,13 @@ class StockMovementForm extends Component
 
     protected function rules(): array
     {
+        $allowedTypes = collect(MovementType::cases())
+            ->reject(fn (MovementType $case) => in_array($case, [MovementType::TransferIn, MovementType::TransferOut], true))
+            ->map(fn (MovementType $case) => $case->value)
+            ->implode(',');
+
         return [
-            'movementType' => ['required', 'in:'.implode(',', array_column(MovementType::cases(), 'value'))],
+            'movementType' => ['required', 'in:'.$allowedTypes],
             'product_id' => ['required', 'uuid', 'exists:products,id'],
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'quantity' => ['required', 'numeric', 'gt:0'],
@@ -95,6 +141,12 @@ class StockMovementForm extends Component
 
     public function save(ReceiveStock $receiveAction, IssueStock $issueAction, AdjustStock $adjustAction, CompanyContext $companyContext): void
     {
+        // دفاع دولایه: hook های updatedQuantity/updatedUnitCost معمولاً همان لحظه
+        // تایپ رقم فارسی را لاتین می‌کنند، ولی این‌جا هم دوباره نرمال می‌شود —
+        // مستقل از این‌که چطور مقدار ست شده (مثلاً ست مستقیم در تست).
+        $this->quantity = Farsi::toEnglishDigits($this->quantity);
+        $this->unit_cost = Farsi::toEnglishDigits($this->unit_cost);
+
         $validated = $this->validate();
 
         $data = [

@@ -2,16 +2,28 @@
 
 namespace App\Livewire\Inventory;
 
+use App\Modules\Inventory\Actions\ToggleWarehouseActive;
 use App\Modules\Inventory\Models\Stock;
 use App\Modules\Inventory\Models\Warehouse;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
+use Mary\Traits\Toast;
 
 class WarehouseIndex extends Component
 {
+    use Toast;
+
     public function mount(): void
     {
         $this->authorize('viewAny', Warehouse::class);
+    }
+
+    public function toggleActive(string $warehouseId, ToggleWarehouseActive $action): void
+    {
+        $warehouse = Warehouse::findOrFail($warehouseId);
+        $action->handle($warehouse, auth()->user());
+
+        $this->success($warehouse->is_active ? 'انبار فعال شد.' : 'انبار غیرفعال شد.');
     }
 
     public function getWarehousesProperty()
@@ -35,7 +47,7 @@ class WarehouseIndex extends Component
         // (BelongsToCompany، مقید به شرکت فعال سوییچر) محصولات شرکت‌های دیگر را null
         // برمی‌گرداند، حتی وقتی خودِ ردیف Stock درست خوانده شده.
         $query = Stock::query()->with([
-            'product' => fn ($productQuery) => $canSeeAllCompanies ? $productQuery->withoutGlobalScopes() : $productQuery,
+            'product' => fn ($productQuery) => ($canSeeAllCompanies ? $productQuery->withoutGlobalScopes() : $productQuery)->with('currency'),
             'warehouse',
             'ownerCompany',
         ]);
@@ -50,6 +62,11 @@ class WarehouseIndex extends Component
     public function getCanCreateWarehouseProperty(): bool
     {
         return Gate::allows('create', Warehouse::class);
+    }
+
+    public function getCanManageWarehousesProperty(): bool
+    {
+        return Gate::allows('update', Warehouse::class);
     }
 
     public function render()

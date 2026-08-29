@@ -155,6 +155,7 @@ Route::livewire('/shipping/orders/{orderId}', ShipmentForm::class)->middleware('
 Route::livewire('/inventory/stock', StockIndex::class)->middleware('auth')->name('inventory.stock.index');
 Route::livewire('/inventory/warehouses', WarehouseIndex::class)->middleware('auth')->name('inventory.warehouses.index');
 Route::livewire('/inventory/warehouses/create', WarehouseForm::class)->middleware('auth')->name('inventory.warehouses.create');
+Route::livewire('/inventory/warehouses/{warehouse}/edit', WarehouseForm::class)->middleware('auth')->name('inventory.warehouses.edit');
 Route::livewire('/inventory/receive', StockMovementForm::class)->middleware('auth')->name('inventory.receive')->defaults('type', 'in');
 Route::livewire('/inventory/issue', StockMovementForm::class)->middleware('auth')->name('inventory.issue')->defaults('type', 'out');
 Route::livewire('/inventory/adjust', StockMovementForm::class)->middleware('auth')->name('inventory.adjust')->defaults('type', 'adjust');

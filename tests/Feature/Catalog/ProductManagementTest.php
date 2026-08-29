@@ -5,6 +5,7 @@ use App\Livewire\Catalog\ProductIndex;
 use App\Modules\Catalog\Actions\CreateProduct;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Models\Company;
+use App\Modules\Core\Models\Currency;
 use App\Modules\Core\Models\Role;
 use App\Modules\Core\Models\User;
 use App\Modules\Core\Models\UserCompanyRole;
@@ -34,6 +35,68 @@ function productActingAsWithRole(string $roleName): array
 
     return [$user, $company];
 }
+
+it('does not show the is_active checkbox on the product create form (always active by default)', function () {
+    [$user, $company] = productActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    Livewire::test(ProductForm::class)
+        ->assertDontSee('فعال')
+        ->set('name', 'محصول بدون تیک فعال')
+        ->set('sale_price', '10000')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $product = Product::where('name', 'محصول بدون تیک فعال')->firstOrFail();
+    expect($product->is_active)->toBeTrue();
+});
+
+it('shows the is_active checkbox on the product edit form', function () {
+    [$user, $company] = productActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $product = app(CreateProduct::class)->handle([
+        'owner_company_id' => $company->id,
+        'name' => 'محصول قابل ویرایش',
+        'category_id' => null,
+        'sale_price' => '10000',
+        'cost_price' => null,
+        'currency_id' => null,
+        'fulfillment_type' => 'physical',
+        'woocommerce_product_id' => null,
+        'is_active' => true,
+    ], $user);
+
+    Livewire::test(ProductForm::class, ['product' => $product->id])
+        ->assertSee('فعال');
+});
+
+it('displays a product price using its own currency symbol instead of always toman', function () {
+    [$user, $company] = productActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $usd = Currency::create(['code' => 'USD', 'name' => 'دلار آمریکا', 'symbol' => '$', 'is_active' => true]);
+
+    app(CreateProduct::class)->handle([
+        'owner_company_id' => $company->id,
+        'name' => 'محصول دلاری',
+        'category_id' => null,
+        'sale_price' => '120',
+        'cost_price' => '80',
+        'currency_id' => $usd->id,
+        'fulfillment_type' => 'physical',
+        'woocommerce_product_id' => null,
+        'is_active' => true,
+    ], $user);
+
+    Livewire::test(ProductIndex::class)
+        ->assertSee('۱۲۰ $')
+        ->assertSee('۸۰ $')
+        ->assertDontSee('۱۲۰ تومان');
+});
 
 it('shows a cost-price-missing warning in the form when cost_price is empty', function () {
     [$user, $company] = productActingAsWithRole('operator');

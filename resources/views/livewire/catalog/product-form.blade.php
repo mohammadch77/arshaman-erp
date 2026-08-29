@@ -54,7 +54,9 @@
 
             <x-input label="نقطه سفارش مجدد (خالی = بدون هشدار موجودی کم)" wire:model="reorder_point" :icon="theme_icon('warehouse')" />
 
-            <x-checkbox label="فعال" wire:model="is_active" />
+            @if($record)
+                <x-checkbox label="فعال" wire:model="is_active" />
+            @endif
 
             <x-slot:actions>
                 <x-button label="انصراف" link="{{ route('products.index') }}" class="btn-ghost" />

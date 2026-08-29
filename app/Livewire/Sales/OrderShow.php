@@ -25,7 +25,7 @@ class OrderShow extends Component
      */
     public function mount(string $orderId): void
     {
-        $this->order = Order::with('lines.product')->findOrFail($orderId);
+        $this->order = Order::with(['lines.product', 'currency'])->findOrFail($orderId);
         $this->authorize('view', $this->order);
     }
 

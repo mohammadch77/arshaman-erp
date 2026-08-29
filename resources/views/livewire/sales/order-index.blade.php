@@ -43,7 +43,7 @@
             @endscope
 
             @scope('cell_total_amount', $order)
-                {{ \App\Support\Farsi::toToman($order->total_amount) }}
+                {{ \App\Support\Farsi::toMoney($order->total_amount, $order->currency) }}
             @endscope
 
             @scope('cell_created_at', $order)

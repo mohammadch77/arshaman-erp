@@ -8,6 +8,7 @@ use App\Modules\Inventory\Actions\TransferStock;
 use App\Modules\Inventory\Models\Stock;
 use App\Modules\Inventory\Models\StockTransfer;
 use App\Modules\Inventory\Models\Warehouse;
+use App\Support\Farsi;
 use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
 use Livewire\Component;
@@ -31,6 +32,11 @@ class StockTransferForm extends Component
     public function mount(): void
     {
         Gate::authorize('manage', Stock::class);
+    }
+
+    public function updatedQuantity(): void
+    {
+        $this->quantity = Farsi::toEnglishDigits($this->quantity);
     }
 
     public function getProductOptionsProperty(): array
@@ -58,11 +64,16 @@ class StockTransferForm extends Component
         }
 
         $stock = Stock::query()
+            ->with('product')
             ->where('product_id', $this->product_id)
             ->where('warehouse_id', $this->from_warehouse_id)
             ->first();
 
-        return $stock?->quantity_on_hand;
+        if ($stock === null) {
+            return null;
+        }
+
+        return Farsi::formatQuantity($stock->quantity_on_hand, $stock->product->unit_of_measure);
     }
 
     protected function rules(): array
@@ -85,6 +96,8 @@ class StockTransferForm extends Component
 
     public function save(TransferStock $action, CompanyContext $companyContext): void
     {
+        $this->quantity = Farsi::toEnglishDigits($this->quantity);
+
         $validated = $this->validate();
 
         try {

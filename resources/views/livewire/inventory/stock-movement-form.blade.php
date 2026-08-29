@@ -19,7 +19,7 @@
 
             <x-select
                 label="محصول"
-                wire:model="product_id"
+                wire:model.live="product_id"
                 :options="$this->productOptions"
                 option-value="id"
                 option-label="name"
@@ -41,7 +41,7 @@
 
             @if ($this->isPurchase)
                 <x-input
-                    label="بهای واحد (تومان، اختیاری)"
+                    label="{{ $this->unitCostLabel }}"
                     wire:model="unit_cost"
                     hint="اگر پر شود، میانگین موزون بهای این محصول در همین انبار به‌روزرسانی می‌شود"
                 />
