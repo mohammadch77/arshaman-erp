@@ -745,15 +745,88 @@ it('excludes the transfer movement types from the generic movement form options'
     $this->actingAs($user);
     session(['active_company_id' => $company->id]);
 
-    $component = Livewire::test(StockMovementForm::class);
+    $component = Livewire::test(StockMovementForm::class, ['type' => 'adjust']);
     $optionValues = array_column($component->get('movementTypeOptions'), 'id');
 
     expect($optionValues)->not->toContain('transfer_in')
         ->and($optionValues)->not->toContain('transfer_out')
-        ->and($optionValues)->toContain('purchase_in')
-        ->and($optionValues)->toContain('sale_out')
         ->and($optionValues)->toContain('adjustment_in')
         ->and($optionValues)->toContain('adjustment_out');
+});
+
+it('shows only inbound movement types (purchase/return/adjustment-in) on the receive page', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $component = Livewire::test(StockMovementForm::class, ['type' => 'in']);
+    $optionValues = array_column($component->get('movementTypeOptions'), 'id');
+
+    expect($optionValues)->toEqual(['purchase_in', 'return_in', 'adjustment_in'])
+        ->and($optionValues)->not->toContain('sale_out')
+        ->and($optionValues)->not->toContain('waste_out')
+        ->and($optionValues)->not->toContain('adjustment_out');
+});
+
+it('shows only outbound movement types (sale/waste/adjustment-out) on the issue page', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $component = Livewire::test(StockMovementForm::class, ['type' => 'out']);
+    $optionValues = array_column($component->get('movementTypeOptions'), 'id');
+
+    expect($optionValues)->toEqual(['sale_out', 'waste_out', 'adjustment_out'])
+        ->and($optionValues)->not->toContain('purchase_in')
+        ->and($optionValues)->not->toContain('return_in')
+        ->and($optionValues)->not->toContain('adjustment_in');
+});
+
+it('rejects an outbound movement_type submitted directly to the receive page, not just hiding it in the UI', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 10,
+    ], $user);
+
+    Livewire::test(StockMovementForm::class, ['type' => 'in'])
+        ->set('movementType', 'sale_out')
+        ->set('product_id', $product->id)
+        ->set('warehouse_id', $warehouse->id)
+        ->set('quantity', '5')
+        ->call('save')
+        ->assertHasErrors(['movementType']);
+
+    $stock = Stock::withoutGlobalScopes()->where('product_id', $product->id)->where('warehouse_id', $warehouse->id)->firstOrFail();
+    expect((float) $stock->quantity_on_hand)->toBe(10.0);
+});
+
+it('rejects an inbound movement_type submitted directly to the issue page, not just hiding it in the UI', function () {
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user);
+
+    Livewire::test(StockMovementForm::class, ['type' => 'out'])
+        ->set('movementType', 'purchase_in')
+        ->set('product_id', $product->id)
+        ->set('warehouse_id', $warehouse->id)
+        ->set('quantity', '5')
+        ->call('save')
+        ->assertHasErrors(['movementType']);
+
+    $stock = Stock::withoutGlobalScopes()->where('product_id', $product->id)->where('warehouse_id', $warehouse->id)->first();
+    expect($stock)->toBeNull();
 });
 
 it('rejects a transfer movement_type submitted directly to the generic movement form', function () {

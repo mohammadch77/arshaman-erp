@@ -20,6 +20,20 @@ class StockMovementForm extends Component
 {
     use Toast;
 
+    /**
+     * نوع حرکت مجاز برای هر مسیر (جهت صفحه) — منبع واحد هم برای فیلتر
+     * dropdown سمت UI هم برای اعتبارسنجی سمت سرور (بند ۹.۱۳-مانند: هرگز
+     * فقط به مخفی‌بودن گزینه در UI اعتماد نکن). صفحه دریافت هرگز نباید
+     * بتواند نوع خروجی ثبت کند و برعکس، حتی با دستکاری مستقیم درخواست.
+     *
+     * @var array<string, list<MovementType>>
+     */
+    private const MODE_ALLOWED_TYPES = [
+        'in' => [MovementType::PurchaseIn, MovementType::ReturnIn, MovementType::AdjustmentIn],
+        'out' => [MovementType::SaleOut, MovementType::WasteOut, MovementType::AdjustmentOut],
+        'adjust' => [MovementType::AdjustmentIn, MovementType::AdjustmentOut],
+    ];
+
     public string $movementType = MovementType::PurchaseIn->value;
 
     public string $product_id = '';
@@ -33,15 +47,21 @@ class StockMovementForm extends Component
     public string $reference_note = '';
 
     /**
+     * جهت/مسیر صفحه (`in`=دریافت، `out`=خروج، `adjust`=تعدیل). فقط در
+     * mount() از پارامتر route ست می‌شود — چون یک property عمومی Livewire
+     * است، دستکاری‌اش از سمت کلاینت بدون یک snapshot معتبر امضاشده (که فقط
+     * از همین mount می‌آید) رد می‌شود؛ منبع فیلتر گزینه‌ها و اعتبارسنجی
+     * سمت سرور همین مقدار است، نه ورودی کاربر.
+     */
+    public string $mode = 'in';
+
+    /**
      * @param  'in'|'out'|'adjust'  $type  دسته کلی، برای پیش‌مقداردهی اولین گزینه‌ی همان دسته در URL/منو.
      */
     public function mount(string $type = 'in'): void
     {
-        $this->movementType = match ($type) {
-            'out' => MovementType::SaleOut->value,
-            'adjust' => MovementType::AdjustmentIn->value,
-            default => MovementType::PurchaseIn->value,
-        };
+        $this->mode = array_key_exists($type, self::MODE_ALLOWED_TYPES) ? $type : 'in';
+        $this->movementType = self::MODE_ALLOWED_TYPES[$this->mode][0]->value;
 
         Gate::authorize('manage', Stock::class);
     }
@@ -69,8 +89,7 @@ class StockMovementForm extends Component
 
     public function getMovementTypeOptionsProperty(): array
     {
-        return collect(MovementType::cases())
-            ->reject(fn (MovementType $case) => in_array($case, [MovementType::TransferIn, MovementType::TransferOut], true))
+        return collect(self::MODE_ALLOWED_TYPES[$this->mode])
             ->map(fn (MovementType $case) => ['id' => $case->value, 'name' => $case->label()])
             ->values()
             ->all();
@@ -124,8 +143,7 @@ class StockMovementForm extends Component
 
     protected function rules(): array
     {
-        $allowedTypes = collect(MovementType::cases())
-            ->reject(fn (MovementType $case) => in_array($case, [MovementType::TransferIn, MovementType::TransferOut], true))
+        $allowedTypes = collect(self::MODE_ALLOWED_TYPES[$this->mode])
             ->map(fn (MovementType $case) => $case->value)
             ->implode(',');
 
