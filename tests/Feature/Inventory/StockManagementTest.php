@@ -472,6 +472,36 @@ it('filters the low stock report to products below their reorder point', functio
         ->assertDontSee('کالای موجودی کافی');
 });
 
+it('shows a product in the low stock report using the product-level reorder_point fallback, with no stock-level override', function () {
+    // بازتولید دقیق باگ گزارش‌شده: reorder_point=5 فقط در سطح محصول تعریف
+    // شده، هیچ override ای روی stocks.reorder_point نیست. LowStockReport باید
+    // از Stock::isBelowReorderPoint()/reorderThreshold() (که به products.reorder_point
+    // fallback می‌کند) استفاده کند، نه یک شرط مستقل که فقط ستون خودِ stock را ببیند.
+    [$user, $company] = inventoryActingAsWithRole('operator');
+    $this->actingAs($user);
+    session(['active_company_id' => $company->id]);
+
+    $warehouse = inventoryMakeWarehouse();
+    $product = inventoryMakeProduct($company, $user, reorderPoint: 5);
+
+    app(ReceiveStock::class)->handle([
+        'owner_company_id' => $company->id,
+        'product_id' => $product->id,
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 3, // زیر آستانه ۵
+    ], $user);
+
+    $stock = Stock::withoutGlobalScopes()->where('product_id', $product->id)->where('warehouse_id', $warehouse->id)->firstOrFail();
+
+    expect($stock->reorder_point)->toBeNull() // بدون override سطح انبار
+        ->and((float) $stock->reorderThreshold())->toBe(5.0)
+        ->and($stock->isBelowReorderPoint())->toBeTrue();
+
+    Livewire::test(LowStockReport::class)
+        ->assertSee('کالای تستی')
+        ->assertSee('انبار مرکزی');
+});
+
 it('prevents cross-company stock access even in the same physical warehouse', function () {
     [$userA, $companyA] = inventoryActingAsWithRole('operator');
     $warehouse = inventoryMakeWarehouse();
